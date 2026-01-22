@@ -13,7 +13,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bud.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Bud precisa acessar o microfone para conversas de voz."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,8 +25,21 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.bud.app",
+      "permissions": [
+        "RECORD_AUDIO"
+      ]
     },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#ffffff"
+        }
+      ]
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
     }

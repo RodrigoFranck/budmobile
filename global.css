@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Dark Mode (tema padrão do Bud) */
+  --background: 0 0% 11.8%; /* #1E1E1E */
+  --foreground: 0 0% 100%; /* #FFFFFF */
+  --foreground-muted: 0 0% 92%; /* Tom menos branco para placeholders */
+
+  --card: 0 0% 16.5%; /* #2A2A2A */
+  --card-foreground: 0 0% 100%;
+
+  --popover: 0 0% 16.5%;
+  --popover-foreground: 0 0% 100%;
+
+  --primary: 0 0% 100%;
+  --primary-foreground: 0 0% 11.8%;
+
+  --secondary: 0 0% 18.4%; /* #2F2F2F */
+  --secondary-foreground: 0 0% 100%;
+
+  --muted: 0 0% 16.5%;
+  --muted-foreground: 0 0% 71%; /* #B5B5B5 */
+
+  --accent: 167 40% 82%; /* #bee3db */
+  --accent-foreground: 0 0% 11.8%;
+
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 0 0% 20%;
+  --input: 0 0% 16.5%;
+  --ring: 0 0% 71%;
+
+  --radius: 0.75rem; /* 12px */
+
+  --chat-user-bg: 0 0% 14%;
+  --chat-assistant-bg: 0 0% 11.8%;
+}
+
+/* Explore gradient background */
+.explore-gradient-bg {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 25%, #0f3460 50%, #1a1a2e 75%, #16213e 100%);
+}
+
