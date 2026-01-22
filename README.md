@@ -117,4 +117,3 @@ npx supabase gen types typescript --project-id YOUR_PROJECT_ID > src/integration
 - Este projeto segue o plano documentado em `ESTIMATIVA_MOBILE.md`
 - Reutiliza ~80% dos estilos Tailwind do projeto web
 - MVP estimado em 6-8 semanas
-
