@@ -40,6 +40,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "reactotron-react-native": "^5.1.18",
     "typescript": "~5.9.2"
   },
   "private": true

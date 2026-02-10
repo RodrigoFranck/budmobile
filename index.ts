@@ -1,3 +1,8 @@
+// Reactotron deve ser importado PRIMEIRO
+if (__DEV__) {
+  require('./src/config/ReactotronConfig');
+}
+
 import { registerRootComponent } from 'expo';
 
 import App from './App';

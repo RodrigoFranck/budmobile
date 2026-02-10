@@ -1,13 +1,12 @@
 import * as React from 'react';
-import { View, TouchableOpacity, Text } from 'react-native';
-import { cn } from '@/lib/utils';
+import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 
 interface TabsContextValue {
   value: string;
   onValueChange: (value: string) => void;
 }
 
-const TabsContext = React.createContext<TabsContextValue | undefined>(undefined);
+const TabsContext = React.createContext<TabsContextValue | null>(null);
 
 interface TabsProps {
   defaultValue?: string;
@@ -17,132 +16,145 @@ interface TabsProps {
   className?: string;
 }
 
-const Tabs = ({ defaultValue = 'login', value: controlledValue, onValueChange, children, className }: TabsProps) => {
-  // Initialize state with defaultValue
-  const [internalValue, setInternalValue] = React.useState(defaultValue || 'login');
+function Tabs({ defaultValue = 'login', value: controlledValue, onValueChange, children }: TabsProps) {
+  const [internalValue, setInternalValue] = React.useState(defaultValue);
   
-  // Use controlled value if provided, otherwise use internal state
   const isControlled = controlledValue !== undefined;
-  const currentValue = isControlled ? (controlledValue || defaultValue || 'login') : internalValue;
+  const currentValue = isControlled ? controlledValue : internalValue;
   
   const handleValueChange = React.useCallback((newValue: string) => {
     if (isControlled) {
-      // If controlled, call the parent's onValueChange
       onValueChange?.(newValue);
     } else {
-      // If uncontrolled, update internal state
       setInternalValue(newValue);
     }
   }, [isControlled, onValueChange]);
 
-  // Create context value with useMemo to ensure stability
-  const contextValue: TabsContextValue = React.useMemo(
-    () => ({
-      value: currentValue,
-      onValueChange: handleValueChange,
-    }),
+  const contextValue = React.useMemo(
+    () => ({ value: currentValue, onValueChange: handleValueChange }),
     [currentValue, handleValueChange]
   );
 
   return (
     <TabsContext.Provider value={contextValue}>
-      <View className={cn('w-full', className)}>{children}</View>
+      <View style={styles.container}>{children}</View>
     </TabsContext.Provider>
   );
-};
-Tabs.displayName = 'Tabs';
-
-const TabsList = React.forwardRef<View, React.ComponentProps<typeof View>>(
-  ({ className, ...props }, ref) => (
-    <View
-      ref={ref}
-      className={cn('flex flex-row items-center justify-center rounded-md bg-muted p-1', className)}
-      {...props}
-    />
-  ),
-);
-TabsList.displayName = 'TabsList';
-
-interface TabsTriggerProps extends Omit<React.ComponentProps<typeof TouchableOpacity>, 'children'> {
-  value: string;
-  children: React.ReactNode;
 }
 
-const TabsTrigger = React.forwardRef<View, TabsTriggerProps>(
-  ({ className, value, children, ...props }, ref) => {
-    const context = React.useContext(TabsContext);
-    
-    // If context is not available, render a disabled button
-    if (!context) {
-      console.warn('TabsTrigger must be used within a Tabs component');
-      return (
-        <TouchableOpacity
-          ref={ref as any}
-          className={cn('flex-1 items-center justify-center rounded-sm px-3 py-1.5 opacity-50', className)}
-          activeOpacity={0.7}
-          disabled
-          {...props}
-        >
-          <Text className="text-base font-medium text-muted-foreground" style={{ fontSize: 16 }}>
-            {children}
-          </Text>
-        </TouchableOpacity>
-      );
-    }
+interface TabsListProps {
+  children: React.ReactNode;
+  className?: string;
+}
 
-    const isActive = context.value === value;
+function TabsList({ children }: TabsListProps) {
+  return (
+    <View style={styles.tabsList}>
+      {children}
+    </View>
+  );
+}
 
-    const handlePress = React.useCallback(() => {
-      if (context?.onValueChange) {
-        context.onValueChange(value);
-      }
-    }, [context, value]);
+interface TabsTriggerProps {
+  value: string;
+  children: React.ReactNode;
+  className?: string;
+}
 
+function TabsTrigger({ value, children }: TabsTriggerProps) {
+  const context = React.useContext(TabsContext);
+  
+  if (!context) {
     return (
-      <TouchableOpacity
-        ref={ref as any}
-        onPress={handlePress}
-        className={cn(
-          'flex-1 items-center justify-center rounded-sm px-3 py-1.5',
-          isActive && 'bg-background shadow-sm',
-          className,
-        )}
-        activeOpacity={0.7}
-        {...props}
-      >
-        <Text
-          className={cn(
-            'text-base font-medium',
-            isActive ? 'text-foreground' : 'text-muted-foreground',
-          )}
-          style={{ fontSize: 16 }}
-        >
-          {children}
-        </Text>
-      </TouchableOpacity>
-    );
-  },
-);
-TabsTrigger.displayName = 'TabsTrigger';
-
-const TabsContent = React.forwardRef<View, React.ComponentProps<typeof View> & { value: string }>(
-  ({ className, value, children, ...props }, ref) => {
-    const context = React.useContext(TabsContext);
-    
-    if (!context) {
-      console.error('TabsContent must be used within a Tabs component');
-      return null;
-    }
-
-    if (context.value !== value) return null;
-
-    return (
-      <View ref={ref} className={cn('mt-2', className)} {...props}>
-        {children}
+      <View style={[styles.tabTrigger, styles.tabTriggerDisabled]}>
+        <Text style={styles.tabTriggerTextInactive}>{children}</Text>
       </View>
     );
+  }
+
+  const isActive = context.value === value;
+
+  return (
+    <TouchableOpacity
+      onPress={() => context.onValueChange(value)}
+      style={[
+        styles.tabTrigger,
+        isActive && styles.tabTriggerActive,
+      ]}
+      activeOpacity={0.7}
+    >
+      <Text style={isActive ? styles.tabTriggerTextActive : styles.tabTriggerTextInactive}>
+        {children}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+interface TabsContentProps {
+  value: string;
+  children: React.ReactNode;
+  className?: string;
+}
+
+function TabsContent({ value, children }: TabsContentProps) {
+  const context = React.useContext(TabsContext);
+  
+  if (!context || context.value !== value) {
+    return null;
+  }
+
+  return (
+    <View style={styles.tabContent}>
+      {children}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    width: '100%',
   },
-);
-TabsContent.displayName = 'TabsContent';
+  tabsList: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: 'rgba(115, 115, 115, 0.2)',
+    padding: 4,
+    marginBottom: 32,
+  },
+  tabTrigger: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  tabTriggerActive: {
+    backgroundColor: '#1c1c1c',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  tabTriggerDisabled: {
+    opacity: 0.5,
+  },
+  tabTriggerTextActive: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#ffffff',
+  },
+  tabTriggerTextInactive: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  tabContent: {
+    marginTop: 8,
+  },
+});
 
 export { Tabs, TabsList, TabsTrigger, TabsContent };

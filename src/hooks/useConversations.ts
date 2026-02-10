@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { getTodayInBrasilia } from "@/utils/dateUtils";
@@ -10,19 +10,85 @@ export function useConversations(daysLimit?: number) {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const isInitialLoadRef = useRef(true);
+  const previousDaysLimitRef = useRef<number | undefined>(undefined);
+  const hasLoadedOnceRef = useRef(false);
 
   useEffect(() => {
     if (!user) {
       setConversations([]);
       setLoading(false);
+      isInitialLoadRef.current = true;
+      previousDaysLimitRef.current = undefined;
+      hasLoadedOnceRef.current = false;
       return;
     }
 
-    fetchConversations();
+    let isMounted = true;
+    const isDaysLimitChanged = previousDaysLimitRef.current !== daysLimit;
+    const isFirstLoad = !hasLoadedOnceRef.current || isInitialLoadRef.current;
+
+    // CRÍTICO: Limpar conversas ANTES de começar a carregar para evitar mostrar dados antigos
+    if (isFirstLoad || isDaysLimitChanged) {
+      setConversations([]);
+      setLoading(true);
+    }
+
+    const fetchConversations = async () => {
+      if (!user || !isMounted) return;
+
+      try {
+        let query = supabase
+          .from("conversations")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("is_archived", false)
+          .order("updated_at", { ascending: false });
+
+        // Aplicar limite de dias baseado no plano
+        if (daysLimit) {
+          const limitDate = new Date();
+          limitDate.setDate(limitDate.getDate() - daysLimit);
+          query = query.gte("created_at", limitDate.toISOString());
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+        
+        if (!isMounted) return;
+        
+        // Remover duplicatas baseadas no ID antes de definir o estado
+        const uniqueConversations = Array.from(
+          new Map((data || []).map((conv: Conversation) => [conv.id, conv])).values()
+        );
+        
+        console.log("useConversations: Fetched", data?.length || 0, "conversations, unique:", uniqueConversations.length);
+        
+        // Atualizar estado de uma vez só, quando tudo estiver pronto
+        setConversations(uniqueConversations);
+        setLoading(false);
+        isInitialLoadRef.current = false;
+        hasLoadedOnceRef.current = true;
+      } catch (error) {
+        console.error("Error fetching conversations:", error);
+        if (isMounted) {
+          setConversations([]);
+          setLoading(false);
+        }
+      }
+    };
+
+    // Sempre buscar quando user ou daysLimit mudarem
+    if (isFirstLoad || isDaysLimitChanged) {
+      fetchConversations();
+    }
+
+    previousDaysLimitRef.current = daysLimit;
 
     // Subscribe to realtime updates
     const channel = supabase
-      .channel("conversations-changes")
+      .channel(`conversations-changes-${user.id}-${Date.now()}`)
       .on(
         "postgres_changes",
         {
@@ -32,44 +98,19 @@ export function useConversations(daysLimit?: number) {
           filter: `user_id=eq.${user.id}`,
         },
         () => {
-          fetchConversations();
+          // Atualizar em background quando há mudanças em tempo real
+          if (isMounted) {
+            fetchConversations();
+          }
         }
       )
       .subscribe();
 
     return () => {
+      isMounted = false;
       supabase.removeChannel(channel);
     };
   }, [user, daysLimit]);
-
-  const fetchConversations = async () => {
-    if (!user) return;
-
-    try {
-      let query = supabase
-        .from("conversations")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("is_archived", false)
-        .order("updated_at", { ascending: false });
-
-      // Aplicar limite de dias baseado no plano
-      if (daysLimit) {
-        const limitDate = new Date();
-        limitDate.setDate(limitDate.getDate() - daysLimit);
-        query = query.gte("created_at", limitDate.toISOString());
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      setConversations(data || []);
-    } catch (error) {
-      console.error("Error fetching conversations:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getOrCreateTodayConversation = async () => {
     if (!user) return null;
@@ -140,8 +181,12 @@ export function useConversations(daysLimit?: number) {
         .eq("id", conversationId);
 
       if (error) throw error;
+      
+      // Atualizar estado local imediatamente após exclusão bem-sucedida
+      setConversations((prev) => prev.filter((conv) => conv.id !== conversationId));
     } catch (error) {
       console.error("Error deleting conversation:", error);
+      throw error; // Re-throw para que o chamador saiba que falhou
     }
   };
 
@@ -158,6 +203,39 @@ export function useConversations(daysLimit?: number) {
     }
   };
 
+  const refetch = async () => {
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+      let query = supabase
+        .from("conversations")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_archived", false)
+        .order("updated_at", { ascending: false });
+
+      if (daysLimit) {
+        const limitDate = new Date();
+        limitDate.setDate(limitDate.getDate() - daysLimit);
+        query = query.gte("created_at", limitDate.toISOString());
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      const uniqueConversations = Array.from(
+        new Map((data || []).map((conv: Conversation) => [conv.id, conv])).values()
+      );
+      
+      setConversations(uniqueConversations);
+    } catch (error) {
+      console.error("Error refetching conversations:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     conversations,
     loading,
@@ -165,7 +243,7 @@ export function useConversations(daysLimit?: number) {
     getOrCreateTodayConversation,
     deleteConversation,
     archiveConversation,
-    refetch: fetchConversations,
+    refetch,
   };
 }
 

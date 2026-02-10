@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Tables } from "@/integrations/supabase/types";
@@ -9,19 +9,57 @@ export function useMessages(conversationId: string | null) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+  const previousConversationIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!conversationId || !user) {
       setMessages([]);
       setLoading(false);
+      previousConversationIdRef.current = null;
       return;
     }
 
+    // Se mudou a conversa, resetar e carregar
+    const conversationChanged = previousConversationIdRef.current !== conversationId;
+    if (conversationChanged) {
+      setMessages([]);
+      setLoading(true);
+      previousConversationIdRef.current = conversationId;
+    }
+
+    // Função para buscar mensagens
+    const fetchMessages = async () => {
+      if (!conversationId) return;
+
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from("messages")
+          .select("*")
+          .eq("conversation_id", conversationId)
+          .order("created_at", { ascending: true });
+
+        if (error) {
+          console.error("Error fetching messages:", error);
+          throw error;
+        }
+        
+        setMessages(data || []);
+      } catch (error) {
+        console.error("useMessages: Error fetching messages:", error);
+        setMessages([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Buscar mensagens
     fetchMessages();
 
     // Subscribe to realtime updates
+    const channelName = `messages-${conversationId}-${user.id}`;
     const channel = supabase
-      .channel(`messages-${conversationId}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
@@ -48,25 +86,6 @@ export function useMessages(conversationId: string | null) {
     };
   }, [conversationId, user]);
 
-  const fetchMessages = async () => {
-    if (!conversationId) return;
-
-    try {
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
-
-      if (error) throw error;
-      setMessages(data || []);
-    } catch (error) {
-      console.error("Error fetching messages:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const addMessage = async (content: string, role: "user" | "assistant") => {
     if (!conversationId) return null;
 
@@ -89,11 +108,32 @@ export function useMessages(conversationId: string | null) {
     }
   };
 
+  const refetch = useCallback(async () => {
+    if (!conversationId || !user) return;
+    
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+      setMessages(data || []);
+    } catch (error) {
+      console.error("Error refetching messages:", error);
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [conversationId, user]);
+
   return {
     messages,
     loading,
     addMessage,
-    refetch: fetchMessages,
+    refetch,
   };
 }
 

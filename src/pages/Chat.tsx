@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { View, KeyboardAvoidingView } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConversations } from '@/hooks/useConversations';
@@ -24,7 +24,7 @@ export default function ChatScreen() {
   const [isStreaming, setIsStreaming] = useState(false);
   const streamingIdRef = useRef<string | null>(null);
 
-  const { messages: dbMessages, loading: messagesLoading } = useMessages(currentConversationId);
+  const { messages: dbMessages, loading: messagesLoading, addMessage } = useMessages(currentConversationId);
 
   // Get or create conversation on mount
   useEffect(() => {
@@ -40,36 +40,34 @@ export default function ChatScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Combine DB messages with streaming messages
-  const allMessages = [
-    ...dbMessages.map((msg) => ({
+  // Memoizar a combinação de mensagens para evitar recálculos desnecessários
+  // Filtra streamingMessages que já aparecem no dbMessages (evita duplicatas)
+  const allMessages = useMemo(() => {
+    const dbMessagesFormatted = dbMessages.map((msg) => ({
       id: msg.id,
       role: msg.role as 'user' | 'assistant' | 'context',
       content: msg.content,
-    })),
-    ...streamingMessages,
-  ];
+    }));
+    
+    // Só incluir streaming messages que ainda não foram salvas no banco
+    // (identifica pela combinação de role + content)
+    const dbContents = new Set(dbMessages.map((m) => `${m.role}:${m.content}`));
+    const filteredStreaming = streamingMessages.filter(
+      (msg) => !dbContents.has(`${msg.role}:${msg.content}`) || msg.isStreaming
+    );
+    
+    return [...dbMessagesFormatted, ...filteredStreaming];
+  }, [dbMessages, streamingMessages]);
 
-  const handleSendMessage = async (message: string) => {
-    if (!canSendMessage) {
-      alert('Você atingiu o limite de mensagens do plano gratuito.');
-      return;
-    }
-
-    if (!currentConversationId || !user) return;
-
-    // Add user message to streaming
-    const userMessageId = `user-${Date.now()}`;
-    setStreamingMessages([
-      {
-        id: userMessageId,
-        role: 'user',
-        content: message,
-      },
-    ]);
-
-    // Create user context
-    const userContext: UserContext = {
+  // Memoizar userContext para evitar recriação a cada render
+  const userContext = useMemo<UserContext>(() => {
+    // Determinar se é a primeira interação do dia (baseado nas mensagens da conversa de hoje)
+    const todayMessages = dbMessages.filter(msg => 
+      msg.conversation_id === currentConversationId
+    );
+    const isFirstInteractionOfDay = todayMessages.length === 0;
+    
+    return {
       name: profile?.name || null,
       initialThoughts: profile?.initial_thoughts || null,
       conversationGoal: profile?.conversation_goal || null,
@@ -78,18 +76,42 @@ export default function ChatScreen() {
       gender: profile?.gender || null,
       relationship: profile?.relationship || null,
       hobbies: profile?.hobbies || null,
-      isFirstInteractionOfDay: getTodayInBrasilia() === new Date().toISOString().split('T')[0],
+      isFirstInteractionOfDay,
     };
+  }, [profile, dbMessages, currentConversationId]);
 
-    // Prepare messages for API
-    const apiMessages = allMessages
-      .filter((m) => !('isStreaming' in m && m.isStreaming))
-      .map((m) => ({
-        role: m.role === 'context' ? 'user' as const : m.role,
-        content: m.content,
-      }));
+  const handleSendMessage = useCallback(async (message: string) => {
+    if (!canSendMessage) {
+      alert('Você atingiu o limite de mensagens do plano gratuito.');
+      return;
+    }
 
-    apiMessages.push({ role: 'user' as const, content: message });
+    if (!currentConversationId || !user) return;
+
+    // Add user message to streaming (ADICIONAR ao invés de substituir)
+    const userMessageId = `user-${Date.now()}`;
+    setStreamingMessages((prev) => [
+      ...prev,
+      {
+        id: userMessageId,
+        role: 'user',
+        content: message,
+      },
+    ]);
+
+    // Save user message to database
+    const userMessagePromise = addMessage(message, 'user');
+
+    // Prepare messages for API - usar apenas mensagens do banco (já salvas)
+    const apiMessages = [
+      ...dbMessages
+        .filter((m) => m.role !== 'context' || !m.role) // Filtrar context se necessário
+        .map((m) => ({
+          role: (m.role === 'context' ? 'user' : m.role) as 'user' | 'assistant',
+          content: m.content,
+        })),
+      { role: 'user' as const, content: message },
+    ];
 
     // Start streaming
     setIsStreaming(true);
@@ -113,6 +135,7 @@ export default function ChatScreen() {
       userContext,
       onDelta: (deltaText) => {
         accumulatedContent += deltaText;
+        // Usar função de atualização para evitar dependências
         setStreamingMessages((prev) =>
           prev.map((msg) =>
             msg.id === assistantMessageId
@@ -121,7 +144,7 @@ export default function ChatScreen() {
           ),
         );
       },
-      onDone: () => {
+      onDone: async () => {
         setIsStreaming(false);
         setStreamingMessages((prev) =>
           prev.map((msg) =>
@@ -131,6 +154,14 @@ export default function ChatScreen() {
           ),
         );
         streamingIdRef.current = null;
+        
+        // Save messages to database
+        await userMessagePromise;
+        await addMessage(accumulatedContent, 'assistant');
+        
+        // Clear streaming messages since they're now in DB
+        setStreamingMessages([]);
+        
         incrementMessageCount();
       },
       onError: (error) => {
@@ -140,7 +171,7 @@ export default function ChatScreen() {
         streamingIdRef.current = null;
       },
     });
-  };
+  }, [canSendMessage, currentConversationId, user, dbMessages, userContext, incrementMessageCount, addMessage]);
 
   return (
     <View className="flex-1 bg-background">

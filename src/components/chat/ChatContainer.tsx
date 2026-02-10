@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { FlatList, View, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@/hooks/useHeaderHeight';
@@ -21,15 +21,16 @@ export function ChatContainer({ messages, loading }: ChatContainerProps) {
   // MessageInputBar height: paddingTop + input height + paddingBottom
   const inputBarHeight = Spacing.base + InputHeight.md + Math.max(insets.bottom, Spacing.base);
 
+  // Otimizar scroll - usar requestAnimationFrame ao invés de setTimeout
   useEffect(() => {
     if (messages.length > 0) {
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      });
     }
-  }, [messages]);
+  }, [messages.length]); // Só depender do length, não do array inteiro
 
-  const renderMessage = ({ item }: { item: Message }) => {
+  const renderMessage = useCallback(({ item }: { item: Message }) => {
     // Check for safety response
     if (item.role === 'assistant' && isSafetyResponse(item.content)) {
       return (
@@ -41,14 +42,14 @@ export function ChatContainer({ messages, loading }: ChatContainerProps) {
     }
 
     return <ChatMessage {...item} />;
-  };
+  }, []);
 
   return (
     <FlatList
       ref={flatListRef}
       data={messages}
       renderItem={renderMessage}
-      keyExtractor={(item, index) => `${item.id}-${index}`}
+      keyExtractor={(item) => item.id || `msg-${item.role}-${item.content.slice(0, 10)}`}
       style={{ flex: 1 }}
       contentContainerStyle={{ 
         paddingHorizontal: Spacing.base, 
@@ -56,9 +57,9 @@ export function ChatContainer({ messages, loading }: ChatContainerProps) {
         paddingBottom: inputBarHeight + Spacing.base,
       }}
       onContentSizeChange={() => {
-        setTimeout(() => {
+        requestAnimationFrame(() => {
           flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
+        });
       }}
       ListFooterComponent={
         loading ? (

@@ -22,13 +22,28 @@ export interface GroupedConversation {
 }
 
 export function groupConversationsByDate(conversations: ConversationWithDate[]): GroupedConversation[] {
+  // Remover duplicatas baseadas no ID antes de processar
+  const uniqueConversations = Array.from(
+    new Map(conversations.map(conv => [conv.id, conv])).values()
+  );
+
+  console.log("groupConversationsByDate: Input", conversations.length, "conversations, unique:", uniqueConversations.length);
+
   // Usar horário de Brasília para agrupamento correto
   const now = getNowInBrasilia();
 
   // Agrupar conversas por dia individual
   const groups: Map<string, GroupedConversation> = new Map();
+  const seenConversationIds = new Set<string>();
 
-  conversations.forEach((conv) => {
+  uniqueConversations.forEach((conv) => {
+    // Pular se já processamos esta conversa
+    if (seenConversationIds.has(conv.id)) {
+      console.warn("groupConversationsByDate: Duplicate conversation ID detected:", conv.id);
+      return;
+    }
+    seenConversationIds.add(conv.id);
+
     // Usar conversation_date se disponível, senão created_at
     const dateSource = conv.conversation_date || conv.created_at;
     // Para datas simples (YYYY-MM-DD), usar parseDateString para evitar problema de fuso
@@ -55,12 +70,16 @@ export function groupConversationsByDate(conversations: ConversationWithDate[]):
       });
     }
 
-    groups.get(dateKey)!.conversations.push({
-      id: conv.id,
-      title: conv.title || `Conversa de ${dateLabel}`,
-      dateLabel,
-      date: convDate,
-    });
+    // Verificar se a conversa já não está no grupo antes de adicionar
+    const group = groups.get(dateKey)!;
+    if (!group.conversations.some(c => c.id === conv.id)) {
+      group.conversations.push({
+        id: conv.id,
+        title: conv.title || `Conversa de ${dateLabel}`,
+        dateLabel,
+        date: convDate,
+      });
+    }
   });
 
   // Ordenar grupos por data (mais recente primeiro)

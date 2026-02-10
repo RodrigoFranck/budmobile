@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { View, Text } from 'react-native';
 import { cn } from '@/lib/utils';
 import { Typography } from '@/constants/styles';
@@ -9,7 +10,7 @@ interface ChatMessageProps {
   isStreaming?: boolean;
 }
 
-export function ChatMessage({ role, content, isStreaming }: ChatMessageProps) {
+export const ChatMessage = memo(function ChatMessage({ role, content, isStreaming }: ChatMessageProps) {
   const isUser = role === 'user';
   const isContext = role === 'context';
 
@@ -39,5 +40,5 @@ export function ChatMessage({ role, content, isStreaming }: ChatMessageProps) {
       </Text>
     </View>
   );
-}
+});
 

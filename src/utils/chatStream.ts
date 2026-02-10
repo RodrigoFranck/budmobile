@@ -25,6 +25,10 @@ export interface InsightContext {
   backgroundType?: "yesterday" | "inspired" | "frequency" | "habit";
 }
 
+/**
+ * Stream chat using XMLHttpRequest for React Native compatibility.
+ * React Native's fetch doesn't support ReadableStream, so we use XHR with onprogress.
+ */
 export async function streamChat({
   messages,
   userContext,
@@ -52,94 +56,100 @@ export async function streamChat({
       return;
     }
 
-    const resp = await fetch(CHAT_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({ messages, userContext, insightContext }),
-    });
+    // Use XMLHttpRequest for React Native streaming support
+    const xhr = new XMLHttpRequest();
+    let lastProcessedIndex = 0;
 
-    if (!resp.ok) {
-      if (resp.status === 429) {
-        onError("Limite de requisições atingido. Tente novamente mais tarde.");
-        return;
-      }
-      if (resp.status === 401) {
-        onError("Sessão expirada. Por favor, faça login novamente.");
-        return;
-      }
-      const errorData = await resp.json().catch(() => ({}));
-      onError(errorData.error || "Erro ao conectar com o assistente");
-      return;
-    }
+    xhr.open("POST", CHAT_URL, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("Authorization", `Bearer ${session.access_token}`);
 
-    if (!resp.body) {
-      onError("Resposta inválida do servidor");
-      return;
-    }
+    // Process streaming data incrementally
+    xhr.onprogress = () => {
+      const responseText = xhr.responseText;
+      const newData = responseText.substring(lastProcessedIndex);
+      lastProcessedIndex = responseText.length;
 
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let textBuffer = "";
-    let streamDone = false;
-
-    while (!streamDone) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      
-      textBuffer += decoder.decode(value, { stream: true });
-
-      let newlineIndex: number;
-      while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
-        let line = textBuffer.slice(0, newlineIndex);
-        textBuffer = textBuffer.slice(newlineIndex + 1);
-
-        if (line.endsWith("\r")) line = line.slice(0, -1);
-        if (line.startsWith(":") || line.trim() === "") continue;
+      // Process each line of SSE data
+      const lines = newData.split("\n");
+      for (const line of lines) {
+        if (!line || line.trim() === "") continue;
+        if (line.startsWith(":")) continue; // SSE comment
         if (!line.startsWith("data: ")) continue;
 
         const jsonStr = line.slice(6).trim();
-        if (jsonStr === "[DONE]") {
-          streamDone = true;
-          break;
-        }
-
-        try {
-          const parsed = JSON.parse(jsonStr);
-          const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-          if (content) onDelta(content);
-        } catch {
-          textBuffer = line + "\n" + textBuffer;
-          break;
-        }
-      }
-    }
-
-    // Final flush
-    if (textBuffer.trim()) {
-      for (let raw of textBuffer.split("\n")) {
-        if (!raw) continue;
-        if (raw.endsWith("\r")) raw = raw.slice(0, -1);
-        if (raw.startsWith(":") || raw.trim() === "") continue;
-        if (!raw.startsWith("data: ")) continue;
-        const jsonStr = raw.slice(6).trim();
         if (jsonStr === "[DONE]") continue;
+
         try {
           const parsed = JSON.parse(jsonStr);
           const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-          if (content) onDelta(content);
+          if (content) {
+            onDelta(content);
+          }
         } catch {
-          /* ignore partial leftovers */
+          // Incomplete JSON, will be processed in next chunk
         }
       }
-    }
+    };
 
-    onDone();
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        // Process any remaining data
+        const responseText = xhr.responseText;
+        const remainingData = responseText.substring(lastProcessedIndex);
+        
+        if (remainingData) {
+          const lines = remainingData.split("\n");
+          for (const line of lines) {
+            if (!line || line.trim() === "") continue;
+            if (line.startsWith(":")) continue;
+            if (!line.startsWith("data: ")) continue;
+
+            const jsonStr = line.slice(6).trim();
+            if (jsonStr === "[DONE]") continue;
+
+            try {
+              const parsed = JSON.parse(jsonStr);
+              const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+              if (content) {
+                onDelta(content);
+              }
+            } catch {
+              // Ignore incomplete JSON at the end
+            }
+          }
+        }
+        onDone();
+      } else if (xhr.status === 429) {
+        onError("Limite de requisições atingido. Tente novamente mais tarde.");
+      } else if (xhr.status === 401) {
+        onError("Sessão expirada. Por favor, faça login novamente.");
+      } else {
+        try {
+          const errorData = JSON.parse(xhr.responseText);
+          onError(errorData.error || "Erro ao conectar com o assistente");
+        } catch {
+          onError("Erro ao conectar com o assistente");
+        }
+      }
+    };
+
+    xhr.onerror = () => {
+      onError("Erro de conexão. Verifique sua internet.");
+    };
+
+    xhr.ontimeout = () => {
+      onError("Tempo de conexão esgotado. Tente novamente.");
+    };
+
+    // Set a reasonable timeout (2 minutes for long responses)
+    xhr.timeout = 120000;
+
+    // Send the request
+    xhr.send(JSON.stringify({ messages, userContext, insightContext }));
+
   } catch (error) {
     console.error("Stream error:", error);
     onError(error instanceof Error ? error.message : "Erro desconhecido");
   }
 }
-

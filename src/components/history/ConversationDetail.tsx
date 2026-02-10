@@ -25,6 +25,13 @@ export default function ConversationDetail({
   const { messages, loading } = useMessages(conversationId);
   const headerHeight = useHeaderHeight();
 
+  // Debug log
+  React.useEffect(() => {
+    console.log("ConversationDetail: Mounted with conversationId:", conversationId);
+    console.log("ConversationDetail: Messages count:", messages.length);
+    console.log("ConversationDetail: Loading:", loading);
+  }, [conversationId, messages.length, loading]);
+
   if (loading) {
     return (
       <View className="flex-1 bg-background">
@@ -53,7 +60,7 @@ export default function ConversationDetail({
           onPress={onBack}
           className="self-start"
         >
-          <Text>← Voltar</Text>
+          <Text className="text-foreground">← Voltar</Text>
         </Button>
       </View>
 
@@ -83,8 +90,8 @@ export default function ConversationDetail({
           </View>
         ) : (
           <View className="space-y-4">
-            {messages.map((message) => (
-              <View key={message.id} className="w-full py-2">
+            {messages.map((message, index) => (
+              <View key={`message-${conversationId}-${message.id}-${message.created_at}-${index}`} className="w-full py-2">
                 {message.role === 'context' ? (
                   (() => {
                     try {
@@ -128,4 +135,7 @@ export default function ConversationDetail({
     </View>
   );
 }
+
+
+
 
