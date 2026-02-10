@@ -1,7 +1,13 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { Session, User } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
+import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
+
+// Complete OAuth session in browser
+WebBrowser.maybeCompleteAuthSession();
 
 // Validation schemas
 const emailSchema = z.string().email("Email inválido").max(255, "Email muito longo");
@@ -15,6 +21,7 @@ interface AuthContextType {
   onboardingCompleted: boolean;
   signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshOnboardingStatus: () => Promise<void>;
 }
@@ -127,6 +134,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       });
 
+    // Handle deep links for OAuth callback (iOS/Android)
+    const handleDeepLink = async (url: string) => {
+      if (url.includes('#access_token=') || url.includes('?code=') || url.includes('access_token=')) {
+        // Process OAuth callback - Supabase will handle the session automatically
+        try {
+          await supabase.auth.getSession();
+        } catch (error) {
+          console.error('Error processing OAuth callback:', error);
+        }
+      }
+    };
+
+    // Listen for deep links
+    const linkingSubscription = Linking.addEventListener('url', ({ url }) => {
+      handleDeepLink(url);
+    });
+
+    // Check if app was opened via deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink(url);
+      }
+    }).catch(() => {
+      // Ignore errors
+    });
+
     // Timeout de segurança - se após 5 segundos ainda não resolveu, para de mostrar loading
     const timeoutId = setTimeout(() => {
       setLoading((current) => {
@@ -140,6 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       subscription.unsubscribe();
+      linkingSubscription.remove();
       clearTimeout(timeoutId);
     };
   }, []);
@@ -198,6 +232,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithGoogle = async () => {
+    try {
+      // Get the redirect URL for OAuth using expo-linking
+      const redirectTo = Linking.createURL('/', {
+        scheme: 'com.bud.app',
+      });
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectTo,
+          skipBrowserRedirect: false, // Let Supabase handle the redirect
+        },
+      });
+
+      if (error) {
+        return { error: new Error(error.message) };
+      }
+
+      // On mobile, open the URL in browser using WebBrowser
+      if (Platform.OS !== 'web' && data?.url) {
+        const result = await WebBrowser.openAuthSessionAsync(
+          data.url,
+          redirectTo
+        );
+
+        // Handle the result
+        if (result.type === 'success') {
+          // The OAuth flow completed, Supabase will handle the session
+          // The deep link listener will process the callback
+        } else if (result.type === 'cancel') {
+          return { error: new Error('Login cancelado pelo usuário') };
+        }
+      }
+
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
   };
@@ -216,10 +291,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       onboardingCompleted: normalizedOnboardingCompleted,
       signUp,
       signIn,
+      signInWithGoogle,
       signOut,
       refreshOnboardingStatus
     };
-  }, [session, user, loading, onboardingCompleted, signUp, signIn, signOut, refreshOnboardingStatus]);
+  }, [session, user, loading, onboardingCompleted, signUp, signIn, signInWithGoogle, signOut, refreshOnboardingStatus]);
 
   return (
     <AuthContext.Provider value={contextValue}>

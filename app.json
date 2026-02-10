@@ -17,7 +17,8 @@
       "bundleIdentifier": "com.bud.app",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Bud precisa acessar o microfone para conversas de voz."
-      }
+      },
+      "scheme": "com.bud.app"
     },
     "android": {
       "adaptiveIcon": {

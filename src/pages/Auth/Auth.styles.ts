@@ -1,10 +1,8 @@
-import { StyleSheet } from 'react-native';
-import { LayoutSpacing } from '@/constants/layout';
+import { StyleSheet, Platform } from 'react-native';
 
 export const authStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1E1E1E', // --background dark
   },
   loadingContainer: {
     flex: 1,
@@ -14,34 +12,47 @@ export const authStyles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: LayoutSpacing.authPadding.horizontal,
-    paddingVertical: 40,
+    paddingHorizontal: 24,
+    paddingTop: 80,
+    paddingBottom: 40,
   },
   content: {
     width: '100%',
   },
   header: {
-    marginBottom: 40,
     alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 20,
+  },
+  logo: {
+    width: 180,
+    height: 180,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#FFFFFF', // --foreground
+    fontSize: 64,
+    fontWeight: '400',
+    fontFamily: 'InriaSerif-Regular',
+    color: '#1E3A5F',
     marginBottom: 12,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
-    color: '#B5B5B5', // --muted-foreground
+    fontSize: 18,
+    fontWeight: '400',
+    fontFamily: 'InriaSerif-Regular',
+    color: '#4A4A4A',
     textAlign: 'center',
+    lineHeight: 22,
+    marginTop: 8,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#2A2A2A', // --card
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: 12,
     padding: 4,
-    marginBottom: 32,
+    marginTop: 32,
+    marginBottom: 24,
   },
   tab: {
     flex: 1,
@@ -50,18 +61,20 @@ export const authStyles = StyleSheet.create({
     borderRadius: 10,
   },
   tabActive: {
-    backgroundColor: '#1E1E1E', // --background
+    backgroundColor: '#FFFFFF',
   },
   tabText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#B5B5B5', // --muted-foreground
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: '#666666',
   },
   tabTextActive: {
-    color: '#FFFFFF', // --foreground
+    color: '#1E3A5F',
   },
   form: {
-    gap: 20,
+    gap: 16,
+    marginBottom: 24,
   },
   inputGroup: {
     gap: 8,
@@ -74,37 +87,141 @@ export const authStyles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#FFFFFF', // --foreground
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: '#4A4A4A',
   },
   forgotPassword: {
     fontSize: 14,
-    color: '#bee3db', // --accent
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: '#1E3A5F',
   },
   input: {
     height: 52,
-    backgroundColor: '#2A2A2A', // --input/--card
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     paddingHorizontal: 16,
     fontSize: 16,
-    color: '#FFFFFF', // --foreground
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: '#000000',
     borderWidth: 1,
-    borderColor: '#333333', // --border
+    borderColor: '#E5E5E5',
+  },
+  passwordInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 52,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+  },
+  passwordInput: {
+    flex: 1,
+    height: 52,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: '#000000',
+  },
+  eyeIcon: {
+    paddingRight: 16,
+    paddingLeft: 8,
   },
   button: {
     height: 52,
-    backgroundColor: '#FFFFFF', // --primary (dark mode)
+    backgroundColor: '#1E3A5F',
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
   buttonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1E1E1E', // --primary-foreground (dark mode)
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: '#FFFFFF',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+    gap: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(74, 74, 74, 0.3)',
+  },
+  dividerText: {
+    fontSize: 14,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: '#666666',
+  },
+  bottomSection: {
+    gap: 20,
+    paddingBottom: 20,
+  },
+  googleButton: {
+    height: 56,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  googleIconContainer: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  googleIconText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4285F4',
+  },
+  googleButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: '#000000',
+  },
+  termsText: {
+    fontSize: 14,
+    fontWeight: '400',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: '#666666',
+    textAlign: 'center',
+    paddingHorizontal: 20,
+    lineHeight: 20,
+  },
+  termsLink: {
+    textDecorationLine: 'underline',
+    color: '#666666',
   },
 });
 

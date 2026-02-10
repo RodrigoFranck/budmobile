@@ -2,12 +2,17 @@ import { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
-  ScrollView, 
-  KeyboardAvoidingView, 
-  TouchableOpacity, 
+  Image,
   TextInput,
-  ActivityIndicator
+  TouchableOpacity,
+  ActivityIndicator,
+  Linking,
+  ImageBackground,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
+import { Eye, EyeOff } from 'lucide-react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -15,13 +20,23 @@ import type { RootStackParamList } from '@/types/navigation';
 import { PlatformConstants } from '@/constants/layout';
 import { authStyles as styles } from './Auth.styles';
 
+const backgroundLogin = require('@/assets/background-login.png');
+const budLogo = require('@/assets/bud-logo.png');
+
 type Props = NativeStackScreenProps<RootStackParamList, 'Auth'>;
 
 export default function AuthScreen({ navigation }: Props) {
-  const { signUp, signIn, user, loading: authLoading } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
-  const [awaitingVerification, setAwaitingVerification] = useState(false);
+  const { signUp, signIn, signInWithGoogle, user, loading: authLoading } = useAuth();
+  const [isLoadingLogin, setIsLoadingLogin] = useState(false);
+  const [isLoadingSignup, setIsLoadingSignup] = useState(false);
+  const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
+  const [awaitingVerification, setAwaitingVerification] = useState(false);
+
+  // Password visibility states
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Login form
   const [loginEmail, setLoginEmail] = useState('');
@@ -33,10 +48,6 @@ export default function AuthScreen({ navigation }: Props) {
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
 
-  const handleForgotPassword = () => {
-    navigation.navigate('ForgotPassword');
-  };
-
   // Redirect if already logged in
   useEffect(() => {
     if (awaitingVerification) return;
@@ -46,11 +57,11 @@ export default function AuthScreen({ navigation }: Props) {
   }, [user, authLoading, awaitingVerification]);
 
   const handleLogin = async () => {
-    setIsLoading(true);
+    setIsLoadingLogin(true);
     const { error } = await signIn(loginEmail, loginPassword);
     if (error) {
       alert(`Erro ao fazer login: ${error.message}`);
-      setIsLoading(false);
+      setIsLoadingLogin(false);
     }
   };
 
@@ -60,14 +71,14 @@ export default function AuthScreen({ navigation }: Props) {
       return;
     }
 
-    setIsLoading(true);
+    setIsLoadingSignup(true);
     setAwaitingVerification(true);
 
     const { error } = await signUp(signupEmail, signupPassword, signupName);
 
     if (error) {
       alert(`Erro ao criar conta: ${error.message}`);
-      setIsLoading(false);
+      setIsLoadingSignup(false);
       setAwaitingVerification(false);
       return;
     }
@@ -77,7 +88,7 @@ export default function AuthScreen({ navigation }: Props) {
 
     if (!userId) {
       alert('Não foi possível obter o ID do usuário.');
-      setIsLoading(false);
+      setIsLoadingSignup(false);
       setAwaitingVerification(false);
       return;
     }
@@ -99,8 +110,23 @@ export default function AuthScreen({ navigation }: Props) {
       console.error('Error invoking send-auth-email:', emailErr);
     }
 
-    setIsLoading(false);
+    setIsLoadingSignup(false);
     alert('Conta criada! Verifique seu email para confirmar.');
+  };
+
+  const handleGoogleSignIn = async () => {
+    setIsLoadingGoogle(true);
+    const { error } = await signInWithGoogle();
+    
+    if (error) {
+      alert(`Erro ao fazer login: ${error.message}`);
+      setIsLoadingGoogle(false);
+    }
+    // Se não houver erro, o usuário será redirecionado pelo OAuth
+  };
+
+  const handleForgotPassword = () => {
+    navigation.navigate('ForgotPassword');
   };
 
   if (authLoading) {
@@ -112,170 +138,264 @@ export default function AuthScreen({ navigation }: Props) {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={PlatformConstants.keyboardBehavior}
+    <ImageBackground
+      source={backgroundLogin}
       style={styles.container}
-      keyboardVerticalOffset={PlatformConstants.keyboardVerticalOffset}
+      resizeMode="cover"
     >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        behavior={PlatformConstants.keyboardBehavior}
+        style={styles.container}
+        keyboardVerticalOffset={PlatformConstants.keyboardVerticalOffset}
       >
-        <View style={styles.content}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Bem-vindo</Text>
-            <Text style={styles.subtitle}>
-              Faça login ou crie sua conta para continuar
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
+            {/* Header */}
+            <View style={styles.header}>
+              <Image 
+                source={budLogo} 
+                style={styles.logo}
+                resizeMode="contain"
+              />
+              <Text style={styles.subtitle}>Você está no lugar certo.</Text>
+            </View>
+
+            {/* Tab Selector */}
+            <View style={styles.tabContainer}>
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'login' && styles.tabActive]}
+                onPress={() => setActiveTab('login')}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.tabText, activeTab === 'login' && styles.tabTextActive]}>
+                  Login
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'signup' && styles.tabActive]}
+                onPress={() => setActiveTab('signup')}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.tabText, activeTab === 'signup' && styles.tabTextActive]}>
+                  Cadastro
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Login Form */}
+            {activeTab === 'login' && (
+              <View style={styles.form}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Email</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="seu@email.com"
+                    placeholderTextColor="#B5B5B5"
+                    value={loginEmail}
+                    onChangeText={setLoginEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    editable={!isLoadingLogin}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <View style={styles.labelRow}>
+                    <Text style={styles.label}>Senha</Text>
+                    <TouchableOpacity onPress={handleForgotPassword} activeOpacity={0.7}>
+                      <Text style={styles.forgotPassword}>Esqueceu a senha?</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.passwordInputContainer}>
+                    <TextInput
+                      style={styles.passwordInput}
+                      placeholder="********"
+                      placeholderTextColor="#B5B5B5"
+                      value={loginPassword}
+                      onChangeText={setLoginPassword}
+                      secureTextEntry={!showLoginPassword}
+                      editable={!isLoadingLogin}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowLoginPassword(!showLoginPassword)}
+                      style={styles.eyeIcon}
+                      activeOpacity={0.7}
+                    >
+                      {showLoginPassword ? (
+                        <EyeOff size={20} color="#666666" />
+                      ) : (
+                        <Eye size={20} color="#666666" />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.button, isLoadingLogin && styles.buttonDisabled]}
+                  onPress={handleLogin}
+                  disabled={isLoadingLogin}
+                  activeOpacity={0.7}
+                >
+                  {isLoadingLogin ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.buttonText}>Entrar</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Signup Form */}
+            {activeTab === 'signup' && (
+              <View style={styles.form}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Nome</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Seu nome"
+                    placeholderTextColor="#B5B5B5"
+                    value={signupName}
+                    onChangeText={setSignupName}
+                    maxLength={100}
+                    editable={!isLoadingSignup}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Email</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="seu@email.com"
+                    placeholderTextColor="#B5B5B5"
+                    value={signupEmail}
+                    onChangeText={setSignupEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    maxLength={255}
+                    editable={!isLoadingSignup}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Senha</Text>
+                  <View style={styles.passwordInputContainer}>
+                    <TextInput
+                      style={styles.passwordInput}
+                      placeholder="********"
+                      placeholderTextColor="#B5B5B5"
+                      value={signupPassword}
+                      onChangeText={setSignupPassword}
+                      secureTextEntry={!showSignupPassword}
+                      editable={!isLoadingSignup}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowSignupPassword(!showSignupPassword)}
+                      style={styles.eyeIcon}
+                      activeOpacity={0.7}
+                    >
+                      {showSignupPassword ? (
+                        <EyeOff size={20} color="#666666" />
+                      ) : (
+                        <Eye size={20} color="#666666" />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Confirmar Senha</Text>
+                  <View style={styles.passwordInputContainer}>
+                    <TextInput
+                      style={styles.passwordInput}
+                      placeholder="********"
+                      placeholderTextColor="#B5B5B5"
+                      value={signupConfirmPassword}
+                      onChangeText={setSignupConfirmPassword}
+                      secureTextEntry={!showConfirmPassword}
+                      editable={!isLoadingSignup}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                      style={styles.eyeIcon}
+                      activeOpacity={0.7}
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff size={20} color="#666666" />
+                      ) : (
+                        <Eye size={20} color="#666666" />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.button, isLoadingSignup && styles.buttonDisabled]}
+                  onPress={handleSignup}
+                  disabled={isLoadingSignup}
+                  activeOpacity={0.7}
+                >
+                  {isLoadingSignup ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.buttonText}>Criar conta</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Divider */}
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>ou</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Google Sign In Button */}
+            <TouchableOpacity
+              style={[styles.googleButton, isLoadingGoogle && styles.buttonDisabled]}
+              onPress={handleGoogleSignIn}
+              disabled={isLoadingGoogle || isLoadingLogin || isLoadingSignup}
+              activeOpacity={0.7}
+            >
+              {isLoadingGoogle ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <>
+                  <View style={styles.googleIconContainer}>
+                    <View style={styles.googleIcon}>
+                      <Text style={styles.googleIconText}>G</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.googleButtonText}>Continue com o Google</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {/* Terms and Privacy */}
+            <Text style={styles.termsText}>
+              Ao se cadastrar e utilizar o Bud, você concorda com os{' '}
+              <Text 
+                style={styles.termsLink}
+                onPress={() => Linking.openURL('https://falecombud.com.br/terms')}
+              >
+                Termos de Serviço
+              </Text>
+              {' '}e{' '}
+              <Text 
+                style={styles.termsLink}
+                onPress={() => Linking.openURL('https://falecombud.com.br/privacy')}
+              >
+                Políticas de Privacidade
+              </Text>
+              .
             </Text>
           </View>
-
-          {/* Tab Selector */}
-          <View style={styles.tabContainer}>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'login' && styles.tabActive]}
-              onPress={() => setActiveTab('login')}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.tabText, activeTab === 'login' && styles.tabTextActive]}>
-                Login
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'signup' && styles.tabActive]}
-              onPress={() => setActiveTab('signup')}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.tabText, activeTab === 'signup' && styles.tabTextActive]}>
-                Cadastro
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Login Form */}
-          {activeTab === 'login' && (
-            <View style={styles.form}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="seu@email.com"
-                  placeholderTextColor="#B5B5B5"
-                  value={loginEmail}
-                  onChangeText={setLoginEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  editable={!isLoading}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <View style={styles.labelRow}>
-                  <Text style={styles.label}>Senha</Text>
-                  <TouchableOpacity onPress={handleForgotPassword} activeOpacity={0.7}>
-                    <Text style={styles.forgotPassword}>Esqueceu a senha?</Text>
-                  </TouchableOpacity>
-                </View>
-                <TextInput
-                  style={styles.input}
-                  placeholder="********"
-                  placeholderTextColor="#B5B5B5"
-                  value={loginPassword}
-                  onChangeText={setLoginPassword}
-                  secureTextEntry
-                  editable={!isLoading}
-                />
-              </View>
-
-              <TouchableOpacity
-                style={[styles.button, isLoading && styles.buttonDisabled]}
-                onPress={handleLogin}
-                disabled={isLoading}
-                activeOpacity={0.7}
-              >
-                {isLoading ? (
-                  <ActivityIndicator size="small" color="#000" />
-                ) : (
-                  <Text style={styles.buttonText}>Entrar</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Signup Form */}
-          {activeTab === 'signup' && (
-            <View style={styles.form}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Nome</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Seu nome"
-                  placeholderTextColor="#B5B5B5"
-                  value={signupName}
-                  onChangeText={setSignupName}
-                  maxLength={100}
-                  editable={!isLoading}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="seu@email.com"
-                  placeholderTextColor="#B5B5B5"
-                  value={signupEmail}
-                  onChangeText={setSignupEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  maxLength={255}
-                  editable={!isLoading}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Senha</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="********"
-                  placeholderTextColor="#B5B5B5"
-                  value={signupPassword}
-                  onChangeText={setSignupPassword}
-                  secureTextEntry
-                  editable={!isLoading}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Confirmar Senha</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="********"
-                  placeholderTextColor="#B5B5B5"
-                  value={signupConfirmPassword}
-                  onChangeText={setSignupConfirmPassword}
-                  secureTextEntry
-                  editable={!isLoading}
-                />
-              </View>
-
-              <TouchableOpacity
-                style={[styles.button, isLoading && styles.buttonDisabled]}
-                onPress={handleSignup}
-                disabled={isLoading}
-                activeOpacity={0.7}
-              >
-                {isLoading ? (
-                  <ActivityIndicator size="small" color="#000" />
-                ) : (
-                  <Text style={styles.buttonText}>Criar conta</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </ImageBackground>
   );
 }
