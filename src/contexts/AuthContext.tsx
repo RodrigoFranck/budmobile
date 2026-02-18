@@ -136,10 +136,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Handle deep links for OAuth callback (iOS/Android)
     const handleDeepLink = async (url: string) => {
-      if (url.includes('#access_token=') || url.includes('?code=') || url.includes('access_token=')) {
-        // Process OAuth callback - Supabase will handle the session automatically
+      console.log('Deep link received:', url);
+      
+      // Ignore Expo development URLs - we only want app deep links
+      if (url.startsWith('exp://')) {
+        console.log('Ignoring Expo development URL');
+        return;
+      }
+      
+      // Check for OAuth errors in the callback
+      if (url.includes('error=')) {
+        const errorMatch = url.match(/error=([^&]+)/);
+        const errorDescriptionMatch = url.match(/error_description=([^&]+)/);
+        const error = errorMatch ? decodeURIComponent(errorMatch[1]) : 'Erro desconhecido';
+        const description = errorDescriptionMatch ? decodeURIComponent(errorDescriptionMatch[1]) : '';
+        console.error('OAuth error:', error, description);
+        
+        // Show user-friendly error message
+        if (error === 'server_error' || error === 'unexpected_failure') {
+          console.error('OAuth server error - likely misconfiguration in Supabase Dashboard');
+        }
+        return;
+      }
+      
+      // Check if it's an OAuth callback
+      if (url.includes('#access_token=') || url.includes('?code=') || url.includes('access_token=') || url.includes('com.bud.app://')) {
+        // Extract hash or query params from the URL
         try {
-          await supabase.auth.getSession();
+          // If URL contains hash fragment, Supabase needs to process it
+          if (url.includes('#')) {
+            const hash = url.split('#')[1];
+            // Supabase will automatically process the session from the URL
+            await supabase.auth.getSession();
+          } else if (url.includes('?')) {
+            // Handle query params
+            await supabase.auth.getSession();
+          } else {
+            // Just check session
+            await supabase.auth.getSession();
+          }
         } catch (error) {
           console.error('Error processing OAuth callback:', error);
         }
@@ -234,16 +269,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async () => {
     try {
-      // Get the redirect URL for OAuth using expo-linking
-      const redirectTo = Linking.createURL('/', {
-        scheme: 'com.bud.app',
-      });
+      // The web app's mobile callback page receives tokens from Supabase,
+      // then redirects to the app's deep link scheme so the browser closes.
+      const mobileCallbackUrl = 'https://falecombud.com.br/auth/mobile-callback';
+
+      // IMPORTANT: Must be a full URL (with ://) so Expo can extract the scheme.
+      // Passing just 'com.bud.app' without :// makes URL(string:).scheme return nil,
+      // which prevents ASWebAuthenticationSession from detecting the callback redirect.
+      const appCallbackUrl = 'com.bud.app://auth/callback';
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: redirectTo,
-          skipBrowserRedirect: false, // Let Supabase handle the redirect
+          redirectTo: mobileCallbackUrl,
+          skipBrowserRedirect: true,
         },
       });
 
@@ -251,18 +290,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: new Error(error.message) };
       }
 
-      // On mobile, open the URL in browser using WebBrowser
-      if (Platform.OS !== 'web' && data?.url) {
+      // On mobile, open the OAuth URL in browser
+      if (data?.url) {
         const result = await WebBrowser.openAuthSessionAsync(
           data.url,
-          redirectTo
+          appCallbackUrl // Full URL so iOS extracts 'com.bud.app' as the callback scheme
         );
 
         // Handle the result
-        if (result.type === 'success') {
-          // The OAuth flow completed, Supabase will handle the session
-          // The deep link listener will process the callback
-        } else if (result.type === 'cancel') {
+        if (result.type === 'success' && result.url) {
+          console.log('OAuth callback URL:', result.url);
+
+          // Extract tokens from the hash fragment
+          // URL format: com.bud.app://auth/callback#access_token=xxx&refresh_token=xxx&...
+          const hashPart = result.url.split('#')[1];
+          if (hashPart) {
+            const params = new URLSearchParams(hashPart);
+            const accessToken = params.get('access_token');
+            const refreshToken = params.get('refresh_token');
+
+            if (accessToken && refreshToken) {
+              // Set the session manually with the extracted tokens
+              const { error: sessionError } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+              });
+
+              if (sessionError) {
+                console.error('Error setting session:', sessionError);
+                return { error: new Error(sessionError.message) };
+              }
+            }
+          }
+
+          return { error: null };
+        } else if (result.type === 'cancel' || result.type === 'dismiss') {
           return { error: new Error('Login cancelado pelo usuário') };
         }
       }

@@ -5,6 +5,23 @@ import type { Database } from './types';
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '';
 
+// Validate environment variables
+if (!SUPABASE_URL) {
+  console.error('❌ EXPO_PUBLIC_SUPABASE_URL is not set!');
+  throw new Error('EXPO_PUBLIC_SUPABASE_URL is required');
+}
+
+if (!SUPABASE_PUBLISHABLE_KEY) {
+  console.error('❌ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY is not set!');
+  throw new Error('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY is required');
+}
+
+// Log configuration (without exposing the full key)
+if (__DEV__) {
+  console.log('✅ Supabase URL:', SUPABASE_URL);
+  console.log('✅ Supabase Key:', SUPABASE_PUBLISHABLE_KEY ? `${SUPABASE_PUBLISHABLE_KEY.substring(0, 20)}...` : 'NOT SET');
+}
+
 // Custom storage adapter for Expo SecureStore
 const ExpoSecureStoreAdapter = {
   getItem: async (key: string) => {
