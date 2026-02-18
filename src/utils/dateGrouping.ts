@@ -27,8 +27,6 @@ export function groupConversationsByDate(conversations: ConversationWithDate[]):
     new Map(conversations.map(conv => [conv.id, conv])).values()
   );
 
-  console.log("groupConversationsByDate: Input", conversations.length, "conversations, unique:", uniqueConversations.length);
-
   // Usar horário de Brasília para agrupamento correto
   const now = getNowInBrasilia();
 
@@ -39,7 +37,6 @@ export function groupConversationsByDate(conversations: ConversationWithDate[]):
   uniqueConversations.forEach((conv) => {
     // Pular se já processamos esta conversa
     if (seenConversationIds.has(conv.id)) {
-      console.warn("groupConversationsByDate: Duplicate conversation ID detected:", conv.id);
       return;
     }
     seenConversationIds.add(conv.id);

@@ -25,13 +25,6 @@ export default function ConversationDetail({
   const { messages, loading } = useMessages(conversationId);
   const headerHeight = useHeaderHeight();
 
-  // Debug log
-  React.useEffect(() => {
-    console.log("ConversationDetail: Mounted with conversationId:", conversationId);
-    console.log("ConversationDetail: Messages count:", messages.length);
-    console.log("ConversationDetail: Loading:", loading);
-  }, [conversationId, messages.length, loading]);
-
   if (loading) {
     return (
       <View className="flex-1 bg-background">
@@ -121,12 +114,12 @@ export default function ConversationDetail({
                       );
                     }
                   })()
-                ) : (
+                ) : message.role === 'user' || message.role === 'assistant' ? (
                   <ChatMessage
                     role={message.role}
                     content={message.content}
                   />
-                )}
+                ) : null}
               </View>
             ))}
           </View>
