@@ -28,13 +28,9 @@ export default function HistoryScreen() {
   const headerHeight = useHeaderHeight();
   const { effectivePlan, isLoading: planLoading } = useUserPlan();
   
-  const daysLimit = planLoading 
-    ? undefined
-    : effectivePlan === 'profundo' 
-      ? undefined  // ilimitado
-      : effectivePlan === 'reflexivo' 
-        ? 30 
-        : 7; // free
+  // Histórico sempre mostra todas as conversas desde a criação da conta
+  // O limite de dias não se aplica ao histórico
+  const daysLimit = undefined;
   
   const { conversations, loading: conversationsLoading, deleteConversation } = useConversations(daysLimit);
   const [selectedConversation, setSelectedConversation] = useState<{
@@ -42,24 +38,16 @@ export default function HistoryScreen() {
     title: string;
     date: string;
   } | null>(null);
-  const [isInitialMount, setIsInitialMount] = useState(true);
   const [conversationToDelete, setConversationToDelete] = useState<ConversationToDelete | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  useEffect(() => {
-    if (!planLoading && !conversationsLoading) {
-      setIsInitialMount(false);
-    }
-  }, [planLoading, conversationsLoading]);
-
-  const isLoading = planLoading || conversationsLoading || isInitialMount;
+  const isLoading = planLoading || conversationsLoading;
 
   const groupedConversations = useMemo(() => {
     if (isLoading || conversations.length === 0) {
       return [];
     }
-    const grouped = groupConversationsByDate(conversations);
-    return grouped;
+    return groupConversationsByDate(conversations);
   }, [conversations, isLoading]);
 
   const handleLongPress = (conversation: { id: string; title: string }) => {

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Tables } from "@/integrations/supabase/types";
+import { updateConversationTitleIfNeeded } from "@/utils/generateConversationTitle";
 
 type Message = Tables<"messages">;
 
@@ -45,6 +46,14 @@ export function useMessages(conversationId: string | null) {
         }
         
         setMessages(data || []);
+
+        // Se há mensagens e a conversa pode não ter título, verificar e gerar se necessário
+        if (data && data.length > 0) {
+          // Verificar se precisa gerar título (em background, não bloquear)
+          updateConversationTitleIfNeeded(conversationId).catch(err => {
+            console.error("Error updating conversation title on fetch:", err);
+          });
+        }
       } catch (error) {
         console.error("useMessages: Error fetching messages:", error);
         setMessages([]);
@@ -101,6 +110,15 @@ export function useMessages(conversationId: string | null) {
         .single();
 
       if (error) throw error;
+
+      // Se é a primeira mensagem do usuário, gerar título da conversa
+      if (role === "user" && data) {
+        // Atualizar título em background (não bloquear)
+        updateConversationTitleIfNeeded(conversationId).catch(err => {
+          console.error("Error updating conversation title:", err);
+        });
+      }
+
       return data;
     } catch (error) {
       console.error("Error adding message:", error);

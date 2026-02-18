@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { getTodayInBrasilia } from "@/utils/dateUtils";
+import { getTodayInBrasilia, getNowInBrasilia, parseDateString } from "@/utils/dateUtils";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Conversation = Tables<"conversations">;
@@ -38,6 +38,7 @@ export function useConversations(daysLimit?: number) {
       if (!user || !isMounted) return;
 
       try {
+        // Primeiro, buscar todas as conversas do usuário (sem filtro de dias ainda)
         let query = supabase
           .from("conversations")
           .select("*")
@@ -45,25 +46,82 @@ export function useConversations(daysLimit?: number) {
           .eq("is_archived", false)
           .order("updated_at", { ascending: false });
 
-        // Aplicar limite de dias baseado no plano
-        if (daysLimit) {
-          const limitDate = new Date();
-          limitDate.setDate(limitDate.getDate() - daysLimit);
-          query = query.gte("created_at", limitDate.toISOString());
+        const { data: allConversations, error: convError } = await query;
+        if (convError) throw convError;
+
+        if (!isMounted) return;
+
+        if (!allConversations || allConversations.length === 0) {
+          setConversations([]);
+          setLoading(false);
+          isInitialLoadRef.current = false;
+          hasLoadedOnceRef.current = true;
+          return;
         }
 
-        const { data, error } = await query;
+        // Buscar IDs de conversas que têm mensagens
+        const conversationIds = allConversations.map(c => c.id);
+        const { data: messagesData, error: messagesError } = await supabase
+          .from("messages")
+          .select("conversation_id")
+          .in("conversation_id", conversationIds);
 
-        if (error) throw error;
-        
-        if (!isMounted) return;
-        
+        if (messagesError) {
+          console.error("Error fetching messages for conversations:", messagesError);
+          // Se der erro, retornar todas as conversas mesmo sem verificar mensagens
+          const uniqueConversations = Array.from(
+            new Map(allConversations.map((c: Conversation) => [c.id, c])).values()
+          );
+          setConversations(uniqueConversations);
+          setLoading(false);
+          isInitialLoadRef.current = false;
+          hasLoadedOnceRef.current = true;
+          return;
+        }
+
+        // Filtrar apenas conversas que têm mensagens
+        const conversationIdsWithMessages = Array.from(
+          new Set(messagesData?.map((m: any) => m.conversation_id) || [])
+        );
+
+        let conversationsWithMessages = allConversations.filter((c: Conversation) => 
+          conversationIdsWithMessages.includes(c.id)
+        );
+
+        // Aplicar limite de dias baseado no plano APÓS filtrar por mensagens
+        if (daysLimit) {
+          // Usar horário de Brasília para calcular o limite
+          const nowBrasilia = getNowInBrasilia();
+          const limitDate = new Date(nowBrasilia);
+          limitDate.setDate(limitDate.getDate() - daysLimit);
+          limitDate.setHours(0, 0, 0, 0); // Zerar horas para comparar apenas datas
+          
+          // Converter para string YYYY-MM-DD para comparação
+          const limitDateStr = limitDate.toISOString().split('T')[0];
+          
+          conversationsWithMessages = conversationsWithMessages.filter((c: Conversation) => {
+            // Usar conversation_date se disponível, senão created_at
+            const dateSource = c.conversation_date || c.created_at;
+            
+            // Extrair apenas a data (YYYY-MM-DD) para comparação
+            let convDateStr: string;
+            if (dateSource.includes('T')) {
+              // Timestamp completo - extrair apenas a data
+              convDateStr = dateSource.split('T')[0];
+            } else {
+              // Já está no formato YYYY-MM-DD
+              convDateStr = dateSource;
+            }
+            
+            // Comparar strings de data diretamente (YYYY-MM-DD)
+            return convDateStr >= limitDateStr;
+          });
+        }
+
         // Remover duplicatas baseadas no ID antes de definir o estado
         const uniqueConversations = Array.from(
-          new Map((data || []).map((conv: Conversation) => [conv.id, conv])).values()
+          new Map(conversationsWithMessages.map((c: Conversation) => [c.id, c])).values()
         );
-        
-        console.log("useConversations: Fetched", data?.length || 0, "conversations, unique:", uniqueConversations.length);
         
         // Atualizar estado de uma vez só, quando tudo estiver pronto
         setConversations(uniqueConversations);
@@ -208,6 +266,8 @@ export function useConversations(daysLimit?: number) {
     
     try {
       setLoading(true);
+      
+      // Primeiro, buscar todas as conversas do usuário
       let query = supabase
         .from("conversations")
         .select("*")
@@ -221,11 +281,44 @@ export function useConversations(daysLimit?: number) {
         query = query.gte("created_at", limitDate.toISOString());
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      
+      const { data: allConversations, error: convError } = await query;
+      if (convError) throw convError;
+
+      if (!allConversations || allConversations.length === 0) {
+        setConversations([]);
+        setLoading(false);
+        return;
+      }
+
+      // Buscar IDs de conversas que têm mensagens
+      const conversationIds = allConversations.map(c => c.id);
+      const { data: messagesData, error: messagesError } = await supabase
+        .from("messages")
+        .select("conversation_id")
+        .in("conversation_id", conversationIds);
+
+      if (messagesError) {
+        console.error("Error fetching messages for conversations:", messagesError);
+        // Se der erro, retornar todas as conversas mesmo sem verificar mensagens
+        const uniqueConversations = Array.from(
+          new Map(allConversations.map((c: Conversation) => [c.id, c])).values()
+        );
+        setConversations(uniqueConversations);
+        setLoading(false);
+        return;
+      }
+
+      // Filtrar apenas conversas que têm mensagens
+      const conversationIdsWithMessages = Array.from(
+        new Set(messagesData?.map((m: any) => m.conversation_id) || [])
+      );
+
+      const conversationsWithMessages = allConversations.filter((c: Conversation) => 
+        conversationIdsWithMessages.includes(c.id)
+      );
+
       const uniqueConversations = Array.from(
-        new Map((data || []).map((conv: Conversation) => [conv.id, conv])).values()
+        new Map(conversationsWithMessages.map((c: Conversation) => [c.id, c])).values()
       );
       
       setConversations(uniqueConversations);
