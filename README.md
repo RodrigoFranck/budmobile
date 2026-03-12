@@ -45,6 +45,8 @@ Aplicativo mobile do Bud desenvolvido com Expo, React Native, NativeWind e Supab
    - Android: `npm run android` (requer Android Studio)
    - Ou escaneie o QR code com Expo Go
 
+   **Conversa por voz (ElevenLabs):** usa `@elevenlabs/react-native` + LiveKit. Funciona em **development build** (não no Expo Go). O backend `chat-voice` retorna `signed_url` (web) e `token` (app nativo).
+
 ## 📁 Estrutura do Projeto
 
 ```

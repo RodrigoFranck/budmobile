@@ -19,6 +19,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/types/navigation';
 import { PlatformConstants } from '@/constants/layout';
 import { authStyles as styles } from './Auth.styles';
+import { SITE_ORIGIN } from '@/constants/auth';
 
 const backgroundLogin = require('@/assets/background-login.png');
 const budLogo = require('@/assets/bud-logo.png');
@@ -58,9 +59,14 @@ export default function AuthScreen({ navigation }: Props) {
 
   const handleLogin = async () => {
     setIsLoadingLogin(true);
-    const { error } = await signIn(loginEmail, loginPassword);
-    if (error) {
-      alert(`Erro ao fazer login: ${error.message}`);
+    try {
+      const { error } = await signIn(loginEmail.trim(), loginPassword);
+      if (error) {
+        alert(`Erro ao fazer login: ${error.message}`);
+        return;
+      }
+      // Sucesso: onAuthStateChange atualiza sessão; evita botão travado em loading
+    } finally {
       setIsLoadingLogin(false);
     }
   };
@@ -94,18 +100,19 @@ export default function AuthScreen({ navigation }: Props) {
     }
 
     try {
-      const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-      const baseUrl = SUPABASE_URL.replace('/rest/v1', '');
-
-      await supabase.functions.invoke('send-auth-email', {
+      // email_confirmation monta link `${redirectTo}/verify?token=...` — precisa ser origem do site, não URL do Supabase
+      const { error: fnError } = await supabase.functions.invoke('send-auth-email', {
         body: {
-          email: signupEmail,
+          email: signupEmail.trim(),
           type: 'email_confirmation',
           name: signupName,
-          userId: userId,
-          redirectTo: baseUrl,
+          userId,
+          redirectTo: SITE_ORIGIN,
         },
       });
+      if (fnError) {
+        console.error('send-auth-email error:', fnError);
+      }
     } catch (emailErr) {
       console.error('Error invoking send-auth-email:', emailErr);
     }
@@ -116,13 +123,14 @@ export default function AuthScreen({ navigation }: Props) {
 
   const handleGoogleSignIn = async () => {
     setIsLoadingGoogle(true);
-    const { error } = await signInWithGoogle();
-    
-    if (error) {
-      alert(`Erro ao fazer login: ${error.message}`);
+    try {
+      const { error } = await signInWithGoogle();
+      if (error) {
+        alert(`Erro ao fazer login: ${error.message}`);
+      }
+    } finally {
       setIsLoadingGoogle(false);
     }
-    // Se não houver erro, o usuário será redirecionado pelo OAuth
   };
 
   const handleForgotPassword = () => {

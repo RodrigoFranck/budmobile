@@ -67,7 +67,7 @@ export default function HomeScreen() {
                   variant="ghost"
                   className="w-full"
                 >
-                  Configurações
+                  Preferências
                 </Button>
                 <Button
                   onPress={signOut}
