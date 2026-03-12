@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 import { Mic, MicOff } from 'lucide-react-native';
-import type { Session } from '@supabase/supabase-js';
+import { useConversation } from '@elevenlabs/react-native';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserPlan } from '@/hooks/useUserPlan';
 import { isSafetyResponse } from '@/utils/safetyDetection';
@@ -24,7 +24,6 @@ import {
   type UserContext,
 } from '@/voice/voicePrompt';
 import { colors } from '@/lib/colors';
-import { VoiceWebViewModal } from '@/voice/VoiceWebViewModal';
 
 interface ElevenLabsMessage {
   source: 'user' | 'ai';
@@ -62,8 +61,153 @@ export interface VoiceInterfaceRef {
   endConversation: () => Promise<void>;
 }
 
+function VoiceInterfaceNativeInner(
+  {
+    onTranscript,
+    onVoiceModeChange,
+    onUserMessage,
+    onAssistantMessage,
+    onAssistantTranscript,
+    onSpeakingChange,
+    onSafetyTriggered,
+    userContext,
+    messageHistory,
+    recentInsights,
+    internalProfile,
+  }: VoiceInterfaceProps,
+  ref: React.Ref<VoiceInterfaceRef>,
+) {
+  const { canAccess } = useUserPlan();
+  const processedRef = useRef<Set<string>>(new Set());
+
+  const conversation = useConversation({
+    onConnect: () => {
+      onVoiceModeChange?.(true);
+    },
+    onDisconnect: () => {
+      onVoiceModeChange?.(false);
+    },
+    onMessage: (props: { message: string; source: 'user' | 'ai' }) => {
+      const text = (props.message || '').trim();
+      if (!text) return;
+      const messageKey = `${props.source}-${text}`;
+      if (processedRef.current.has(messageKey)) return;
+      processedRef.current.add(messageKey);
+      setTimeout(() => processedRef.current.delete(messageKey), 10000);
+      if (props.source === 'user') {
+        onTranscript?.(text);
+        onUserMessage?.(text);
+      }
+      if (props.source === 'ai') {
+        if (isSafetyResponse(text)) {
+          onAssistantMessage?.(text);
+          conversation.endSession();
+          onVoiceModeChange?.(false);
+          onTranscript?.('');
+          processedRef.current.clear();
+          onSafetyTriggered?.();
+          Alert.alert(
+            'Apoio disponível',
+            'Se precisar de ajuda, o CVV está disponível 24h pelo 188.',
+          );
+          return;
+        }
+        onAssistantMessage?.(text);
+        onAssistantTranscript?.(text);
+      }
+    },
+    onModeChange: (props: { mode: 'speaking' | 'listening' }) => {
+      onSpeakingChange?.(props.mode === 'speaking');
+    },
+    onError: (message: string) => {
+      Alert.alert('Erro', message || 'Erro na conexão de voz');
+      onVoiceModeChange?.(false);
+    },
+  });
+
+  const endConversation = useCallback(async () => {
+    await conversation.endSession();
+    onVoiceModeChange?.(false);
+    onTranscript?.('');
+    processedRef.current.clear();
+  }, [conversation, onVoiceModeChange, onTranscript]);
+
+  useImperativeHandle(ref, () => ({ endConversation }), [endConversation]);
+
+  const [isLoading, setIsLoading] = useState(false);
+
+  const startConversation = useCallback(async () => {
+    if (!__DEV__ && !canAccess('voice_mode')) {
+      Alert.alert(
+        'Modo de voz',
+        'Converse com o Bud por voz no plano Profundo. Faça upgrade para desbloquear.',
+      );
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('chat-voice');
+      if (error) {
+        const serverMsg =
+          typeof error === 'object' && error !== null && 'message' in error
+            ? String((error as { message?: string }).message)
+            : null;
+        throw new Error(serverMsg || 'Erro ao obter token de voz');
+      }
+      const token = data?.token as string | undefined;
+      if (!token) throw new Error('Token de voz não retornado');
+      await conversation.startSession({ conversationToken: token });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Falha ao iniciar conversa';
+      Alert.alert('Erro', msg);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [canAccess, conversation]);
+
+  const isConnected = conversation.status === 'connected';
+
+  return (
+    <View className="justify-center">
+      <TouchableOpacity
+        onPress={isConnected ? endConversation : startConversation}
+        disabled={isLoading}
+        accessibilityRole="button"
+        accessibilityLabel={
+          isConnected ? 'Encerrar voz' : 'Iniciar conversa por voz'
+        }
+        className="h-10 w-10 items-center justify-center"
+      >
+        {isLoading ? (
+          <ActivityIndicator size="small" color={colors.foreground} />
+        ) : isConnected ? (
+          <MicOff size={22} color={colors.destructive} />
+        ) : (
+          <Mic size={22} color={colors['foreground-muted']} />
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const VoiceInterfaceNative = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
+  VoiceInterfaceNativeInner,
+);
+
 export const VoiceInterface = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
-  function VoiceInterface(
+  function VoiceInterface(props, ref) {
+    if (Platform.OS !== 'web') {
+      return <VoiceInterfaceNative ref={ref} {...props} />;
+    }
+
+    return (
+      <VoiceInterfaceWeb ref={ref} {...props} />
+    );
+  },
+);
+
+const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
+  function VoiceInterfaceWeb(
     {
       onTranscript,
       onVoiceModeChange,
@@ -82,17 +226,10 @@ export const VoiceInterface = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>
     const { canAccess } = useUserPlan();
     const [isConnected, setIsConnected] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [webViewVisible, setWebViewVisible] = useState(false);
-    const [webSession, setWebSession] = useState<Session | null>(null);
     const conversationRef = useRef<ElevenLabsConversation | null>(null);
     const processedMessagesRef = useRef<Set<string>>(new Set());
 
     const endConversation = useCallback(async () => {
-      if (Platform.OS !== 'web' && webViewVisible) {
-        setWebViewVisible(false);
-        onVoiceModeChange?.(false);
-        return;
-      }
       if (conversationRef.current) {
         await conversationRef.current.endSession();
         conversationRef.current = null;
@@ -101,7 +238,7 @@ export const VoiceInterface = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>
         onTranscript?.('');
         processedMessagesRef.current.clear();
       }
-    }, [onVoiceModeChange, onTranscript, webViewVisible]);
+    }, [onVoiceModeChange, onTranscript]);
 
     useImperativeHandle(ref, () => ({ endConversation }), [endConversation]);
 
@@ -113,36 +250,13 @@ export const VoiceInterface = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>
         );
         return;
       }
-
-      if (Platform.OS !== 'web') {
-        setIsLoading(true);
-        try {
-          const { data, error } = await supabase.auth.getSession();
-          if (error || !data.session) {
-            Alert.alert(
-              'Sessão necessária',
-              'Entre no app antes de usar a conversa por voz na web.',
-            );
-            return;
-          }
-          setWebSession(data.session);
-          setWebViewVisible(true);
-        } finally {
-          setIsLoading(false);
-        }
-        return;
-      }
-
       setIsLoading(true);
       try {
         const { data, error } = await supabase.functions.invoke('chat-voice');
         if (error) throw error;
-
         const signedUrl = data?.signed_url as string | undefined;
         if (!signedUrl) throw new Error('Failed to get signed URL');
-
         const { Conversation } = await import('@11labs/client');
-
         conversationRef.current = await Conversation.startSession({
           signedUrl,
           overrides: {
@@ -171,17 +285,17 @@ export const VoiceInterface = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>
             const source = message.source;
             const text = (message.message || message.content || '').trim();
             if (!text) return;
-
             const messageKey = `${source}-${text}`;
             if (processedMessagesRef.current.has(messageKey)) return;
             processedMessagesRef.current.add(messageKey);
-            setTimeout(() => processedMessagesRef.current.delete(messageKey), 10000);
-
+            setTimeout(
+              () => processedMessagesRef.current.delete(messageKey),
+              10000,
+            );
             if (source === 'user') {
               onTranscript?.(text);
               onUserMessage?.(text);
             }
-
             if (source === 'ai') {
               if (isSafetyResponse(text)) {
                 onAssistantMessage?.(text);
@@ -216,7 +330,8 @@ export const VoiceInterface = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>
           },
         });
       } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Falha ao iniciar conversa';
+        const msg =
+          e instanceof Error ? e.message : 'Falha ao iniciar conversa';
         Alert.alert('Erro', msg);
         setIsLoading(false);
       }
@@ -241,35 +356,20 @@ export const VoiceInterface = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>
       };
     }, []);
 
-    const isNativeVoiceOpen = Platform.OS !== 'web' && webViewVisible;
-
     return (
       <View className="justify-center">
-        <VoiceWebViewModal
-          visible={webViewVisible}
-          session={webSession}
-          onClose={() => {
-            setWebViewVisible(false);
-            setWebSession(null);
-            onVoiceModeChange?.(false);
-          }}
-        />
         <TouchableOpacity
-          onPress={
-            isConnected || isNativeVoiceOpen ? endConversation : startConversation
-          }
+          onPress={isConnected ? endConversation : startConversation}
           disabled={isLoading}
           accessibilityRole="button"
           accessibilityLabel={
-            isConnected || isNativeVoiceOpen
-              ? 'Encerrar voz'
-              : 'Iniciar conversa por voz'
+            isConnected ? 'Encerrar voz' : 'Iniciar conversa por voz'
           }
           className="h-10 w-10 items-center justify-center"
         >
           {isLoading ? (
             <ActivityIndicator size="small" color={colors.foreground} />
-          ) : isConnected || isNativeVoiceOpen ? (
+          ) : isConnected ? (
             <MicOff size={22} color={colors.destructive} />
           ) : (
             <Mic size={22} color={colors['foreground-muted']} />

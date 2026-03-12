@@ -3,6 +3,8 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import { ActivityIndicator, View } from 'react-native';
+import { Platform } from 'react-native';
+import { ElevenLabsProvider } from '@elevenlabs/react-native';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import AppNavigator from '@/navigation/AppNavigator';
@@ -21,7 +23,7 @@ export default function App() {
     );
   }
 
-  return (
+  const content = (
     <SafeAreaProvider>
       <AuthProvider>
         <SidebarProvider>
@@ -31,4 +33,16 @@ export default function App() {
       </AuthProvider>
     </SafeAreaProvider>
   );
+
+  if (Platform.OS !== 'web') {
+    return (
+      <ElevenLabsProvider
+        audioSessionConfig={{ allowMixingWithOthers: false }}
+      >
+        {content}
+      </ElevenLabsProvider>
+    );
+  }
+
+  return content;
 }

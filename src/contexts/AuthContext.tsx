@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { Platform } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
+import * as Crypto from 'expo-crypto';
 import { supabase } from '@/integrations/supabase/client';
 import { MOBILE_OAUTH_WEB_CALLBACK } from '@/constants/auth';
 import { z } from 'zod';
+
+const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '';
 
 // Complete OAuth session in browser
 WebBrowser.maybeCompleteAuthSession();
@@ -268,39 +270,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async () => {
     try {
-      /**
-       * Alinhado ao budmind: redirect HTTPS para /auth/mobile-callback, que repassa
-       * o hash para com.bud.app://auth/callback (MobileAuthCallback.tsx).
-       */
-      const redirectTo = MOBILE_OAUTH_WEB_CALLBACK;
+      const rawNonce = Crypto.randomUUID();
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        rawNonce
+      );
+
       const appCallbackUrl = Linking.createURL('auth/callback', {
         scheme: 'com.bud.app',
       });
 
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo,
-          skipBrowserRedirect: true,
-        },
+      const params = new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        redirect_uri: MOBILE_OAUTH_WEB_CALLBACK,
+        response_type: 'id_token',
+        scope: 'openid email profile',
+        nonce: hashedNonce,
+        prompt: 'select_account',
       });
 
-      if (error) {
-        return { error: new Error(error.message) };
-      }
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 
-      if (Platform.OS === 'web') {
-        if (data?.url && typeof globalThis !== 'undefined' && 'location' in globalThis) {
-          (globalThis as unknown as { location: { href: string } }).location.href = data.url;
-        }
-        return { error: null };
-      }
-
-      if (!data?.url) {
-        return { error: new Error('URL de OAuth não retornada') };
-      }
-
-      const result = await WebBrowser.openAuthSessionAsync(data.url, appCallbackUrl);
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, appCallbackUrl);
 
       if (result.type === 'cancel' || result.type === 'dismiss') {
         return { error: new Error('Login cancelado pelo usuário') };
@@ -308,31 +299,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (result.type === 'success' && result.url) {
         const hashIndex = result.url.indexOf('#');
-        if (hashIndex !== -1) {
-          const fragment = result.url.slice(hashIndex + 1);
-          const params = new URLSearchParams(fragment);
-          const errorParam = params.get('error');
-          const errorDescription = params.get('error_description');
-          if (errorParam) {
-            return {
-              error: new Error(
-                errorDescription
-                  ? decodeURIComponent(errorDescription.replace(/\+/g, ' '))
-                  : errorParam
-              ),
-            };
-          }
-          const access_token = params.get('access_token');
-          const refresh_token = params.get('refresh_token');
-          if (access_token && refresh_token) {
-            const { error: sessionError } = await supabase.auth.setSession({
-              access_token,
-              refresh_token,
-            });
-            if (sessionError) {
-              return { error: new Error(sessionError.message) };
-            }
-          }
+        if (hashIndex === -1) {
+          return { error: new Error('Resposta do Google sem tokens') };
+        }
+
+        const fragment = result.url.slice(hashIndex + 1);
+        const responseParams = new URLSearchParams(fragment);
+
+        const errorParam = responseParams.get('error');
+        if (errorParam) {
+          const errorDescription = responseParams.get('error_description');
+          return {
+            error: new Error(
+              errorDescription
+                ? decodeURIComponent(errorDescription.replace(/\+/g, ' '))
+                : errorParam
+            ),
+          };
+        }
+
+        const idToken = responseParams.get('id_token');
+        if (!idToken) {
+          return { error: new Error('ID token não recebido do Google') };
+        }
+
+        const { error: signInError } = await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: idToken,
+          nonce: rawNonce,
+        });
+
+        if (signInError) {
+          return { error: new Error(signInError.message) };
         }
       }
 
@@ -343,7 +341,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      const { error } = await supabase.auth.signOut({ scope: 'global' });
+
+      // Se a sessão já não existir mais, tratamos como "já está deslogado"
+      if (error) {
+        const message = error.message ?? '';
+        const name = (error as { name?: string }).name ?? '';
+        const status = (error as { status?: number }).status;
+
+        const isSessionMissingError =
+          message.includes('session_not_found') ||
+          message.includes('Auth session missing') ||
+          name === 'AuthSessionMissingError' ||
+          status === 400;
+
+        if (!isSessionMissingError) {
+          console.error('Error signing out:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Unexpected sign out error:', error);
+    } finally {
+      setSession(null);
+      setUser(null);
+    }
   };
 
   // Ensure all values are properly typed with useMemo to prevent re-creation
