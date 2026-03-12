@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '@/integrations/supabase/client';
+import { MOBILE_OAUTH_WEB_CALLBACK } from '@/constants/auth';
 import { z } from 'zod';
 
 // Complete OAuth session in browser
@@ -134,15 +135,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       });
 
-    // Handle deep links for OAuth callback (iOS/Android)
+    const applySessionFromOAuthUrl = async (url: string): Promise<{ error: Error | null }> => {
+      if (!url.includes('access_token') && !url.includes('error=')) {
+        return { error: null };
+      }
+      const hashIndex = url.indexOf('#');
+      if (hashIndex === -1) {
+        return { error: null };
+      }
+      const fragment = url.slice(hashIndex + 1);
+      const params = new URLSearchParams(fragment);
+      const errorParam = params.get('error');
+      const errorDescription = params.get('error_description');
+      if (errorParam) {
+        return {
+          error: new Error(
+            errorDescription ? decodeURIComponent(errorDescription.replace(/\+/g, ' ')) : errorParam
+          ),
+        };
+      }
+      const access_token = params.get('access_token');
+      const refresh_token = params.get('refresh_token');
+      if (!access_token || !refresh_token) {
+        return { error: null };
+      }
+      const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+      if (error) {
+        return { error: new Error(error.message) };
+      }
+      return { error: null };
+    };
+
     const handleDeepLink = async (url: string) => {
-      if (url.includes('#access_token=') || url.includes('?code=') || url.includes('access_token=')) {
-        // Process OAuth callback - Supabase will handle the session automatically
-        try {
-          await supabase.auth.getSession();
-        } catch (error) {
-          console.error('Error processing OAuth callback:', error);
+      if (!url.includes('auth/callback') && !url.includes('access_token')) {
+        return;
+      }
+      try {
+        const { error } = await applySessionFromOAuthUrl(url);
+        if (error) {
+          console.error('OAuth callback error:', error);
         }
+      } catch (e) {
+        console.error('Error processing OAuth callback:', e);
       }
     };
 
@@ -234,16 +268,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async () => {
     try {
-      // Get the redirect URL for OAuth using expo-linking
-      const redirectTo = Linking.createURL('/', {
+      /**
+       * Alinhado ao budmind: redirect HTTPS para /auth/mobile-callback, que repassa
+       * o hash para com.bud.app://auth/callback (MobileAuthCallback.tsx).
+       */
+      const redirectTo = MOBILE_OAUTH_WEB_CALLBACK;
+      const appCallbackUrl = Linking.createURL('auth/callback', {
         scheme: 'com.bud.app',
       });
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: redirectTo,
-          skipBrowserRedirect: false, // Let Supabase handle the redirect
+          redirectTo,
+          skipBrowserRedirect: true,
         },
       });
 
@@ -251,19 +289,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: new Error(error.message) };
       }
 
-      // On mobile, open the URL in browser using WebBrowser
-      if (Platform.OS !== 'web' && data?.url) {
-        const result = await WebBrowser.openAuthSessionAsync(
-          data.url,
-          redirectTo
-        );
+      if (Platform.OS === 'web') {
+        if (data?.url && typeof globalThis !== 'undefined' && 'location' in globalThis) {
+          (globalThis as unknown as { location: { href: string } }).location.href = data.url;
+        }
+        return { error: null };
+      }
 
-        // Handle the result
-        if (result.type === 'success') {
-          // The OAuth flow completed, Supabase will handle the session
-          // The deep link listener will process the callback
-        } else if (result.type === 'cancel') {
-          return { error: new Error('Login cancelado pelo usuário') };
+      if (!data?.url) {
+        return { error: new Error('URL de OAuth não retornada') };
+      }
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, appCallbackUrl);
+
+      if (result.type === 'cancel' || result.type === 'dismiss') {
+        return { error: new Error('Login cancelado pelo usuário') };
+      }
+
+      if (result.type === 'success' && result.url) {
+        const hashIndex = result.url.indexOf('#');
+        if (hashIndex !== -1) {
+          const fragment = result.url.slice(hashIndex + 1);
+          const params = new URLSearchParams(fragment);
+          const errorParam = params.get('error');
+          const errorDescription = params.get('error_description');
+          if (errorParam) {
+            return {
+              error: new Error(
+                errorDescription
+                  ? decodeURIComponent(errorDescription.replace(/\+/g, ' '))
+                  : errorParam
+              ),
+            };
+          }
+          const access_token = params.get('access_token');
+          const refresh_token = params.get('refresh_token');
+          if (access_token && refresh_token) {
+            const { error: sessionError } = await supabase.auth.setSession({
+              access_token,
+              refresh_token,
+            });
+            if (sessionError) {
+              return { error: new Error(sessionError.message) };
+            }
+          }
         }
       }
 
