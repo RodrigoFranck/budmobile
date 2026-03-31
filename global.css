@@ -3,10 +3,48 @@
 @tailwind utilities;
 
 :root {
-  /* Dark Mode (tema padrão do Bud) */
+  /* Light Mode */
+  --background: 30 38% 95%; /* #F7F1ED */
+  --foreground: 20 16% 10%; /* #1D1916 */
+  --foreground-muted: 20 12% 28%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 20 16% 10%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 20 16% 10%;
+
+  --primary: 177 45% 33%; /* #2E7D7A */
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 24 24% 90%;
+  --secondary-foreground: 20 16% 10%;
+
+  --muted: 24 24% 90%;
+  --muted-foreground: 20 12% 32%;
+
+  --accent: 167 40% 82%; /* #bee3db */
+  --accent-foreground: 20 16% 10%;
+
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 20 10% 82%;
+  --input: 0 0% 100%;
+  --ring: 20 12% 48%;
+
+  --radius: 0.75rem; /* 12px */
+
+  --chat-user-bg: 30 22% 92%;
+  --chat-assistant-bg: 30 38% 95%;
+}
+
+.dark :root,
+:root.dark {
+  /* Dark Mode */
   --background: 0 0% 11.8%; /* #1E1E1E */
   --foreground: 0 0% 100%; /* #FFFFFF */
-  --foreground-muted: 0 0% 92%; /* Tom menos branco para placeholders */
+  --foreground-muted: 0 0% 92%;
 
   --card: 0 0% 16.5%; /* #2A2A2A */
   --card-foreground: 0 0% 100%;

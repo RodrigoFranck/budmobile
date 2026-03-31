@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { getTodayInBrasilia } from "@/utils/dateUtils";
 
 export interface Insight {
   title: string;
@@ -56,7 +55,7 @@ export function useExploreInsights() {
     }
 
     const fetchInsights = async () => {
-      const today = getTodayInBrasilia();
+      
       
 
       // Contar TODAS as conversas (histórico total) para cálculo de ciclo
@@ -68,39 +67,23 @@ export function useExploreInsights() {
 
       const totalConversationCount = totalCount || 0;
       
-      // Fetch daily insights (yesterday, general)
-      let { data: dailyInsights } = await supabase
+      // Insights devem refletir interações antigas:
+      // buscar os mais recentes por tipo, ordenando por insight_date desc.
+      const insightTypeValues = [
+        'yesterday_journey',
+        'general_insight',
+        'frequency',
+        'habit',
+      ] as const;
+
+      const { data: insightsData } = await supabase
         .from('user_insights')
         .select('*, context_summary, internal_context, conversation_id, cycle_conversation_count')
         .eq('user_id', user.id)
-        .eq('insight_date', today)
-        .in('insight_type', ['yesterday_journey', 'general_insight']);
+        .in('insight_type', insightTypeValues)
+        .order('insight_date', { ascending: false });
 
-      // Fallback: Se não encontrou insights de hoje, buscar os mais recentes
-      if (!dailyInsights || dailyInsights.length === 0) {
-        const { data: fallbackInsights } = await supabase
-          .from('user_insights')
-          .select('*, context_summary, internal_context, conversation_id, cycle_conversation_count')
-          .eq('user_id', user.id)
-          .in('insight_type', ['yesterday_journey', 'general_insight'])
-          .order('insight_date', { ascending: false })
-          .limit(2);
-        
-        if (fallbackInsights && fallbackInsights.length > 0) {
-          dailyInsights = fallbackInsights;
-        }
-      }
-
-      // Fetch frequency and habit insights - buscar mais recentes
-      const { data: otherInsights } = await supabase
-        .from('user_insights')
-        .select('*, context_summary, internal_context, cycle_conversation_count')
-        .eq('user_id', user.id)
-        .in('insight_type', ['frequency', 'habit'])
-        .order('insight_date', { ascending: false })
-        .limit(2);
-
-      const insights = [...(dailyInsights || []), ...(otherInsights || [])];
+      const insights = insightsData || [];
 
       // Mensagens empáticas padrão no estilo Bud
       const fallbackMessages = {

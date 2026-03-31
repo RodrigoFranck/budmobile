@@ -2,18 +2,32 @@ import './global.css';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
-import { ActivityIndicator, View } from 'react-native';
-import { Platform } from 'react-native';
-import { ElevenLabsProvider } from '@elevenlabs/react-native';
+import { Fraunces_400Regular } from '@expo-google-fonts/fraunces';
+import { Audio } from 'expo-av';
+import { useEffect } from 'react';
+import { ActivityIndicator, Platform, View } from 'react-native';
+import { ConversationProvider } from '@elevenlabs/react-native';
 import { AuthProvider } from '@/contexts/AuthContext';
-import { SidebarProvider } from '@/contexts/SidebarContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import AppNavigator from '@/navigation/AppNavigator';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
     'InriaSerif-Regular': require('./assets/fonts/InriaSerif-Regular.ttf'),
     'InriaSerif-Bold': require('./assets/fonts/InriaSerif-Bold.ttf'),
+    InstrumentSans: require('./assets/fonts/InstrumentSans-Variable.ttf'),
+    Fraunces_400Regular,
   });
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    Audio.setAudioModeAsync({
+      allowsRecordingIOS: true,
+      playsInSilentModeIOS: true,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    }).catch(() => {});
+  }, []);
 
   if (!fontsLoaded) {
     return (
@@ -26,21 +40,19 @@ export default function App() {
   const content = (
     <SafeAreaProvider>
       <AuthProvider>
-        <SidebarProvider>
+        <ThemeProvider>
           <AppNavigator />
           <StatusBar style="auto" />
-        </SidebarProvider>
+        </ThemeProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );
 
   if (Platform.OS !== 'web') {
     return (
-      <ElevenLabsProvider
-        audioSessionConfig={{ allowMixingWithOthers: false }}
-      >
+      <ConversationProvider>
         {content}
-      </ElevenLabsProvider>
+      </ConversationProvider>
     );
   }
 

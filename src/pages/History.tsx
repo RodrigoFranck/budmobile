@@ -1,32 +1,54 @@
-import { useState, useMemo, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  ScrollView, 
-  TouchableOpacity, 
+import { useMemo, useState } from 'react';
+import {
   ActivityIndicator,
   Modal,
   Pressable,
-  Animated,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useHeaderHeight } from '@/hooks/useHeaderHeight';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { addDays, endOfDay, format, isWithinInterval, startOfDay } from 'date-fns';
+import { enUS, ptBR } from 'date-fns/locale';
+import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+
 import { useConversations } from '@/hooks/useConversations';
 import { useUserPlan } from '@/hooks/useUserPlan';
-import { Sidebar } from '@/components/layout/Sidebar';
-import { Header } from '@/components/layout/Header';
-import { groupConversationsByDate } from '@/utils/dateGrouping';
+import type { ConversationWithDate } from '@/utils/dateGrouping';
 import ConversationDetail from '@/components/history/ConversationDetail';
-import { cn } from '@/lib/utils';
 import { LayoutSpacing } from '@/constants/layout';
+import { frauncesFont } from '@/constants/onboardingTheme';
+import { useAppColors } from '@/lib/colors';
+import { getWeekEndBrasilia, getWeekStartBrasilia, parseDateString } from '@/utils/dateUtils';
 
 interface ConversationToDelete {
   id: string;
   title: string;
 }
 
+type WeekDayConversation = {
+  dayKey: string; // yyyy-MM-dd
+  dayTitle: string; // Monday, etc (pt-BR)
+  daySubtitle: string; // 19 de janeiro
+  date: Date;
+  conversation: {
+    id: string;
+    title: string;
+    date: Date;
+  } | null;
+};
+
+function getConversationDate(conv: ConversationWithDate) {
+  const dateSource = conv.conversation_date || conv.created_at;
+  return dateSource.includes('T') ? new Date(dateSource) : parseDateString(dateSource);
+}
+
 export default function HistoryScreen() {
-  const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
   const { effectivePlan, isLoading: planLoading } = useUserPlan();
+  const colors = useAppColors();
   
   // Histórico sempre mostra todas as conversas desde a criação da conta
   // O limite de dias não se aplica ao histórico
@@ -38,17 +60,73 @@ export default function HistoryScreen() {
     title: string;
     date: string;
   } | null>(null);
+  const [weekReferenceDate, setWeekReferenceDate] = useState<Date>(() => new Date());
   const [conversationToDelete, setConversationToDelete] = useState<ConversationToDelete | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const isLoading = planLoading || conversationsLoading;
 
-  const groupedConversations = useMemo(() => {
-    if (isLoading || conversations.length === 0) {
-      return [];
+  const weekStart = useMemo(
+    () => getWeekStartBrasilia(weekReferenceDate),
+    [weekReferenceDate]
+  );
+  const weekEnd = useMemo(() => getWeekEndBrasilia(weekStart), [weekStart]);
+
+  const weekTitle = useMemo(() => {
+    const startLabel = format(weekStart, 'd MMM', { locale: enUS });
+    const endLabel = format(weekEnd, 'd MMM', { locale: enUS });
+    return `${startLabel} - ${endLabel}`;
+  }, [weekEnd, weekStart]);
+
+  const weekDays = useMemo<WeekDayConversation[]>(() => {
+    if (isLoading) return [];
+
+    const interval = { start: startOfDay(weekStart), end: endOfDay(weekEnd) };
+
+    const inWeek = conversations
+      .map((conv) => {
+        const date = getConversationDate(conv);
+        return {
+          id: conv.id,
+          title: conv.title ?? '',
+          date,
+        };
+      })
+      .filter((c) => isWithinInterval(c.date, interval))
+      .sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    const byDayKey = new Map<string, typeof inWeek>();
+    inWeek.forEach((c) => {
+      const key = format(c.date, 'yyyy-MM-dd');
+      const list = byDayKey.get(key) ?? [];
+      list.push(c);
+      byDayKey.set(key, list);
+    });
+
+    const result: WeekDayConversation[] = [];
+    for (let i = 0; i < 7; i += 1) {
+      const date = addDays(weekStart, i);
+      const dayKey = format(date, 'yyyy-MM-dd');
+      const convs = byDayKey.get(dayKey) ?? [];
+      const mostRecent = convs[0] ?? null;
+
+      result.push({
+        dayKey,
+        date,
+        dayTitle: format(date, 'EEEE', { locale: ptBR }),
+        daySubtitle: format(date, "d 'de' MMMM", { locale: ptBR }),
+        conversation: mostRecent
+          ? {
+              id: mostRecent.id,
+              title: mostRecent.title || format(date, 'EEEE', { locale: ptBR }),
+              date: mostRecent.date,
+            }
+          : null,
+      });
     }
-    return groupConversationsByDate(conversations);
-  }, [conversations, isLoading]);
+
+    return result;
+  }, [conversations, isLoading, weekEnd, weekStart]);
 
   const handleLongPress = (conversation: { id: string; title: string }) => {
     setConversationToDelete(conversation);
@@ -74,10 +152,8 @@ export default function HistoryScreen() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 bg-background">
-        <Header />
-        <Sidebar />
-        <View className="flex-1 items-center justify-center">
+      <View style={[styles.screen(colors).screen, { paddingTop: insets.top }]}>
+        <View style={styles.center}>
           <ActivityIndicator size="large" />
         </View>
       </View>
@@ -96,76 +172,80 @@ export default function HistoryScreen() {
   }
 
   return (
-    <View className="flex-1 bg-background">
-      <Header />
-      <Sidebar />
+    <View style={styles.screen(colors).screen}>
       <ScrollView
-        className="flex-1"
+        style={styles.screen(colors).scroll}
         contentContainerStyle={{
-          paddingTop: headerHeight + LayoutSpacing.contentPadding.top,
+          paddingTop: insets.top + LayoutSpacing.contentPadding.top,
           paddingHorizontal: LayoutSpacing.contentPadding.horizontal,
           paddingBottom: LayoutSpacing.contentPadding.bottom,
         }}
       >
-        <Text className="text-2xl font-medium text-foreground mb-6">
-          Histórico
-        </Text>
+        <View style={styles.screen(colors).weekHeader}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Semana anterior"
+            activeOpacity={0.85}
+            onPress={() => setWeekReferenceDate((d) => addDays(d, -7))}
+            style={styles.screen(colors).weekNavButton}
+          >
+            <ChevronLeft size={18} color={colors['muted-foreground']} />
+          </TouchableOpacity>
+
+          <Text style={styles.screen(colors).weekTitle} accessibilityLabel={`Semana ${weekTitle}`}>
+            {weekTitle}
+          </Text>
+
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Próxima semana"
+            activeOpacity={0.85}
+            onPress={() => setWeekReferenceDate((d) => addDays(d, 7))}
+            style={styles.screen(colors).weekNavButton}
+          >
+            <ChevronRight size={18} color={colors['muted-foreground']} />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.screen(colors).pageTitle}>Conversas da semana</Text>
         
         {conversations.length === 0 ? (
-          <View className="bg-card rounded-lg p-6">
-            <View className="items-center py-12">
-              <Text className="text-5xl mb-4">💬</Text>
-              <Text className="text-muted-foreground mt-4 text-center">
-                Você ainda não tem conversas salvas.
-              </Text>
-            </View>
+          <View style={styles.screen(colors).emptyCard}>
+            <Text style={styles.screen(colors).emptyEmoji}>💬</Text>
+            <Text style={styles.screen(colors).emptyText}>Você ainda não tem conversas salvas.</Text>
           </View>
         ) : (
-          <View className="space-y-8">
-            {groupedConversations.map((group, groupIndex) => (
-              <View key={`group-${group.groupKey}-${groupIndex}`}>
-                <View className={cn(
-                  "flex-row items-center gap-4 mb-6",
-                  groupIndex > 0 && "mt-6"
-                )}>
-                  <Text className="text-xs font-semibold text-muted-foreground tracking-wider">
-                    {group.groupTitle}
-                  </Text>
-                  <View className="flex-1 h-px bg-border" />
-                </View>
-                
-                <View className="space-y-4">
-                  {group.conversations.map((conversation, index) => (
-                    <TouchableOpacity
-                      key={`conversation-${conversation.id}-${conversation.date.toISOString()}-${index}`}
-                      onPress={() =>
-                        setSelectedConversation({
-                          id: conversation.id,
-                          title: conversation.title,
-                          date: conversation.date.toISOString(),
+          <View style={styles.screen(colors).list}>
+            {weekDays
+              .filter((d) => d.conversation)
+              .map((d) => (
+                <TouchableOpacity
+                  key={`week-day-${d.dayKey}`}
+                  activeOpacity={0.9}
+                  onPress={() =>
+                    d.conversation
+                      ? setSelectedConversation({
+                          id: d.conversation.id,
+                          title: d.dayTitle,
+                          date: d.conversation.date.toISOString(),
                         })
-                      }
-                      onLongPress={() => handleLongPress({
-                        id: conversation.id,
-                        title: conversation.title,
-                      })}
-                      delayLongPress={500}
-                      className={cn(
-                        'flex-row items-center justify-between rounded-lg p-4 bg-card',
-                        'active:bg-accent/50'
-                      )}
-                    >
-                      <View className="flex-1 min-w-0">
-                        <Text className="text-base font-medium text-foreground">
-                          {conversation.title}
-                        </Text>
-                      </View>
-                      <Text className="text-muted-foreground">›</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            ))}
+                      : undefined
+                  }
+                  onLongPress={() =>
+                    d.conversation
+                      ? handleLongPress({
+                          id: d.conversation.id,
+                          title: d.dayTitle,
+                        })
+                      : undefined
+                  }
+                  delayLongPress={500}
+                  style={styles.screen(colors).dayCard}
+                >
+                  <Text style={styles.screen(colors).dayTitle}>{d.dayTitle}</Text>
+                  <Text style={styles.screen(colors).daySubtitle}>{d.daySubtitle}</Text>
+                </TouchableOpacity>
+              ))}
           </View>
         )}
       </ScrollView>
@@ -178,63 +258,51 @@ export default function HistoryScreen() {
         onRequestClose={handleCancelDelete}
       >
         <Pressable 
-          className="flex-1 justify-center items-center"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
+          style={styles.screen(colors).modalOverlay}
           onPress={handleCancelDelete}
         >
           <Pressable 
-            className="bg-card mx-6 rounded-2xl overflow-hidden w-full max-w-sm"
+            style={styles.screen(colors).modalCard}
             onPress={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <View className="pt-6 pb-4 px-6 items-center">
-              <View className="w-14 h-14 rounded-full bg-destructive/20 items-center justify-center mb-4">
-                <Text className="text-3xl">🗑️</Text>
+            <View style={styles.screen(colors).modalHeader}>
+              <View style={styles.screen(colors).modalIconCircle}>
+                <Text style={styles.screen(colors).modalIcon}>🗑️</Text>
               </View>
-              <Text className="text-xl font-semibold text-foreground text-center">
-                Excluir conversa?
+              <Text style={styles.screen(colors).modalTitle}>Excluir conversa?</Text>
+            </View>
+
+            <View style={styles.screen(colors).modalBody}>
+              <Text style={styles.screen(colors).modalText}>
+                A conversa <Text style={styles.screen(colors).modalTextStrong}>"{conversationToDelete?.title}"</Text> será excluída
+                permanentemente. Esta ação não pode ser desfeita.
               </Text>
             </View>
 
-            {/* Content */}
-            <View className="px-6 pb-6">
-              <Text className="text-muted-foreground text-center text-base leading-relaxed">
-                A conversa{' '}
-                <Text className="text-foreground font-medium">
-                  "{conversationToDelete?.title}"
-                </Text>
-                {' '}será excluída permanentemente. Esta ação não pode ser desfeita.
-              </Text>
-            </View>
+            <View style={styles.screen(colors).modalSeparator} />
 
-            {/* Separator */}
-            <View className="h-px bg-border" />
-
-            {/* Actions */}
-            <View className="flex-row">
+            <View style={styles.screen(colors).modalActionsRow}>
               <TouchableOpacity
-                className="flex-1 py-4 items-center justify-center"
+                style={styles.screen(colors).modalAction}
                 onPress={handleCancelDelete}
                 disabled={isDeleting}
+                activeOpacity={0.85}
               >
-                <Text className="text-base font-medium text-muted-foreground">
-                  Cancelar
-                </Text>
+                <Text style={styles.screen(colors).modalActionCancel}>Cancelar</Text>
               </TouchableOpacity>
-              
-              <View className="w-px bg-border" />
-              
+
+              <View style={styles.screen(colors).modalDivider} />
+
               <TouchableOpacity
-                className="flex-1 py-4 items-center justify-center"
+                style={styles.screen(colors).modalAction}
                 onPress={handleConfirmDelete}
                 disabled={isDeleting}
+                activeOpacity={0.85}
               >
                 {isDeleting ? (
                   <ActivityIndicator size="small" color="#ef4444" />
                 ) : (
-                  <Text className="text-base font-semibold text-destructive">
-                    Excluir
-                  </Text>
+                  <Text style={styles.screen(colors).modalActionDelete}>Excluir</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -244,3 +312,172 @@ export default function HistoryScreen() {
     </View>
   );
 }
+
+const styles = {
+  center: StyleSheet.create({
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+  }).center,
+  screen: (colors: { background: string; card: string; foreground: string; border: string; 'muted-foreground': string }) =>
+    StyleSheet.create({
+      screen: {
+        flex: 1,
+        backgroundColor: colors.background,
+      },
+      scroll: {
+        flex: 1,
+      },
+  weekHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 28,
+  },
+  weekNavButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.10)',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  weekTitle: {
+    fontFamily: frauncesFont,
+    fontSize: 20,
+    color: colors.foreground,
+    letterSpacing: 0.2,
+  },
+  pageTitle: {
+    fontFamily: frauncesFont,
+    fontSize: 28,
+    color: colors.foreground,
+    marginBottom: 18,
+  },
+  list: {
+    gap: 16,
+    paddingBottom: 16,
+  },
+  dayCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dayTitle: {
+    fontFamily: frauncesFont,
+    fontSize: 26,
+    color: colors.foreground,
+    marginBottom: 6,
+  },
+  daySubtitle: {
+    fontFamily: frauncesFont,
+    fontSize: 14,
+    color: colors['muted-foreground'],
+  },
+  emptyCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    paddingVertical: 28,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+  },
+  emptyEmoji: {
+    fontSize: 44,
+    marginBottom: 12,
+  },
+  emptyText: {
+    fontFamily: frauncesFont,
+    fontSize: 16,
+    color: colors['muted-foreground'],
+    textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: colors.card,
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  modalHeader: {
+    paddingTop: 22,
+    paddingBottom: 14,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+  },
+  modalIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(239, 68, 68, 0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  modalIcon: {
+    fontSize: 28,
+  },
+  modalTitle: {
+    fontFamily: frauncesFont,
+    fontSize: 20,
+    color: colors.foreground,
+    textAlign: 'center',
+  },
+  modalBody: {
+    paddingHorizontal: 18,
+    paddingBottom: 18,
+  },
+  modalText: {
+    fontFamily: frauncesFont,
+    fontSize: 15,
+    color: colors['muted-foreground'],
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  modalTextStrong: {
+    color: colors.foreground,
+  },
+  modalSeparator: {
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  modalActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modalAction: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalDivider: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: colors.border,
+  },
+  modalActionCancel: {
+    fontFamily: frauncesFont,
+    fontSize: 16,
+    color: colors['muted-foreground'],
+  },
+  modalActionDelete: {
+    fontFamily: frauncesFont,
+    fontSize: 16,
+    color: '#ef4444',
+  },
+    }),
+};

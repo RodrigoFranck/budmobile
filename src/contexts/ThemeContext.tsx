@@ -1,0 +1,141 @@
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Alert } from 'react-native';
+import { useColorScheme } from 'nativewind';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+
+type ThemeMode = 'light' | 'dark';
+type ThemePreference = ThemeMode | 'system';
+
+interface ThemeContextType {
+  mode: ThemeMode;
+  preference: ThemePreference;
+  isDarkMode: boolean;
+  loaded: boolean;
+  setMode: (mode: ThemeMode) => Promise<void>;
+  setPreference: (preference: ThemePreference) => Promise<void>;
+  setLightMode: () => Promise<void>;
+  setDarkMode: () => Promise<void>;
+}
+
+const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const { colorScheme, setColorScheme } = useColorScheme();
+  const [preference, setPreferenceState] = useState<ThemePreference>('system');
+  const [loaded, setLoaded] = useState(false);
+
+  const resolvedMode: ThemeMode = useMemo(() => {
+    if (preference === 'system') {
+      return colorScheme === 'light' ? 'light' : 'dark';
+    }
+    return preference;
+  }, [colorScheme, preference]);
+
+  useEffect(() => {
+    if (preference === 'system') {
+      setColorScheme('system');
+      return;
+    }
+    setColorScheme(preference);
+  }, [preference, setColorScheme]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setPreferenceState('system');
+      setLoaded(true);
+      return;
+    }
+
+    let cancelled = false;
+    setLoaded(false);
+
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('dark_mode')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (cancelled) return;
+        if (error) {
+          setPreferenceState('system');
+        } else {
+          const pref: ThemePreference =
+            data?.dark_mode === null || data?.dark_mode === undefined
+              ? 'system'
+              : data.dark_mode
+                ? 'dark'
+                : 'light';
+          setPreferenceState(pref);
+        }
+      } catch {
+        if (!cancelled) setPreferenceState('system');
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  const setPreference = useCallback(
+    async (nextPreference: ThemePreference) => {
+      setPreferenceState(nextPreference);
+      if (!user?.id) return;
+      try {
+        const nextDark =
+          nextPreference === 'system'
+            ? null
+            : nextPreference === 'dark';
+        const { error } = await supabase
+          .from('profiles')
+          .update({ dark_mode: nextDark })
+          .eq('id', user.id);
+        if (error) {
+          setPreferenceState((current) => (current === 'dark' ? 'light' : 'dark'));
+          Alert.alert('Erro', 'Não foi possível salvar sua preferência de tema.');
+        }
+      } catch {
+        setPreferenceState((current) => (current === 'dark' ? 'light' : 'dark'));
+        Alert.alert('Erro', 'Não foi possível salvar sua preferência de tema.');
+      }
+    },
+    [user?.id],
+  );
+
+  const setMode = useCallback(
+    async (nextMode: ThemeMode) => {
+      await setPreference(nextMode);
+    },
+    [setPreference],
+  );
+
+  const value = useMemo<ThemeContextType>(
+    () => ({
+      mode: resolvedMode,
+      preference,
+      isDarkMode: resolvedMode === 'dark',
+      loaded,
+      setMode,
+      setPreference,
+      setLightMode: () => setMode('light'),
+      setDarkMode: () => setMode('dark'),
+    }),
+    [loaded, preference, resolvedMode, setMode, setPreference],
+  );
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+}
+
+export function useTheme() {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error('useTheme must be used within a ThemeProvider');
+  }
+  return context;
+}
+

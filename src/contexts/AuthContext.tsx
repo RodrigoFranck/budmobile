@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useLayoutEffect, useState, useMemo } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
@@ -22,6 +22,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   onboardingCompleted: boolean;
+  onboardingStatusLoaded: boolean;
   signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
@@ -60,6 +61,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean>(false);
+  const [onboardingStatusLoaded, setOnboardingStatusLoaded] = useState(false);
+
+  useLayoutEffect(() => {
+    if (user?.id) {
+      setOnboardingStatusLoaded(false);
+    }
+  }, [user?.id]);
 
   // Função para atualizar status de onboarding
   const refreshOnboardingStatus = async () => {
@@ -81,28 +89,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Carrega status de onboarding do usuário
   useEffect(() => {
-    const loadUserPreferences = async () => {
-      if (!user?.id) {
-        setOnboardingCompleted(false);
-        return;
-      }
+    if (!user?.id) {
+      setOnboardingCompleted(false);
+      setOnboardingStatusLoaded(true);
+      return;
+    }
 
+    let cancelled = false;
+    setOnboardingStatusLoaded(false);
+
+    const loadUserPreferences = async () => {
       const { data } = await supabase
         .from("profiles")
         .select("onboarding_completed")
         .eq("id", user.id)
         .maybeSingle();
 
+      if (cancelled) {
+        return;
+      }
+
       if (data) {
-        // Ensure strict boolean conversion (Supabase may return as string in some cases)
         const completed = normalizeOnboardingCompleted(data.onboarding_completed);
         setOnboardingCompleted(completed);
       } else {
         setOnboardingCompleted(false);
       }
+      setOnboardingStatusLoaded(true);
     };
 
     loadUserPreferences();
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id]);
 
   useEffect(() => {
@@ -380,13 +399,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       loading: normalizedLoading,
       onboardingCompleted: normalizedOnboardingCompleted,
+      onboardingStatusLoaded,
       signUp,
       signIn,
       signInWithGoogle,
       signOut,
       refreshOnboardingStatus
     };
-  }, [session, user, loading, onboardingCompleted, signUp, signIn, signInWithGoogle, signOut, refreshOnboardingStatus]);
+  }, [session, user, loading, onboardingCompleted, onboardingStatusLoaded, signUp, signIn, signInWithGoogle, signOut, refreshOnboardingStatus]);
 
   return (
     <AuthContext.Provider value={contextValue}>

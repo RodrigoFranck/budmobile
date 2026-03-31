@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -7,119 +7,131 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  Share,
+  StyleSheet,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
-import { ChevronRight, MessageCircle, X } from "lucide-react-native";
-import { useHeaderHeight } from "@/hooks/useHeaderHeight";
-import { Sidebar } from "@/components/layout/Sidebar";
-import { Header } from "@/components/layout/Header";
+import { ArrowLeft, ExternalLink, Link2 } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
-import { useUserPlan } from "@/hooks/useUserPlan";
-import { Button } from "@/components/ui/Button";
-import { supabase } from "@/integrations/supabase/client";
 import type { NavigationProp } from "@/types/navigation";
-import { Typography, Spacing, IconSize } from "@/constants/styles";
-import { LayoutSpacing } from "@/constants/layout";
-import { BUDMIND_PRICING_URL } from "@/constants/preferences";
-import type { PlanId } from "@/hooks/useUserPlan";
+import { Spacing, Typography } from "@/constants/styles";
+import { BUDMIND_HELP_URL } from "@/constants/preferences";
+import { useTheme } from "@/contexts/ThemeContext";
+import { supabase } from "@/integrations/supabase/client";
 
-const PLAN_LABELS: Record<PlanId, string> = {
-  free: "Free",
-  reflexivo: "Reflexivo",
-  profundo: "Profundo",
+const DARK_COLORS = {
+  background: "#1D1916",
+  card: "#373737",
+  cardBorder: "rgba(255,255,255,0.06)",
+  text: "#FFFFFF",
+  icon: "rgba(255,255,255,0.75)",
+  primary: "#BBEEEE",
+} as const;
+
+const LIGHT_COLORS = {
+  background: "#F7F1ED",
+  card: "#FFFFFF",
+  cardBorder: "rgba(0,0,0,0.08)",
+  text: "#1D1916",
+  icon: "rgba(29,25,22,0.65)",
+  primary: "#2E7D7A",
+} as const;
+
+type Colors = {
+  background: string;
+  card: string;
+  cardBorder: string;
+  text: string;
+  icon: string;
+  primary: string;
 };
 
-function PreferenceRow({
-  onPress,
-  left,
-  right,
-}: {
-  onPress?: () => void;
-  left: React.ReactNode;
-  right?: React.ReactNode;
-}) {
-  const content = (
-    <View
-      className="w-full rounded-xl bg-card p-4 flex-row items-center justify-between"
-      style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
-    >
-      {left}
-      {right}
-    </View>
-  );
-  if (onPress) {
-    return (
-      <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
-        {content}
-      </TouchableOpacity>
-    );
-  }
-  return content;
-}
+const createStyles = (colors: Colors) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      paddingHorizontal: 18,
+      paddingTop: Spacing.md,
+      gap: Spacing.base,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor:
+        colors === DARK_COLORS ? "rgba(255,255,255,0.18)" : "rgba(29,25,22,0.08)",
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: Spacing.md,
+    },
+    row: {
+      backgroundColor: colors.card,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingHorizontal: 18,
+      height: 56,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    rowText: {
+      color: colors.text,
+      fontSize: 22,
+      fontFamily: "InriaSerif-Regular",
+    },
+    rightSlot: {
+      height: 56,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    switch: {
+      transform: [{ translateY: -1 }],
+    },
+  });
 
 export default function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const headerHeight = useHeaderHeight();
-  const { user, signOut } = useAuth();
-  const { effectivePlan } = useUserPlan();
-  const planLabel = PLAN_LABELS[effectivePlan] ?? effectivePlan;
+  const insets = useSafeAreaInsets();
+  const { user, signOut, refreshOnboardingStatus } = useAuth();
+  const { mode, loaded: themeLoaded, setMode } = useTheme();
+  const darkMode = mode === "dark";
+  const darkModeLoading = !themeLoaded;
+  const [resettingOnboarding, setResettingOnboarding] = useState(false);
 
-  const [darkMode, setDarkMode] = useState(false);
-  const [darkModeLoading, setDarkModeLoading] = useState(true);
-
-  useEffect(() => {
-    if (!user?.id) {
-      setDarkModeLoading(false);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("dark_mode")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (!cancelled && data) {
-        setDarkMode(Boolean(data.dark_mode));
-      }
-      if (!cancelled) setDarkModeLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id]);
+  const lightModeValue = useMemo(() => !darkMode, [darkMode]);
+  const colors = useMemo(() => (darkMode ? DARK_COLORS : LIGHT_COLORS), [darkMode]);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const handleToggleDarkMode = useCallback(
-    async (value: boolean) => {
-      setDarkMode(value);
-      if (!user?.id) return;
-      await supabase
-        .from("profiles")
-        .update({ dark_mode: value })
-        .eq("id", user.id);
+    async (isLightMode: boolean) => {
+      const nextMode = isLightMode ? "light" : "dark";
+      await setMode(nextMode);
     },
-    [user?.id],
+    [setMode],
   );
 
-  const openPricing = useCallback(() => {
-    WebBrowser.openBrowserAsync(BUDMIND_PRICING_URL);
+  const openHelp = useCallback(() => {
+    WebBrowser.openBrowserAsync(BUDMIND_HELP_URL);
   }, []);
 
-  const openAboutOrPlaceholder = useCallback(() => {
-    Alert.alert(
-      "Sobre mim",
-      "Em breve no app. Use o Bud no navegador para editar seu perfil.",
-      [{ text: "OK" }],
-    );
-  }, []);
+  const openSupportFeedback = useCallback(() => {
+    navigation.navigate("SupportFeedback");
+  }, [navigation]);
 
-  const openSupportOrPlaceholder = useCallback(() => {
-    Alert.alert(
-      "Suporte",
-      "Em breve: envio de mensagem pelo app. Por enquanto, use o suporte pelo site.",
-      [{ text: "OK" }],
-    );
+  const shareBud = useCallback(async () => {
+    try {
+      await Share.share({
+        message: `Bud — ${BUDMIND_HELP_URL}`,
+      });
+    } catch (error: unknown) {
+      console.error("Share error:", error);
+    }
   }, []);
 
   const handleSignOut = useCallback(() => {
@@ -129,131 +141,143 @@ export default function SettingsScreen() {
     ]);
   }, [signOut]);
 
+  const handleResetOnboarding = useCallback(() => {
+    if (!user?.id) {
+      Alert.alert("Erro", "Sessão inválida. Faça login novamente.");
+      return;
+    }
+
+    Alert.alert("Rever onboarding", "Isso vai reabrir o onboarding ao finalizar. Continuar?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Continuar",
+        style: "default",
+        onPress: async () => {
+          setResettingOnboarding(true);
+          try {
+            const { error } = await supabase
+              .from("profiles")
+              .update({ onboarding_completed: false })
+              .eq("id", user.id);
+
+            if (error) {
+              Alert.alert("Erro", error.message);
+              return;
+            }
+
+            await refreshOnboardingStatus();
+          } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : "Erro desconhecido";
+            Alert.alert("Erro", message);
+          } finally {
+            setResettingOnboarding(false);
+          }
+        },
+      },
+    ]);
+  }, [refreshOnboardingStatus, user?.id]);
+
   const goBack = useCallback(() => {
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      navigation.navigate("Home");
+      navigation.navigate("MainTabs");
     }
   }, [navigation]);
 
   return (
-    <View className="flex-1 bg-background">
-      <Header />
-      <Sidebar />
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
       <ScrollView
-        className="flex-1"
-        contentContainerStyle={{
-          paddingTop: headerHeight + LayoutSpacing.contentPadding.top,
-          paddingHorizontal: LayoutSpacing.contentPadding.horizontal,
-          paddingBottom: LayoutSpacing.contentPadding.bottom + Spacing.xl,
-        }}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Math.max(insets.bottom, 0) + Spacing.xl },
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        <Text
-          className="text-foreground font-semibold px-2 pb-4 pt-2"
-          style={{ fontSize: Typography["2xl"] }}
+        <TouchableOpacity
+          onPress={goBack}
+          activeOpacity={0.75}
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel="Voltar"
         >
-          Preferências
-        </Text>
+          <ArrowLeft size={20} color={colors.text} />
+        </TouchableOpacity>
 
-        <View style={{ gap: Spacing.base }}>
-          <PreferenceRow
-            onPress={openAboutOrPlaceholder}
-            left={
-              <Text
-                className="text-foreground"
-                style={{ fontSize: Typography.base }}
-              >
-                Sobre mim
-              </Text>
-            }
-            right={<ChevronRight size={IconSize.md} color="#9ca3af" />}
-          />
+        <TouchableOpacity
+          onPress={openHelp}
+          activeOpacity={0.8}
+          style={styles.row}
+          accessibilityRole="button"
+          accessibilityLabel="Encontrar ajuda"
+        >
+          <Text style={styles.rowText}>Encontrar ajuda</Text>
+          <ExternalLink size={20} color={colors.icon} />
+        </TouchableOpacity>
 
-          <PreferenceRow
-            onPress={openPricing}
-            left={
-              <Text
-                className="text-foreground"
-                style={{ fontSize: Typography.base }}
-              >
-                Meu Plano
-              </Text>
-            }
-            right={
-              <View
-                className="flex-row items-center"
-                style={{ gap: Spacing.sm }}
-              >
-                <Text
-                  className="text-muted-foreground"
-                  style={{ fontSize: Typography.sm }}
-                >
-                  {planLabel}
-                </Text>
-                <ChevronRight size={IconSize.md} color="#9ca3af" />
-              </View>
-            }
-          />
-
-          <PreferenceRow
-            left={
-              <Text
-                className="text-foreground"
-                style={{ fontSize: Typography.base }}
-              >
-                Modo escuro
-              </Text>
-            }
-            right={
-              darkModeLoading ? (
-                <ActivityIndicator size="small" color="#9ca3af" />
-              ) : (
-                <Switch
-                  value={darkMode}
-                  onValueChange={handleToggleDarkMode}
-                  trackColor={{ false: "#374151", true: "#6b7280" }}
-                  thumbColor="#fff"
-                />
-              )
-            }
-          />
-
-          <PreferenceRow
-            onPress={openSupportOrPlaceholder}
-            left={
-              <View
-                className="flex-row items-center"
-                style={{ gap: Spacing.md }}
-              >
-                <MessageCircle size={IconSize.md} color="#9ca3af" />
-                <Text
-                  className="text-foreground"
-                  style={{ fontSize: Typography.base }}
-                >
-                  Suporte
-                </Text>
-              </View>
-            }
-            right={<ChevronRight size={IconSize.md} color="#9ca3af" />}
-          />
+        <View style={styles.row}>
+          <Text style={styles.rowText}>Modo claro</Text>
+          <View style={styles.rightSlot}>
+            {darkModeLoading ? (
+              <ActivityIndicator size="small" color={colors.icon} />
+            ) : (
+              <Switch
+                value={lightModeValue}
+                onValueChange={handleToggleDarkMode}
+                trackColor={{
+                  false: colors === DARK_COLORS ? "rgba(255,255,255,0.25)" : "rgba(29,25,22,0.18)",
+                  true: colors.primary,
+                }}
+                thumbColor="#FFFFFF"
+                style={styles.switch}
+              />
+            )}
+          </View>
         </View>
 
-        <View style={{ marginTop: Spacing.xl }}>
-          <Button
-            variant="destructive"
-            className="w-full rounded-xl h-14 bg-destructive/20"
-            onPress={handleSignOut}
-          >
-            <Text
-              className="text-destructive font-medium"
-              style={{ fontSize: Typography.base }}
-            >
-              Sair
-            </Text>
-          </Button>
-        </View>
+        <TouchableOpacity
+          onPress={openSupportFeedback}
+          activeOpacity={0.8}
+          style={styles.row}
+          accessibilityRole="button"
+          accessibilityLabel="Suporte e Feedback"
+        >
+          <Text style={styles.rowText}>Suporte e Feedback</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={shareBud}
+          activeOpacity={0.8}
+          style={styles.row}
+          accessibilityRole="button"
+          accessibilityLabel="Compartilhar Bud"
+        >
+          <Text style={styles.rowText}>Compartilhar Bud</Text>
+          <Link2 size={20} color={colors.icon} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={handleResetOnboarding}
+          activeOpacity={0.8}
+          style={styles.row}
+          accessibilityRole="button"
+          accessibilityLabel="Rever onboarding"
+          disabled={resettingOnboarding}
+        >
+          <Text style={styles.rowText}>
+            {resettingOnboarding ? "Reabrindo onboarding..." : "Rever onboarding"}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={handleSignOut}
+          activeOpacity={0.8}
+          style={styles.row}
+          accessibilityRole="button"
+          accessibilityLabel="Sair"
+        >
+          <Text style={styles.rowText}>Sair</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );

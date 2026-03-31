@@ -1297,7 +1297,6 @@ export function buildVoicePrompt(
 }
 
 export function buildFirstMessage(ctx?: UserContext): string {
-  // Deixar o agente decidir a abertura baseado no prompt completo
-  // que contém o histórico e as instruções de RETOMADA DE TEMAS
-  return "";
+  // Sem firstMessage pre-setado: deixa o agente iniciar a conversa naturalmente.
+  return '';
 }

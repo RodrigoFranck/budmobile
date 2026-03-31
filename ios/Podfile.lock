@@ -1,6 +1,9 @@
 PODS:
   - EXApplication (7.0.8):
     - ExpoModulesCore
+  - EXAV (16.0.8):
+    - ExpoModulesCore
+    - ReactCommon/turbomodule/core
   - EXConstants (18.0.13):
     - ExpoModulesCore
   - EXNotifications (0.32.16):
@@ -2041,6 +2044,7 @@ PODS:
 
 DEPENDENCIES:
   - EXApplication (from `../node_modules/expo-application/ios`)
+  - EXAV (from `../node_modules/expo-av/ios`)
   - EXConstants (from `../node_modules/expo-constants/ios`)
   - EXNotifications (from `../node_modules/expo-notifications/ios`)
   - Expo (from `../node_modules/expo`)
@@ -2137,6 +2141,8 @@ SPEC REPOS:
 EXTERNAL SOURCES:
   EXApplication:
     :path: "../node_modules/expo-application/ios"
+  EXAV:
+    :path: "../node_modules/expo-av/ios"
   EXConstants:
     :path: "../node_modules/expo-constants/ios"
   EXNotifications:
@@ -2315,6 +2321,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   EXApplication: 13420f8139864183f8a04fd6099077bdf8cfb186
+  EXAV: c2de1057f4d9b0bcbdd908c6f2dcff48ece36f2b
   EXConstants: 3feb66fd1d94202fc1f0946d74e029d8b224b60e
   EXNotifications: 2a3feb7af6194828d9aafda72f63a9a03866230a
   Expo: b8d64eb9a496ebe8c71e3dae7eeb7f394b146b80

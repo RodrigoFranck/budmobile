@@ -1,13 +1,14 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMessages } from '@/hooks/useMessages';
-import { Button } from '@/components/ui/Button';
 import { ChatMessage } from '@/components/chat/ChatMessage';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Header } from '@/components/layout/Header';
-import { Sidebar } from '@/components/layout/Sidebar';
-import { useHeaderHeight } from '@/hooks/useHeaderHeight';
+import { ChevronLeft } from 'lucide-react-native';
+
+import { useOnboardingColors } from '@/constants/onboardingTheme';
+import { useConversationDetailStyles } from '@/components/history/ConversationDetail.styles';
 
 interface ConversationDetailProps {
   conversationId: string;
@@ -23,90 +24,82 @@ export default function ConversationDetail({
   onBack,
 }: ConversationDetailProps) {
   const { messages, loading } = useMessages(conversationId);
-  const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
+  const onboardingColors = useOnboardingColors();
+  const styles = useConversationDetailStyles();
 
   if (loading) {
     return (
-      <View className="flex-1 bg-background">
-        <Header />
-        <Sidebar />
-        <View className="flex-1 items-center justify-center">
-          <Text className="text-muted-foreground">Carregando...</Text>
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <View style={styles.center}>
+          <Text style={styles.loadingText}>Carregando...</Text>
         </View>
       </View>
     );
   }
 
-  const formattedDate = format(new Date(conversationDate), "EEEE, d 'de' MMMM", {
-    locale: ptBR,
-  });
+  const dateObj = new Date(conversationDate);
+  const formattedDate = format(dateObj, "d 'de' MMMM", { locale: ptBR });
 
   return (
-    <View className="flex-1 bg-background">
-      <Header />
-      <Sidebar />
-      
-      {/* Header Fixo - Botão Voltar */}
-      <View style={{ paddingTop: headerHeight + 16, paddingHorizontal: 16, paddingBottom: 16 }}>
-        <Button
-          variant="ghost"
+    <View style={styles.screen}>
+      <View style={[styles.headerRow, { paddingTop: insets.top + 18 }]}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Voltar"
+          activeOpacity={0.85}
           onPress={onBack}
-          className="self-start"
+          style={styles.backButton}
         >
-          <Text className="text-foreground">← Voltar</Text>
-        </Button>
+          <ChevronLeft size={18} color={onboardingColors.textTaupe} />
+        </TouchableOpacity>
       </View>
 
-      {/* Título Fixo */}
-      <View className="px-6 py-4">
-        <Text className="text-3xl font-semibold text-foreground mb-2">
-          {conversationTitle}
-        </Text>
-        <Text className="text-sm text-muted-foreground capitalize">
-          {formattedDate}
-        </Text>
+      <View style={styles.titleBlock}>
+        <Text style={styles.title}>{conversationTitle}</Text>
+        <Text style={styles.subtitle}>{formattedDate}</Text>
       </View>
 
       {/* Área de Scroll Suave */}
       <ScrollView
-        className="flex-1"
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingBottom: 24,
-        }}
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
       >
         {messages.length === 0 ? (
-          <View className="flex-1 items-center justify-center py-12">
-            <Text className="text-muted-foreground text-center">
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>
               Nenhuma mensagem encontrada nesta conversa.
             </Text>
           </View>
         ) : (
-          <View className="space-y-4">
+          <View style={styles.messages}>
             {messages.map((message, index) => (
-              <View key={`message-${conversationId}-${message.id}-${message.created_at}-${index}`} className="w-full py-2">
+              <View
+                key={`message-${conversationId}-${message.id}-${message.created_at}-${index}`}
+                style={styles.messageRow}
+              >
                 {message.role === 'context' ? (
                   (() => {
                     try {
                       const contextData = JSON.parse(message.content);
                       return (
-                        <View className="bg-muted/50 rounded-lg px-4 py-3">
-                          <Text className="text-xs font-semibold text-muted-foreground mb-1">
+                        <View style={styles.contextCard}>
+                          <Text style={styles.contextBadge}>
                             {contextData.badge}
                           </Text>
-                          <Text className="text-base font-semibold text-foreground mb-1">
+                          <Text style={styles.contextTitle}>
                             {contextData.title}
                           </Text>
-                          <Text className="text-sm text-muted-foreground">
+                          <Text style={styles.contextDescription}>
                             {contextData.description}
                           </Text>
                         </View>
                       );
                     } catch {
                       return (
-                        <View className="flex justify-center">
-                          <View className="bg-muted/50 rounded-lg px-4 py-2">
-                            <Text className="text-sm text-muted-foreground text-center">
+                        <View style={styles.contextFallbackWrap}>
+                          <View style={styles.contextFallbackCard}>
+                            <Text style={styles.contextFallbackText}>
                               {message.content}
                             </Text>
                           </View>
@@ -129,6 +122,7 @@ export default function ConversationDetail({
   );
 }
 
+// styles moved to ConversationDetail.styles.ts
 
 
 
