@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean>(false);
-  const [onboardingStatusLoaded, setOnboardingStatusLoaded] = useState(true);
+  const [onboardingStatusLoaded, setOnboardingStatusLoaded] = useState(false);
 
   useLayoutEffect(() => {
     if (user?.id) {

@@ -3,9 +3,10 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import { Fraunces_400Regular } from '@expo-google-fonts/fraunces';
-import { ActivityIndicator, View } from 'react-native';
-import { Platform } from 'react-native';
-import { ElevenLabsProvider } from '@elevenlabs/react-native';
+import { Audio } from 'expo-av';
+import { useEffect } from 'react';
+import { ActivityIndicator, Platform, View } from 'react-native';
+import { ConversationProvider } from '@elevenlabs/react-native';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import AppNavigator from '@/navigation/AppNavigator';
@@ -17,6 +18,16 @@ export default function App() {
     InstrumentSans: require('./assets/fonts/InstrumentSans-Variable.ttf'),
     Fraunces_400Regular,
   });
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    Audio.setAudioModeAsync({
+      allowsRecordingIOS: true,
+      playsInSilentModeIOS: true,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    }).catch(() => {});
+  }, []);
 
   if (!fontsLoaded) {
     return (
@@ -39,11 +50,9 @@ export default function App() {
 
   if (Platform.OS !== 'web') {
     return (
-      <ElevenLabsProvider
-        audioSessionConfig={{ allowMixingWithOthers: false }}
-      >
+      <ConversationProvider>
         {content}
-      </ElevenLabsProvider>
+      </ConversationProvider>
     );
   }
 

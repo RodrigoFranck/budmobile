@@ -15,6 +15,10 @@ import type { RootStackParamList } from '@/types/navigation';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+function BootstrapScreen() {
+  return null;
+}
+
 export default function AppNavigator() {
   const { user, loading, onboardingCompleted, onboardingStatusLoaded } = useAuth();
   const { mode } = useTheme();
@@ -58,6 +62,8 @@ export default function AppNavigator() {
               <Stack.Screen name="Auth" component={AuthScreen} />
               <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             </>
+          ) : !onboardingStatusLoaded ? (
+            <Stack.Screen name="Bootstrap" component={BootstrapScreen} />
           ) : !onboardingCompleted ? (
             <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
           ) : (

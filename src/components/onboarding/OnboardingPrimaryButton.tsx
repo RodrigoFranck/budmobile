@@ -7,6 +7,7 @@ interface OnboardingPrimaryButtonProps {
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
+  labelColor?: string;
 }
 
 export function OnboardingPrimaryButton({
@@ -15,9 +16,11 @@ export function OnboardingPrimaryButton({
   disabled,
   loading,
   style,
+  labelColor,
 }: OnboardingPrimaryButtonProps) {
   const onboardingColors = useOnboardingColors();
   const isDisabled = Boolean(disabled || loading);
+  const resolvedLabelColor = labelColor ?? onboardingColors.textOnAccent;
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -36,13 +39,13 @@ export function OnboardingPrimaryButton({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={onboardingColors.background} />
+        <ActivityIndicator color={resolvedLabelColor} />
       ) : (
         <Text
           style={{
             fontFamily: frauncesFont,
             fontSize: 17,
-            color: onboardingColors.background,
+            color: resolvedLabelColor,
           }}
         >
           {label}

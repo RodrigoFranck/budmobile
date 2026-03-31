@@ -35,7 +35,7 @@ function NotificationCard({
   return (
     <View
       style={{
-        backgroundColor: onboardingColors.white,
+        backgroundColor: onboardingColors.card,
         borderRadius: 20,
         padding: 14,
         marginBottom: 12,
@@ -59,18 +59,28 @@ function NotificationCard({
           marginRight: 12,
         }}
       >
-        <Text style={{ fontFamily: frauncesFont, fontSize: 11, color: onboardingColors.background }}>
+        <Text style={{ fontFamily: frauncesFont, fontSize: 11, color: '#1D1916' }}>
           Bud.
         </Text>
       </View>
       <View style={{ flex: 1 }}>
         <View className="flex-row justify-between items-start">
-          <Text style={{ fontSize: 15, fontWeight: '700', color: '#1a1a1a', flex: 1, paddingRight: 8 }}>
+          <Text
+            style={{
+              fontSize: 15,
+              fontWeight: '700',
+              color: onboardingColors.white,
+              flex: 1,
+              paddingRight: 8,
+            }}
+          >
             {title}
           </Text>
-          <Text style={{ fontSize: 12, color: onboardingColors.grayMedium }}>Agora</Text>
+          <Text style={{ fontSize: 12, color: onboardingColors.textMuted }}>Agora</Text>
         </View>
-        <Text style={{ fontSize: 14, color: '#4a4a4a', marginTop: 4, lineHeight: 20 }}>{body}</Text>
+        <Text style={{ fontSize: 14, color: onboardingColors.textSecondary, marginTop: 4, lineHeight: 20 }}>
+          {body}
+        </Text>
       </View>
     </View>
   );
@@ -108,7 +118,7 @@ export default function OnboardingNotificationsScreen() {
           style={{
             fontSize: 15,
             lineHeight: 22,
-            color: '#E2E8F0',
+            color: onboardingColors.textSecondary,
             marginBottom: 28,
           }}
         >
@@ -129,10 +139,12 @@ export default function OnboardingNotificationsScreen() {
           label="Ativar notificações"
           onPress={() => {}}
           disabled
+          labelColor={onboardingColors.textSecondary}
           style={{
-            backgroundColor: onboardingColors.linearBottom,
+            backgroundColor: onboardingColors.card,
             borderWidth: 1,
             borderColor: onboardingColors.borderDark,
+            opacity: 1,
           }}
         />
         <View style={{ height: 12 }} />

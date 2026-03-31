@@ -7,6 +7,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
  */
 export type RootStackParamList = {
   Auth: undefined;
+  Bootstrap: undefined;
   ForgotPassword: undefined;
   ResetPassword: { token: string } | undefined;
   VerifyEmail: undefined;
