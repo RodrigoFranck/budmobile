@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { Animated } from 'react-native';
+import { Animated, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { animatedGradientStyles } from '@/components/explore/AnimatedGradient.styles';
 
 interface AnimatedGradientProps {
   children: React.ReactNode;
@@ -57,15 +58,9 @@ export function AnimatedGradient({ children }: AnimatedGradientProps) {
   });
 
   return (
-    <Animated.View style={{ flex: 1 }}>
+    <Animated.View style={animatedGradientStyles.root}>
       <Animated.View
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-        }}
+        style={animatedGradientStyles.absoluteFill}
       >
         <Animated.View
           style={{
@@ -79,18 +74,14 @@ export function AnimatedGradient({ children }: AnimatedGradientProps) {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
+          ...animatedGradientStyles.absoluteFill,
           opacity: animValue.interpolate({
             inputRange: [0, 0.5, 1],
             outputRange: [1, 0.7, 1],
           }) as any,
         }}
       />
-      <View style={{ flex: 1, zIndex: 1 }}>{children}</View>
+      <View style={animatedGradientStyles.overlayContent}>{children}</View>
     </Animated.View>
   );
 }

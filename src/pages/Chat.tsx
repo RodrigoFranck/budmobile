@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { View, KeyboardAvoidingView } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Book, Settings } from 'lucide-react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConversations } from '@/hooks/useConversations';
 import { useMessages } from '@/hooks/useMessages';
@@ -8,20 +13,24 @@ import { useUserPlan } from '@/hooks/useUserPlan';
 import { ChatContainer } from '@/components/chat/ChatContainer';
 import { MessageInputBar } from '@/components/chat/MessageInputBar';
 import { streamChat, type UserContext } from '@/utils/chatStream';
-import { Sidebar } from '@/components/layout/Sidebar';
-import { Header } from '@/components/layout/Header';
 import type { StreamingMessage } from '@/types/messages';
 import { PlatformConstants } from '@/constants/layout';
 import {
   VoiceInterfaceRef,
 } from '@/voice/VoiceInterface';
 import { VoiceMode } from '@/voice/VoiceMode';
+import { useAppColors } from '@/lib/colors';
+import type { MainTabNavigationProp, MainTabParamList, RootNavigationProp } from '@/types/navigation';
+import { WeekCalendarHeader } from '@/components/ui/WeekCalendarHeader';
+import { Spacing } from '@/constants/styles';
 
 export default function ChatScreen() {
+  const colors = useAppColors();
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const { canSendMessage, incrementMessageCount } = useUserPlan();
   const { getOrCreateTodayConversation } = useConversations();
+  const insets = useSafeAreaInsets();
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [streamingMessages, setStreamingMessages] = useState<StreamingMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -30,6 +39,14 @@ export default function ChatScreen() {
   const [isVoiceModeActive, setIsVoiceModeActive] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [isBudSpeaking, setIsBudSpeaking] = useState(false);
+  const route = useRoute<RouteProp<MainTabParamList, 'Chat'>>();
+  const navigation = useNavigation<MainTabNavigationProp>();
+  const rootNavigation = useNavigation<RootNavigationProp>();
+
+  const [recentInsights, setRecentInsights] = useState<
+    Array<{ insight_type: string; title: string; description: string }>
+  >([]);
+  const [shouldAutoStartVoice, setShouldAutoStartVoice] = useState(false);
 
   const { messages: dbMessages, loading: messagesLoading, addMessage } =
     useMessages(currentConversationId);
@@ -47,11 +64,45 @@ export default function ChatScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  const voiceInsight = route.params?.voiceInsight;
+
+  useEffect(() => {
+    if (!voiceInsight) return;
+
+    setRecentInsights([
+      {
+        insight_type: voiceInsight.insight_type,
+        title: voiceInsight.title,
+        description: voiceInsight.description,
+      },
+    ]);
+
+    setShouldAutoStartVoice(true);
+  }, [voiceInsight]);
+
+  useEffect(() => {
+    if (!shouldAutoStartVoice) return;
+    if (!currentConversationId) return;
+
+    const start = async () => {
+      try {
+        await voiceInterfaceRef.current?.startConversation();
+      } catch (e) {
+        // startConversation already alerts on most failures
+      } finally {
+        setShouldAutoStartVoice(false);
+      }
+    };
+
+    void start();
+  }, [shouldAutoStartVoice, currentConversationId]);
+
   const allMessages = useMemo(() => {
     const dbMessagesFormatted = dbMessages.map((msg) => ({
       id: msg.id,
       role: msg.role as 'user' | 'assistant' | 'context',
       content: msg.content,
+      createdAt: msg.created_at,
     }));
 
     const dbContents = new Set(dbMessages.map((m) => `${m.role}:${m.content}`));
@@ -122,6 +173,7 @@ export default function ChatScreen() {
           id: userMessageId,
           role: 'user',
           content: message,
+          createdAt: new Date().toISOString(),
         },
       ]);
 
@@ -148,6 +200,7 @@ export default function ChatScreen() {
           role: 'assistant',
           content: '',
           isStreaming: true,
+          createdAt: new Date().toISOString(),
         },
       ]);
 
@@ -207,16 +260,29 @@ export default function ChatScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <Header />
-      <Sidebar />
+      <LinearGradient
+        colors={[colors['chat-warm-bg'], colors['chat-gradient-end']]}
+        locations={[0.35, 1]}
+        style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+      />
       <KeyboardAvoidingView
         behavior={PlatformConstants.keyboardBehavior}
         className="flex-1"
         keyboardVerticalOffset={PlatformConstants.keyboardVerticalOffset}
       >
+        <View style={{ paddingTop: insets.top + Spacing.base, paddingHorizontal: Spacing.base + 4 }}>
+          <WeekCalendarHeader
+            leftIcon={Book}
+            onPressLeft={() => navigation.navigate('Explore')}
+            showLeftIndicatorDot
+            rightIcon={Settings}
+            onPressRight={() => rootNavigation.navigate('Settings')}
+          />
+        </View>
         <ChatContainer
           messages={allMessages}
           loading={isStreaming || messagesLoading}
+          topPadding={Spacing.base}
         />
         <MessageInputBar
           onSendMessage={handleSendMessage}
@@ -229,6 +295,7 @@ export default function ChatScreen() {
           onSpeakingChange={setIsBudSpeaking}
           userContext={userContext}
           messageHistory={messageHistory}
+          recentInsights={recentInsights}
         />
       </KeyboardAvoidingView>
       <VoiceMode

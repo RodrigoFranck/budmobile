@@ -11,6 +11,7 @@
   "dependencies": {
     "@11labs/client": "^0.2.0",
     "@elevenlabs/react-native": "^0.5.11",
+    "@expo-google-fonts/fraunces": "^0.4.1",
     "@hookform/resolvers": "5.2.2",
     "@livekit/react-native": "^2.9.2",
     "@livekit/react-native-webrtc": "^137.0.2",
@@ -47,7 +48,10 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
+    "@react-native-community/cli": "latest",
+    "@react-native/metro-config": "latest",
     "@types/react": "~19.1.0",
+    "babel-plugin-module-resolver": "latest",
     "reactotron-react-native": "^5.1.18",
     "typescript": "~5.9.2"
   },

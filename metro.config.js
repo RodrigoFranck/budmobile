@@ -4,5 +4,11 @@ const path = require("path");
 
 const config = getDefaultConfig(__dirname);
 
+// Support TS path alias: @/* -> ./src/*
+config.resolver.alias = {
+  ...(config.resolver.alias ?? {}),
+  "@": path.resolve(__dirname, "src"),
+};
+
 module.exports = withNativeWind(config, { input: "./global.css" });
 

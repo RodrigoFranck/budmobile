@@ -19,11 +19,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { useUserPlan } from '@/hooks/useUserPlan';
 import { isSafetyResponse } from '@/utils/safetyDetection';
 import {
-  buildFirstMessage,
   buildVoicePrompt,
   type UserContext,
 } from '@/voice/voicePrompt';
 import { colors } from '@/lib/colors';
+
+function voiceLog(...args: unknown[]) {
+  if (!__DEV__) return;
+  // eslint-disable-next-line no-console
+  console.log('[voice]', ...args);
+}
 
 interface ElevenLabsMessage {
   source: 'user' | 'ai';
@@ -79,26 +84,92 @@ function VoiceInterfaceNativeInner(
 ) {
   const { canAccess } = useUserPlan();
   const processedRef = useRef<Set<string>>(new Set());
+  const sessionStartedAtRef = useRef<number | null>(null);
+  const receivedAiRef = useRef(false);
+  const noResponseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastUserMsgAtRef = useRef<number | null>(null);
 
   const conversation = useConversation({
     onConnect: () => {
+      sessionStartedAtRef.current = Date.now();
+      receivedAiRef.current = false;
+      voiceLog('connected');
+      try {
+        conversation.setMicMuted(false);
+        voiceLog('mic unmuted');
+      } catch (e) {
+        voiceLog('failed to unmute mic', e);
+      }
+      if (noResponseTimerRef.current) clearTimeout(noResponseTimerRef.current);
+      noResponseTimerRef.current = setTimeout(() => {
+        if (!receivedAiRef.current) {
+          voiceLog('no AI response after 15s -> ending session');
+          const hasUserTranscription = lastUserMsgAtRef.current !== null;
+          const message =
+            `O microfone conectou, mas nenhuma resposta chegou.\n\n` +
+            `- Transcrição do usuário chegou? ${hasUserTranscription ? 'Sim' : 'Não'}\n\n` +
+            `Isso costuma ser: microfone/STT não chegando, instabilidade de rede, ou problema no servidor de voz.\n\n` +
+            `Dica: se você tocar em "Enviar teste", vamos mandar uma mensagem de texto direto pro SDK (sem microfone) pra isolar o problema.`;
+
+          Alert.alert('Sem resposta no modo de voz', message, [
+            {
+              text: 'Encerrar',
+              style: 'destructive',
+              onPress: () => {
+                conversation.endSession();
+              },
+            },
+            {
+              text: 'Enviar teste',
+              style: 'default',
+              onPress: () => {
+                try {
+                  voiceLog('sending debug user message');
+                  conversation.sendUserMessage('teste');
+                } catch (e) {
+                  voiceLog('failed to send debug user message', e);
+                }
+              },
+            },
+            { text: 'OK' },
+          ]);
+        }
+      }, 15000);
       onVoiceModeChange?.(true);
     },
     onDisconnect: () => {
       onVoiceModeChange?.(false);
+      voiceLog('disconnected');
+      if (noResponseTimerRef.current) {
+        clearTimeout(noResponseTimerRef.current);
+        noResponseTimerRef.current = null;
+      }
+      const startedAt = sessionStartedAtRef.current;
+      const elapsedMs = startedAt ? Date.now() - startedAt : null;
+      const disconnectedTooFast = elapsedMs !== null && elapsedMs < 8000;
+      if (disconnectedTooFast && !receivedAiRef.current) {
+        voiceLog('disconnected too fast (ms)', elapsedMs);
+      }
     },
     onMessage: (props: { message: string; source: 'user' | 'ai' }) => {
       const text = (props.message || '').trim();
       if (!text) return;
+      voiceLog('message', props.source, text.slice(0, 180));
       const messageKey = `${props.source}-${text}`;
       if (processedRef.current.has(messageKey)) return;
       processedRef.current.add(messageKey);
       setTimeout(() => processedRef.current.delete(messageKey), 10000);
       if (props.source === 'user') {
+        lastUserMsgAtRef.current = Date.now();
         onTranscript?.(text);
         onUserMessage?.(text);
       }
       if (props.source === 'ai') {
+        receivedAiRef.current = true;
+        if (noResponseTimerRef.current) {
+          clearTimeout(noResponseTimerRef.current);
+          noResponseTimerRef.current = null;
+        }
         if (isSafetyResponse(text)) {
           onAssistantMessage?.(text);
           conversation.endSession();
@@ -117,9 +188,11 @@ function VoiceInterfaceNativeInner(
       }
     },
     onModeChange: (props: { mode: 'speaking' | 'listening' }) => {
+      voiceLog('mode', props.mode);
       onSpeakingChange?.(props.mode === 'speaking');
     },
     onError: (message: string) => {
+      voiceLog('error', message);
       Alert.alert('Erro', message || 'Erro na conexão de voz');
       onVoiceModeChange?.(false);
     },
@@ -146,8 +219,10 @@ function VoiceInterfaceNativeInner(
     }
     setIsLoading(true);
     try {
+      voiceLog('fetching token');
       const { data, error } = await supabase.functions.invoke('chat-voice');
       if (error) {
+        voiceLog('token error', error);
         const serverMsg =
           typeof error === 'object' && error !== null && 'message' in error
             ? String((error as { message?: string }).message)
@@ -155,15 +230,45 @@ function VoiceInterfaceNativeInner(
         throw new Error(serverMsg || 'Erro ao obter token de voz');
       }
       const token = data?.token as string | undefined;
+      voiceLog('token received', Boolean(token));
       if (!token) throw new Error('Token de voz não retornado');
-      await conversation.startSession({ conversationToken: token });
+      const prompt = buildVoicePrompt(
+        userContext,
+        messageHistory,
+        recentInsights,
+        internalProfile,
+      );
+      voiceLog('prompt chars', prompt.length);
+      await conversation.startSession({
+        conversationToken: token,
+        overrides: {
+          agent: {
+            prompt: { prompt },
+          },
+        },
+      });
+      voiceLog('startSession resolved');
+      try {
+        conversation.setMicMuted(false);
+        voiceLog('mic unmuted (post-start)');
+      } catch (e) {
+        voiceLog('failed to unmute mic (post-start)', e);
+      }
     } catch (e) {
+      voiceLog('startConversation catch', e);
       const msg = e instanceof Error ? e.message : 'Falha ao iniciar conversa';
       Alert.alert('Erro', msg);
     } finally {
       setIsLoading(false);
     }
-  }, [canAccess, conversation]);
+  }, [
+    canAccess,
+    conversation,
+    internalProfile,
+    messageHistory,
+    recentInsights,
+    userContext,
+  ]);
 
   const isConnected = conversation.status === 'connected';
 
@@ -269,7 +374,6 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
                   internalProfile,
                 ),
               },
-              firstMessage: buildFirstMessage(userContext),
             },
           },
           onConnect: () => {

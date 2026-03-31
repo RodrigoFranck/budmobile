@@ -97,8 +97,14 @@ export const ChatConstants = {
  * Explore gradient colors
  */
 export const ExploreGradientColors = {
-  base: ['#1a1a2e', '#16213e', '#0f3460', '#1a1a2e', '#16213e'],
-  animated: ['#16213e', '#0f3460', '#1a1a2e', '#16213e', '#0f3460'],
+  dark: {
+    base: ['#1D1916', '#1C1917', '#B8EBEB'],
+    animated: ['#1D1916', '#1A1816', '#BBEEEE'],
+  },
+  light: {
+    base: ['#F7F1ED', '#F3E7E0', '#DDEEEE'],
+    animated: ['#F7F1ED', '#EFE3DC', '#CFEDED'],
+  },
   animationDuration: 4000,
 } as const;
 

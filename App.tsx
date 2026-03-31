@@ -2,17 +2,20 @@ import './global.css';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
+import { Fraunces_400Regular } from '@expo-google-fonts/fraunces';
 import { ActivityIndicator, View } from 'react-native';
 import { Platform } from 'react-native';
 import { ElevenLabsProvider } from '@elevenlabs/react-native';
 import { AuthProvider } from '@/contexts/AuthContext';
-import { SidebarProvider } from '@/contexts/SidebarContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import AppNavigator from '@/navigation/AppNavigator';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
     'InriaSerif-Regular': require('./assets/fonts/InriaSerif-Regular.ttf'),
     'InriaSerif-Bold': require('./assets/fonts/InriaSerif-Bold.ttf'),
+    InstrumentSans: require('./assets/fonts/InstrumentSans-Variable.ttf'),
+    Fraunces_400Regular,
   });
 
   if (!fontsLoaded) {
@@ -26,10 +29,10 @@ export default function App() {
   const content = (
     <SafeAreaProvider>
       <AuthProvider>
-        <SidebarProvider>
+        <ThemeProvider>
           <AppNavigator />
           <StatusBar style="auto" />
-        </SidebarProvider>
+        </ThemeProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );
