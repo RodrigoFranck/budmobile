@@ -1,6 +1,8 @@
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
+import type { ChatInsightParam } from '@/types/chatInsight';
+
 /**
  * Root navigation stack parameter list
  * Define all routes and their parameters
@@ -32,9 +34,11 @@ export type MainTabParamList = {
               description: string;
             }
           | undefined;
+        chatInsight?: ChatInsightParam;
       }
     | undefined;
   Explore: undefined;
+  Activities: undefined;
   History: undefined;
 };
 

@@ -13,9 +13,11 @@ import {
   type VoiceInterfaceRef,
 } from '@/voice/VoiceInterface';
 import { useAppColors } from '@/lib/colors';
-// styles live in MessageInputBar.styles.ts
 import type { UserContext } from '@/utils/chatStream';
-import { createMessageInputBarStyles } from '@/components/chat/MessageInputBar.styles';
+import {
+  createMessageInputBarStyles,
+  MessageInputBarMetrics,
+} from '@/components/chat/MessageInputBar.styles';
 
 interface MessageInputBarProps {
   onSendMessage: (message: string) => void;
@@ -54,12 +56,14 @@ export function MessageInputBar({
 }: MessageInputBarProps) {
   const colors = useAppColors();
   const [message, setMessage] = useState('');
+  const [isMultiline, setIsMultiline] = useState(false);
   const insets = useSafeAreaInsets();
 
   const handleSend = () => {
     if (message.trim() && !disabled) {
       onSendMessage(message.trim());
       setMessage('');
+      setIsMultiline(false);
       Keyboard.dismiss();
     }
   };
@@ -68,8 +72,8 @@ export function MessageInputBar({
   const styles = createMessageInputBarStyles({
     colors,
     bottomInset: insets.bottom,
-    isIOS: Platform.OS === 'ios',
     canSend,
+    isMultiline,
   });
 
   return (
@@ -80,12 +84,29 @@ export function MessageInputBar({
             placeholder="Envie uma mensagem"
             placeholderTextColor={colors['chat-label-muted']}
             value={message}
-            onChangeText={setMessage}
+            onChangeText={(text) => {
+              setMessage(text);
+              if (!text.trim()) {
+                setIsMultiline(false);
+              } else if (text.includes('\n')) {
+                setIsMultiline(true);
+              }
+            }}
+            onContentSizeChange={(event) => {
+              const { height } = event.nativeEvent.contentSize;
+              const nextMultiline =
+                message.includes('\n') ||
+                height > MessageInputBarMetrics.pillHeight - 6;
+              setIsMultiline((prev) => (prev === nextMultiline ? prev : nextMultiline));
+            }}
             multiline
             editable={!disabled}
             onSubmitEditing={handleSend}
             blurOnSubmit={false}
             style={styles.textInput}
+            {...(Platform.OS === 'android' && {
+              includeFontPadding: false,
+            })}
           />
           <TouchableOpacity
             onPress={handleSend}
@@ -99,24 +120,26 @@ export function MessageInputBar({
           </TouchableOpacity>
         </View>
         {voiceInterfaceRef ? (
-          <VoiceInterface
-            ref={voiceInterfaceRef}
-            appearance="companion"
-            onTranscript={(text) => {
-              setMessage(text);
-              onVoiceTranscript?.(text);
-            }}
-            onVoiceModeChange={onVoiceModeChange}
-            onUserMessage={onVoiceUserMessage}
-            onAssistantMessage={onVoiceAssistantMessage}
-            onAssistantTranscript={onVoiceTranscript}
-            onSpeakingChange={onSpeakingChange}
-            onSafetyTriggered={onSafetyTriggered}
-            userContext={userContext}
-            messageHistory={messageHistory}
-            recentInsights={recentInsights}
-            internalProfile={internalProfile}
-          />
+          <View style={styles.voiceSlot}>
+            <VoiceInterface
+              ref={voiceInterfaceRef}
+              appearance="companion"
+              onTranscript={(text) => {
+                setMessage(text);
+                onVoiceTranscript?.(text);
+              }}
+              onVoiceModeChange={onVoiceModeChange}
+              onUserMessage={onVoiceUserMessage}
+              onAssistantMessage={onVoiceAssistantMessage}
+              onAssistantTranscript={onVoiceTranscript}
+              onSpeakingChange={onSpeakingChange}
+              onSafetyTriggered={onSafetyTriggered}
+              userContext={userContext}
+              messageHistory={messageHistory}
+              recentInsights={recentInsights}
+              internalProfile={internalProfile}
+            />
+          </View>
         ) : null}
       </View>
     </View>

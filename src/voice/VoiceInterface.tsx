@@ -46,6 +46,7 @@ interface ElevenLabsConversation {
 }
 
 export interface VoiceInterfaceProps {
+  appearance?: 'default' | 'companion';
   onTranscript?: (text: string) => void;
   onVoiceModeChange?: (active: boolean) => void;
   onUserMessage?: (text: string) => void;
@@ -69,6 +70,7 @@ export interface VoiceInterfaceRef {
 
 function VoiceInterfaceNativeInner(
   {
+    appearance = 'default',
     onTranscript,
     onVoiceModeChange,
     onUserMessage,
@@ -469,27 +471,35 @@ function VoiceInterfaceNativeInner(
   ]);
 
   const isConnected = conversation.status === 'connected';
+  const isCompanion = appearance === 'companion';
 
   return (
-    <View className="justify-center">
-      <TouchableOpacity
-        onPress={isConnected ? endConversation : startConversation}
-        disabled={isLoading}
-        accessibilityRole="button"
-        accessibilityLabel={
-          isConnected ? 'Encerrar voz' : 'Iniciar conversa por voz'
-        }
-        className="h-10 w-10 items-center justify-center"
-      >
-        {isLoading ? (
-          <ActivityIndicator size="small" color={colors.foreground} />
-        ) : isConnected ? (
-          <MicOff size={22} color={colors.destructive} />
-        ) : (
-          <Mic size={22} color={colors['foreground-muted']} />
-        )}
-      </TouchableOpacity>
-    </View>
+    <TouchableOpacity
+      onPress={isConnected ? endConversation : startConversation}
+      disabled={isLoading}
+      accessibilityRole="button"
+      accessibilityLabel={
+        isConnected ? 'Encerrar voz' : 'Iniciar conversa por voz'
+      }
+      className={
+        isCompanion
+          ? 'h-[52px] w-[40px] items-center justify-center'
+          : 'h-10 w-10 items-center justify-center'
+      }
+    >
+      {isLoading ? (
+        <ActivityIndicator size="small" color={colors.foreground} />
+      ) : isConnected ? (
+        <MicOff size={22} color={colors.destructive} />
+      ) : (
+        <Mic
+          size={22}
+          color={
+            isCompanion ? colors['chat-body'] : colors['foreground-muted']
+          }
+        />
+      )}
+    </TouchableOpacity>
   );
 }
 
@@ -512,6 +522,7 @@ export const VoiceInterface = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>
 const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
   function VoiceInterfaceWeb(
     {
+      appearance = 'default',
       onTranscript,
       onVoiceModeChange,
       onUserMessage,
@@ -658,26 +669,35 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
       };
     }, []);
 
+    const isCompanion = appearance === 'companion';
+
     return (
-      <View className="justify-center">
-        <TouchableOpacity
-          onPress={isConnected ? endConversation : startConversation}
-          disabled={isLoading}
-          accessibilityRole="button"
-          accessibilityLabel={
-            isConnected ? 'Encerrar voz' : 'Iniciar conversa por voz'
-          }
-          className="h-10 w-10 items-center justify-center"
-        >
-          {isLoading ? (
-            <ActivityIndicator size="small" color={colors.foreground} />
-          ) : isConnected ? (
-            <MicOff size={22} color={colors.destructive} />
-          ) : (
-            <Mic size={22} color={colors['foreground-muted']} />
-          )}
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity
+        onPress={isConnected ? endConversation : startConversation}
+        disabled={isLoading}
+        accessibilityRole="button"
+        accessibilityLabel={
+          isConnected ? 'Encerrar voz' : 'Iniciar conversa por voz'
+        }
+        className={
+          isCompanion
+            ? 'h-[52px] w-[40px] items-center justify-center'
+            : 'h-10 w-10 items-center justify-center'
+        }
+      >
+        {isLoading ? (
+          <ActivityIndicator size="small" color={colors.foreground} />
+        ) : isConnected ? (
+          <MicOff size={22} color={colors.destructive} />
+        ) : (
+          <Mic
+            size={22}
+            color={
+              isCompanion ? colors['chat-body'] : colors['foreground-muted']
+            }
+          />
+        )}
+      </TouchableOpacity>
     );
   },
 );

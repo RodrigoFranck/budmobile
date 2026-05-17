@@ -4,9 +4,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MessageSquare, Compass, History } from 'lucide-react-native';
 
+import { ActivitiesTabIcon } from '@/components/icons/ActivitiesTabIcon';
 import ChatScreen from '@/pages/Chat';
 import ExploreScreen from '@/pages/Explore';
 import HistoryScreen from '@/pages/History';
+import ActivitiesNavigator from '@/navigation/ActivitiesNavigator';
+import { getDefaultTabBarStyle } from '@/constants/tabBar';
 import type { MainTabParamList } from '@/types/navigation';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -19,14 +22,7 @@ export default function MainTabs() {
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: true,
-        tabBarStyle: {
-          backgroundColor: 'rgba(20, 20, 20, 0.95)',
-          borderTopColor: 'rgba(255, 255, 255, 0.10)',
-          borderTopWidth: 1,
-          height: 64 + Math.max(insets.bottom, 0),
-          paddingBottom: Math.max(insets.bottom, 0),
-          paddingTop: 8,
-        },
+        tabBarStyle: getDefaultTabBarStyle(insets.bottom),
         tabBarLabelStyle: {
           fontSize: 12,
           marginTop: 2,
@@ -55,6 +51,18 @@ export default function MainTabs() {
           tabBarIcon: ({ color, size }) => (
             <View style={{ marginTop: 2 }}>
               <Compass color={color} size={size ?? 22} />
+            </View>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Activities"
+        component={ActivitiesNavigator}
+        options={{
+          tabBarLabel: 'Atividades',
+          tabBarIcon: ({ color, size }) => (
+            <View style={{ marginTop: 2 }}>
+              <ActivitiesTabIcon color={color} size={size ?? 22} />
             </View>
           ),
         }}

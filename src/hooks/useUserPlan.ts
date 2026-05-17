@@ -79,7 +79,13 @@ export function useUserPlan() {
         .maybeSingle();
 
       if (error) {
-        console.error("Error fetching subscription:", error);
+        if (error.code === "PGRST205") {
+          console.warn(
+            "subscriptions table missing on Supabase — using free plan. Run budmind: npm run db:repair-subscriptions",
+          );
+        } else {
+          console.error("Error fetching subscription:", error);
+        }
         setIsLoading(false);
         return;
       }
