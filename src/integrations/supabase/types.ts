@@ -79,6 +79,42 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_checkins: {
+        Row: {
+          ai_report: Json | null
+          checkin_date: string
+          checkin_type: string
+          created_at: string
+          feedback_type: string | null
+          id: string
+          responses: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_report?: Json | null
+          checkin_date?: string
+          checkin_type: string
+          created_at?: string
+          feedback_type?: string | null
+          id?: string
+          responses?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_report?: Json | null
+          checkin_date?: string
+          checkin_type?: string
+          created_at?: string
+          feedback_type?: string | null
+          id?: string
+          responses?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       explore_cards: {
         Row: {
           card_type: string

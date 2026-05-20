@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "budmobile",
+    "name": "Bud.",
     "slug": "budmobile",
     "scheme": "com.bud.app",
     "version": "1.0.0",
@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#AEECEF"
     },
     "ios": {
       "supportsTablet": true,
@@ -24,14 +24,12 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#AEECEF"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.bud.app",
-      "permissions": [
-        "RECORD_AUDIO"
-      ]
+      "permissions": ["RECORD_AUDIO"]
     },
     "plugins": [
       [

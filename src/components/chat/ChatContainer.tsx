@@ -1,13 +1,12 @@
 import { useRef, useEffect, useCallback, useMemo } from 'react';
 import { FlatList, View, Text } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, isSameDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChatMessage } from './ChatMessage';
 import { SafetyCard } from './SafetyCard';
 import { isSafetyResponse } from '@/utils/safetyDetection';
 import type { Message } from '@/types/messages';
-import { Typography, Spacing, InputHeight } from '@/constants/styles';
+import { Spacing } from '@/constants/styles';
 import { useAppColors } from '@/lib/colors';
 import { frauncesFont } from '@/constants/onboardingTheme';
 import { createChatContainerStyles } from '@/components/chat/ChatContainer.styles';
@@ -60,11 +59,7 @@ function ChatEmptyPrompt() {
 
   const styles = useMemo(
     () =>
-      createChatContainerStyles({
-        colors,
-        inputBarHeight: 0,
-        topPadding: 0,
-      }),
+      createChatContainerStyles({ colors, topPadding: 0 }),
     [colors],
   );
 
@@ -85,11 +80,7 @@ function DateDivider({ label }: { label: string }) {
   const colors = useAppColors();
   const styles = useMemo(
     () =>
-      createChatContainerStyles({
-        colors,
-        inputBarHeight: 0,
-        topPadding: 0,
-      }),
+      createChatContainerStyles({ colors, topPadding: 0 }),
     [colors],
   );
   return (
@@ -102,19 +93,29 @@ function DateDivider({ label }: { label: string }) {
 export function ChatContainer({ messages, loading, topPadding }: ChatContainerProps) {
   const colors = useAppColors();
   const flatListRef = useRef<FlatList>(null);
-  const insets = useSafeAreaInsets();
-  const inputBarHeight = Spacing.base + InputHeight.md + Math.max(insets.bottom, Spacing.base);
   const styles = useMemo(
     () =>
       createChatContainerStyles({
         colors,
-        inputBarHeight,
-        topPadding: topPadding ?? insets.top + Spacing.base,
+        topPadding: topPadding ?? Spacing.base,
       }),
-    [colors, insets.top, inputBarHeight, topPadding],
+    [colors, topPadding],
   );
 
   const listItems = useMemo(() => buildListItems(messages), [messages]);
+
+  const showTypingFooter = useMemo(() => {
+    if (!loading || messages.length === 0) {
+      return false;
+    }
+    const hasStreamingAssistantContent = messages.some(
+      (msg) =>
+        msg.role === 'assistant' &&
+        msg.isStreaming &&
+        msg.content.trim().length > 0,
+    );
+    return !hasStreamingAssistantContent;
+  }, [loading, messages]);
 
   useEffect(() => {
     if (listItems.length > 0) {
@@ -164,7 +165,7 @@ export function ChatContainer({ messages, loading, topPadding }: ChatContainerPr
       }}
       ListEmptyComponent={showEmpty ? <ChatEmptyPrompt /> : null}
       ListFooterComponent={
-        loading && messages.length > 0 ? (
+        showTypingFooter ? (
           <View style={styles.footerWrap}>
             <Text style={styles.footerText}>Bud está digitando...</Text>
           </View>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   View,
   TextInput,
@@ -13,9 +13,9 @@ import {
   type VoiceInterfaceRef,
 } from '@/voice/VoiceInterface';
 import { useAppColors } from '@/lib/colors';
-// styles live in MessageInputBar.styles.ts
 import type { UserContext } from '@/utils/chatStream';
-import { createMessageInputBarStyles } from '@/components/chat/MessageInputBar.styles';
+import { getMessageInputBarStyles } from '@/components/chat/MessageInputBar.styles';
+import { useMessageInputBarLayout } from '@/components/chat/messageInputBarLayout';
 
 interface MessageInputBarProps {
   onSendMessage: (message: string) => void;
@@ -53,24 +53,32 @@ export function MessageInputBar({
   internalProfile,
 }: MessageInputBarProps) {
   const colors = useAppColors();
+  const layout = useMessageInputBarLayout();
   const [message, setMessage] = useState('');
+  const messageRef = useRef('');
   const insets = useSafeAreaInsets();
+
+  const hasMessage = message.trim().length > 0;
 
   const handleSend = () => {
     if (message.trim() && !disabled) {
       onSendMessage(message.trim());
       setMessage('');
+      messageRef.current = '';
       Keyboard.dismiss();
     }
   };
 
-  const canSend = message.trim().length > 0 && !disabled;
-  const styles = createMessageInputBarStyles({
-    colors,
-    bottomInset: insets.bottom,
-    isIOS: Platform.OS === 'ios',
-    canSend,
-  });
+  const canSend = hasMessage && !disabled;
+  const styles = useMemo(
+    () =>
+      getMessageInputBarStyles({
+        colors,
+        bottomInset: insets.bottom,
+        layout,
+      }),
+    [colors, insets.bottom, layout],
+  );
 
   return (
     <View style={styles.root}>
@@ -80,43 +88,57 @@ export function MessageInputBar({
             placeholder="Envie uma mensagem"
             placeholderTextColor={colors['chat-label-muted']}
             value={message}
-            onChangeText={setMessage}
+            onChangeText={(text) => {
+              messageRef.current = text;
+              setMessage(text);
+            }}
             multiline
             editable={!disabled}
             onSubmitEditing={handleSend}
             blurOnSubmit={false}
+            scrollEnabled={hasMessage}
             style={styles.textInput}
+            {...(Platform.OS === 'android' && {
+              includeFontPadding: false,
+            })}
           />
           <TouchableOpacity
             onPress={handleSend}
             disabled={!canSend}
             accessibilityRole="button"
             accessibilityLabel="Enviar mensagem"
-            style={styles.sendButton}
+            style={[styles.sendButton, { opacity: canSend ? 1 : 0.35 }]}
             hitSlop={styles.sendHitSlop}
           >
-            <ChevronUp size={22} color={colors['chat-body']} strokeWidth={2.5} />
+            <ChevronUp
+              size={Math.round(layout.sendTouchSize * 0.55)}
+              color={colors['chat-body']}
+              strokeWidth={2.5}
+            />
           </TouchableOpacity>
         </View>
         {voiceInterfaceRef ? (
-          <VoiceInterface
-            ref={voiceInterfaceRef}
-            appearance="companion"
-            onTranscript={(text) => {
-              setMessage(text);
-              onVoiceTranscript?.(text);
-            }}
-            onVoiceModeChange={onVoiceModeChange}
-            onUserMessage={onVoiceUserMessage}
-            onAssistantMessage={onVoiceAssistantMessage}
-            onAssistantTranscript={onVoiceTranscript}
-            onSpeakingChange={onSpeakingChange}
-            onSafetyTriggered={onSafetyTriggered}
-            userContext={userContext}
-            messageHistory={messageHistory}
-            recentInsights={recentInsights}
-            internalProfile={internalProfile}
-          />
+          <View style={styles.voiceSlot}>
+            <VoiceInterface
+              ref={voiceInterfaceRef}
+              appearance="companion"
+              onTranscript={(text) => {
+                messageRef.current = text;
+                setMessage(text);
+                onVoiceTranscript?.(text);
+              }}
+              onVoiceModeChange={onVoiceModeChange}
+              onUserMessage={onVoiceUserMessage}
+              onAssistantMessage={onVoiceAssistantMessage}
+              onAssistantTranscript={onVoiceTranscript}
+              onSpeakingChange={onSpeakingChange}
+              onSafetyTriggered={onSafetyTriggered}
+              userContext={userContext}
+              messageHistory={messageHistory}
+              recentInsights={recentInsights}
+              internalProfile={internalProfile}
+            />
+          </View>
         ) : null}
       </View>
     </View>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { View, KeyboardAvoidingView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Book, Settings } from 'lucide-react-native';
@@ -12,7 +12,9 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { useUserPlan } from '@/hooks/useUserPlan';
 import { ChatContainer } from '@/components/chat/ChatContainer';
 import { MessageInputBar } from '@/components/chat/MessageInputBar';
-import { streamChat, type UserContext } from '@/utils/chatStream';
+import { streamChat, type InsightContext, type UserContext } from '@/utils/chatStream';
+import type { ChatInsightParam } from '@/types/chatInsight';
+import { takePendingChatInsight } from '@/utils/navigateToChat';
 import type { StreamingMessage } from '@/types/messages';
 import { PlatformConstants } from '@/constants/layout';
 import {
@@ -43,10 +45,13 @@ export default function ChatScreen() {
   const navigation = useNavigation<MainTabNavigationProp>();
   const rootNavigation = useNavigation<RootNavigationProp>();
 
+  const [insightContext, setInsightContext] = useState<InsightContext | null>(null);
   const [recentInsights, setRecentInsights] = useState<
     Array<{ insight_type: string; title: string; description: string }>
   >([]);
   const [shouldAutoStartVoice, setShouldAutoStartVoice] = useState(false);
+  const pendingChatInsightRef = useRef<ChatInsightParam | null>(null);
+  const didAutoSendInsightRef = useRef(false);
 
   const { messages: dbMessages, loading: messagesLoading, addMessage } =
     useMessages(currentConversationId);
@@ -65,6 +70,31 @@ export default function ChatScreen() {
   }, [user]);
 
   const voiceInsight = route.params?.voiceInsight;
+
+  const mapChatInsightToContext = useCallback((insight: ChatInsightParam): InsightContext => ({
+    insightType: insight.insightType,
+    badge: insight.badge,
+    title: insight.title,
+    contextSummary: insight.contextSummary,
+    internalContext: insight.internalContext,
+    backgroundType: insight.backgroundType,
+  }), []);
+
+  const applyChatInsight = useCallback(
+    (insight: ChatInsightParam) => {
+      pendingChatInsightRef.current = insight;
+      didAutoSendInsightRef.current = false;
+      setInsightContext(mapChatInsightToContext(insight));
+      setRecentInsights([
+        {
+          insight_type: insight.insightType,
+          title: insight.title,
+          description: insight.contextSummary,
+        },
+      ]);
+    },
+    [mapChatInsightToContext],
+  );
 
   useEffect(() => {
     if (!voiceInsight) return;
@@ -158,13 +188,15 @@ export default function ChatScreen() {
   }, []);
 
   const handleSendMessage = useCallback(
-    async (message: string) => {
+    async (message: string, contextOverride?: InsightContext | null) => {
       if (!canSendMessage) {
         alert('Você atingiu o limite de mensagens do plano gratuito.');
         return;
       }
 
       if (!currentConversationId || !user) return;
+
+      const activeInsightContext = contextOverride ?? insightContext;
 
       const userMessageId = `user-${Date.now()}`;
       setStreamingMessages((prev) => [
@@ -209,6 +241,7 @@ export default function ChatScreen() {
       await streamChat({
         messages: apiMessages,
         userContext,
+        insightContext: activeInsightContext ?? undefined,
         onDelta: (deltaText) => {
           accumulatedContent += deltaText;
           setStreamingMessages((prev) =>
@@ -253,10 +286,48 @@ export default function ChatScreen() {
       user,
       dbMessages,
       userContext,
+      insightContext,
       incrementMessageCount,
       addMessage,
     ],
   );
+
+  const trySendPendingInsight = useCallback(() => {
+    const pending = pendingChatInsightRef.current;
+    if (!pending?.initialUserMessage?.trim()) return;
+    if (!currentConversationId) return;
+    if (didAutoSendInsightRef.current) return;
+    if (isStreaming) return;
+
+    didAutoSendInsightRef.current = true;
+    const message = pending.initialUserMessage.trim();
+    const context = mapChatInsightToContext(pending);
+    pendingChatInsightRef.current = null;
+
+    void handleSendMessage(message, context);
+  }, [currentConversationId, handleSendMessage, isStreaming, mapChatInsightToContext]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const fromParams = route.params?.chatInsight;
+      const fromStash = takePendingChatInsight();
+      const insight = fromParams ?? fromStash;
+      if (!insight) return;
+
+      applyChatInsight(insight);
+      if (fromParams) {
+        navigation.setParams({ chatInsight: undefined });
+      }
+
+      requestAnimationFrame(() => {
+        trySendPendingInsight();
+      });
+    }, [applyChatInsight, navigation, route.params?.chatInsight, trySendPendingInsight]),
+  );
+
+  useEffect(() => {
+    trySendPendingInsight();
+  }, [trySendPendingInsight]);
 
   return (
     <View className="flex-1 bg-background">

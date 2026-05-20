@@ -5,20 +5,20 @@ import { Spacing } from '@/constants/styles';
 
 export function createChatContainerStyles(params: {
   colors: AppColors;
-  inputBarHeight: number;
   topPadding: number;
 }) {
-  const { colors, inputBarHeight, topPadding } = params;
+  const { colors, topPadding } = params;
 
   return StyleSheet.create({
     list: {
       flex: 1,
     },
     contentContainer: {
+      flexGrow: 1,
+      justifyContent: 'flex-end',
       paddingHorizontal: Spacing.base + 4,
       paddingTop: topPadding,
-      paddingBottom: inputBarHeight + Spacing.lg,
-      flexGrow: 1,
+      paddingBottom: Spacing.sm,
     },
     emptyPrompt: {
       paddingVertical: Spacing['3xl'],
