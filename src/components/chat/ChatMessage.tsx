@@ -38,6 +38,10 @@ export const ChatMessage = memo(function ChatMessage({
     );
   }
 
+  if (isStreaming && !content.trim()) {
+    return null;
+  }
+
   return (
     <View
       className={cn('mb-8 w-full', isUser ? 'items-end' : 'items-start')}

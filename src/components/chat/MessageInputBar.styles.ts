@@ -1,75 +1,106 @@
-import { StyleSheet, type ViewStyle } from 'react-native';
+import { StyleSheet, type TextStyle, type ViewStyle } from 'react-native';
 
 import type { AppColors } from '@/lib/colors';
 import { BorderRadius, Spacing, Typography } from '@/constants/styles';
-import { ChatConstants } from '@/constants/layout';
 
-export const MessageInputBarMetrics = {
-  pillHeight: 52,
-  sendTouchSize: 40,
-} as const;
+import type { MessageInputBarLayout } from '@/components/chat/messageInputBarLayout';
 
-export function createMessageInputBarStyles(params: {
+const baseStyles = StyleSheet.create({
+  root: {
+    paddingTop: Spacing.md,
+    paddingHorizontal: Spacing.base,
+    backgroundColor: 'transparent',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  inputWrap: {
+    flex: 1,
+    borderRadius: BorderRadius.full,
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  textInput: {
+    flex: 1,
+    fontSize: Typography.base,
+    margin: 0,
+    paddingRight: 0,
+    textAlignVertical: 'top',
+  },
+  sendButton: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendHitSlop: {
+    top: 8,
+    bottom: 8,
+    left: 8,
+    right: 8,
+  } as const,
+  voiceSlot: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
+
+export function getMessageInputBarStyles(params: {
   colors: AppColors;
   bottomInset: number;
-  canSend: boolean;
-  isMultiline: boolean;
+  layout: MessageInputBarLayout;
 }) {
-  const { colors, bottomInset, canSend, isMultiline } = params;
-  const { pillHeight, sendTouchSize } = MessageInputBarMetrics;
+  const { colors, bottomInset, layout } = params;
+  const {
+    pillHeight,
+    sendTouchSize,
+    sendButtonInset,
+    sendButtonTop,
+    textPaddingLeft,
+    textLineHeight,
+    singleLineVerticalPadding,
+  } = layout;
+  const sendColumnWidth = sendTouchSize + sendButtonInset;
 
-  return StyleSheet.create({
-    root: {
-      paddingTop: Spacing.md,
-      paddingBottom: Math.max(bottomInset, Spacing.base),
-      paddingHorizontal: Spacing.base,
-      backgroundColor: 'transparent',
-    },
-    row: {
-      flexDirection: 'row',
-      alignItems: isMultiline ? 'flex-end' : 'center',
-      gap: 12,
-    } satisfies ViewStyle,
-    inputWrap: {
-      flex: 1,
-      minHeight: pillHeight,
-      height: isMultiline ? undefined : pillHeight,
-      maxHeight: ChatConstants.inputMaxHeight + 24,
-      borderRadius: BorderRadius.full,
-      backgroundColor: colors['chat-input-pill'],
-      flexDirection: 'row',
-      alignItems: isMultiline ? 'flex-end' : 'center',
-      paddingLeft: Spacing.base + 2,
-      paddingRight: Spacing.sm,
-    } satisfies ViewStyle,
-    textInput: {
-      flex: 1,
-      fontSize: Typography.base,
-      lineHeight: Typography.lineHeight.normal,
-      color: colors['chat-body'],
-      maxHeight: ChatConstants.inputMaxHeight,
-      paddingTop: 0,
-      paddingBottom: 0,
-      margin: 0,
-      textAlignVertical: isMultiline ? 'top' : 'center',
-    },
-    sendButton: {
-      width: sendTouchSize,
-      height: sendTouchSize,
-      alignItems: 'center',
-      justifyContent: 'center',
-      opacity: canSend ? 1 : 0.35,
-    } satisfies ViewStyle,
-    sendHitSlop: {
-      top: 8,
-      bottom: 8,
-      left: 8,
-      right: 8,
-    } as const,
-    voiceSlot: {
-      height: pillHeight,
-      justifyContent: 'center',
-      alignItems: 'center',
-    } satisfies ViewStyle,
-  });
+  return {
+    root: [
+      baseStyles.root,
+      { paddingBottom: Math.max(bottomInset, Spacing.base) },
+    ] satisfies ViewStyle[],
+    row: baseStyles.row,
+    inputWrap: [
+      baseStyles.inputWrap,
+      {
+        backgroundColor: colors['chat-input-pill'],
+        height: pillHeight,
+        paddingRight: sendColumnWidth,
+      },
+    ] satisfies ViewStyle[],
+    textInput: [
+      baseStyles.textInput,
+      {
+        color: colors['chat-body'],
+        height: pillHeight,
+        lineHeight: textLineHeight,
+        paddingLeft: textPaddingLeft,
+        paddingTop: singleLineVerticalPadding,
+        paddingBottom: singleLineVerticalPadding,
+      },
+    ] satisfies TextStyle[],
+    sendButton: [
+      baseStyles.sendButton,
+      {
+        width: sendTouchSize,
+        height: sendTouchSize,
+        right: sendButtonInset,
+        top: sendButtonTop,
+      },
+    ] satisfies ViewStyle[],
+    sendHitSlop: baseStyles.sendHitSlop,
+    voiceSlot: [
+      baseStyles.voiceSlot,
+      { width: layout.voiceSlotWidth, height: pillHeight },
+    ] satisfies ViewStyle[],
+  };
 }

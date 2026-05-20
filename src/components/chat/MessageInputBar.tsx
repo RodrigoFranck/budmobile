@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   View,
   TextInput,
@@ -14,10 +14,8 @@ import {
 } from '@/voice/VoiceInterface';
 import { useAppColors } from '@/lib/colors';
 import type { UserContext } from '@/utils/chatStream';
-import {
-  createMessageInputBarStyles,
-  MessageInputBarMetrics,
-} from '@/components/chat/MessageInputBar.styles';
+import { getMessageInputBarStyles } from '@/components/chat/MessageInputBar.styles';
+import { useMessageInputBarLayout } from '@/components/chat/messageInputBarLayout';
 
 interface MessageInputBarProps {
   onSendMessage: (message: string) => void;
@@ -55,26 +53,32 @@ export function MessageInputBar({
   internalProfile,
 }: MessageInputBarProps) {
   const colors = useAppColors();
+  const layout = useMessageInputBarLayout();
   const [message, setMessage] = useState('');
-  const [isMultiline, setIsMultiline] = useState(false);
+  const messageRef = useRef('');
   const insets = useSafeAreaInsets();
+
+  const hasMessage = message.trim().length > 0;
 
   const handleSend = () => {
     if (message.trim() && !disabled) {
       onSendMessage(message.trim());
       setMessage('');
-      setIsMultiline(false);
+      messageRef.current = '';
       Keyboard.dismiss();
     }
   };
 
-  const canSend = message.trim().length > 0 && !disabled;
-  const styles = createMessageInputBarStyles({
-    colors,
-    bottomInset: insets.bottom,
-    canSend,
-    isMultiline,
-  });
+  const canSend = hasMessage && !disabled;
+  const styles = useMemo(
+    () =>
+      getMessageInputBarStyles({
+        colors,
+        bottomInset: insets.bottom,
+        layout,
+      }),
+    [colors, insets.bottom, layout],
+  );
 
   return (
     <View style={styles.root}>
@@ -85,24 +89,14 @@ export function MessageInputBar({
             placeholderTextColor={colors['chat-label-muted']}
             value={message}
             onChangeText={(text) => {
+              messageRef.current = text;
               setMessage(text);
-              if (!text.trim()) {
-                setIsMultiline(false);
-              } else if (text.includes('\n')) {
-                setIsMultiline(true);
-              }
-            }}
-            onContentSizeChange={(event) => {
-              const { height } = event.nativeEvent.contentSize;
-              const nextMultiline =
-                message.includes('\n') ||
-                height > MessageInputBarMetrics.pillHeight - 6;
-              setIsMultiline((prev) => (prev === nextMultiline ? prev : nextMultiline));
             }}
             multiline
             editable={!disabled}
             onSubmitEditing={handleSend}
             blurOnSubmit={false}
+            scrollEnabled={hasMessage}
             style={styles.textInput}
             {...(Platform.OS === 'android' && {
               includeFontPadding: false,
@@ -113,10 +107,14 @@ export function MessageInputBar({
             disabled={!canSend}
             accessibilityRole="button"
             accessibilityLabel="Enviar mensagem"
-            style={styles.sendButton}
+            style={[styles.sendButton, { opacity: canSend ? 1 : 0.35 }]}
             hitSlop={styles.sendHitSlop}
           >
-            <ChevronUp size={22} color={colors['chat-body']} strokeWidth={2.5} />
+            <ChevronUp
+              size={Math.round(layout.sendTouchSize * 0.55)}
+              color={colors['chat-body']}
+              strokeWidth={2.5}
+            />
           </TouchableOpacity>
         </View>
         {voiceInterfaceRef ? (
@@ -125,6 +123,7 @@ export function MessageInputBar({
               ref={voiceInterfaceRef}
               appearance="companion"
               onTranscript={(text) => {
+                messageRef.current = text;
                 setMessage(text);
                 onVoiceTranscript?.(text);
               }}
