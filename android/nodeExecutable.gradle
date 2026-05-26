@@ -1,0 +1,197 @@
+// Resolves Node.js for Gradle (Android Studio often lacks nvm/fnm on PATH).
+
+ext.findNodeFromNvm = {
+    def nvmDir = System.getenv("NVM_DIR") ?: "${System.getProperty("user.home")}/.nvm"
+    def versionsDir = new File(nvmDir, "versions/node")
+    if (!versionsDir.isDirectory()) {
+        return null
+    }
+    def versionDirs = versionsDir.listFiles()?.findAll { it.isDirectory() }?.sort { a, b -> b.name <=> a.name }
+    for (def versionDir in versionDirs ?: []) {
+        def candidate = new File(versionDir, "bin/node")
+        if (candidate.canExecute()) {
+            return candidate.absolutePath
+        }
+    }
+    return null
+}
+
+ext.findNodeFromFnm = {
+    def fnmVersionsDir = new File("${System.getProperty("user.home")}/.local/share/fnm/node-versions")
+    if (!fnmVersionsDir.isDirectory()) {
+        return null
+    }
+    def versionDirs = fnmVersionsDir.listFiles()?.findAll { it.isDirectory() }?.sort { a, b -> b.name <=> a.name }
+    for (def versionDir in versionDirs ?: []) {
+        def candidate = new File(versionDir, "installation/bin/node")
+        if (candidate.canExecute()) {
+            return candidate.absolutePath
+        }
+    }
+    return null
+}
+
+ext.resolveNodeExecutable = { File androidRoot ->
+    def fromEnv = System.getenv("NODE_BINARY")
+    if (fromEnv != null && !fromEnv.isEmpty()) {
+        return fromEnv
+    }
+
+    def localProperties = new Properties()
+    def localPropertiesFile = new File(androidRoot, "local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.withReader("UTF-8") { reader -> localProperties.load(reader) }
+        def fromLocal = localProperties.getProperty("node.executable")
+        if (fromLocal != null && !fromLocal.isEmpty()) {
+            return fromLocal
+        }
+    }
+
+    def fromNvm = findNodeFromNvm()
+    if (fromNvm != null) {
+        return fromNvm
+    }
+
+    def fromFnm = findNodeFromFnm()
+    if (fromFnm != null) {
+        return fromFnm
+    }
+
+    return "node"
+}
+
+ext.configureNodeForGradle = { File androidRoot ->
+    // Put android/bin first so `node` can be resolved via the shim.
+    def binDir = new File(androidRoot, "bin").absolutePath
+    def path = System.getenv("PATH") ?: ""
+    if (!path.split(File.pathSeparator).contains(binDir)) {
+        try {
+            def envClass = Class.forName("java.lang.ProcessEnvironment")
+            def putenvMethod = envClass.getDeclaredMethod("putenv", String.class, String.class)
+            putenvMethod.setAccessible(true)
+            putenvMethod.invoke(null, "PATH", binDir + File.pathSeparator + path)
+        } catch (Throwable ignored) {
+            // best-effort; settings.gradle also uses the shim via `sh`.
+        }
+    }
+}
+
+// Resolves Node.js for Gradle (Android Studio often lacks nvm/fnm on PATH).
+
+ext.findNodeFromNvm = {
+    def nvmDir = System.getenv("NVM_DIR") ?: "${System.getProperty("user.home")}/.nvm"
+    def versionsDir = new File(nvmDir, "versions/node")
+    if (!versionsDir.isDirectory()) {
+        return null
+    }
+    def versionDirs = versionsDir.listFiles()?.findAll { it.isDirectory() }?.sort { a, b -> b.name <=> a.name }
+    for (def versionDir in versionDirs ?: []) {
+        def candidate = new File(versionDir, "bin/node")
+        if (candidate.canExecute()) {
+            return candidate.absolutePath
+        }
+    }
+    return null
+}
+
+ext.findNodeFromFnm = {
+    def fnmVersionsDir = new File("${System.getProperty("user.home")}/.local/share/fnm/node-versions")
+    if (!fnmVersionsDir.isDirectory()) {
+        return null
+    }
+    def versionDirs = fnmVersionsDir.listFiles()?.findAll { it.isDirectory() }?.sort { a, b -> b.name <=> a.name }
+    for (def versionDir in versionDirs ?: []) {
+        def candidate = new File(versionDir, "installation/bin/node")
+        if (candidate.canExecute()) {
+            return candidate.absolutePath
+        }
+    }
+    return null
+}
+
+ext.resolveNodeExecutable = { File androidRoot ->
+    def fromEnv = System.getenv("NODE_BINARY")
+    if (fromEnv != null && !fromEnv.isEmpty()) {
+        return fromEnv
+    }
+
+    def localProperties = new Properties()
+    def localPropertiesFile = new File(androidRoot, "local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.withReader("UTF-8") { reader -> localProperties.load(reader) }
+        def fromLocal = localProperties.getProperty("node.executable")
+        if (fromLocal != null && !fromLocal.isEmpty()) {
+            return fromLocal
+        }
+    }
+
+    def fromNvm = findNodeFromNvm()
+    if (fromNvm != null) {
+        return fromNvm
+    }
+
+    def fromFnm = findNodeFromFnm()
+    if (fromFnm != null) {
+        return fromFnm
+    }
+
+    return "node"
+}
+
+ext.setProcessEnvironmentVariable = { String key, String value ->
+    try {
+        def envClass = Class.forName("java.lang.ProcessEnvironment")
+        def putenvMethod = envClass.getDeclaredMethod("putenv", String.class, String.class)
+        putenvMethod.setAccessible(true)
+        putenvMethod.invoke(null, key, value)
+        return true
+    } catch (Throwable ignored) {
+        try {
+            def envClass = Class.forName("java.lang.ProcessEnvironment")
+            def variableClass = Class.forName("java.lang.ProcessEnvironment\$Variable")
+            def variableConstructor = variableClass.getDeclaredConstructor(String.class)
+            variableConstructor.setAccessible(true)
+            def variable = variableConstructor.newInstance(value)
+            def theEnvironmentField = envClass.getDeclaredField("theEnvironment")
+            theEnvironmentField.setAccessible(true)
+            def env = theEnvironmentField.get(null) as Map<String, Object>
+            env.put(key, variable)
+            return true
+        } catch (Throwable ignored2) {
+            return false
+        }
+    }
+}
+
+ext.prependToPath = { String directory ->
+    def path = System.getenv("PATH") ?: ""
+    def segments = path.split(File.pathSeparator).findAll { it != null && !it.isEmpty() }
+    if (segments.contains(directory)) {
+        return
+    }
+    setProcessEnvironmentVariable("PATH", directory + File.pathSeparator + path)
+}
+
+ext.configureNodeForGradle = { File androidRoot ->
+    def nodePath = resolveNodeExecutable(androidRoot)
+    def binDir = new File(androidRoot, "bin").absolutePath
+    def nodeWrapper = new File(binDir, "node")
+    if (!nodeWrapper.canExecute()) {
+        nodeWrapper.setExecutable(true)
+    }
+
+    if (nodePath == "node") {
+        prependToPath(binDir)
+        return
+    }
+
+    def nodeFile = new File(nodePath)
+    if (!nodeFile.isFile()) {
+        prependToPath(binDir)
+        return
+    }
+
+    setProcessEnvironmentVariable("NODE_BINARY", nodePath)
+    prependToPath(binDir)
+    prependToPath(nodeFile.parent)
+}

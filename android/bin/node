@@ -1,0 +1,79 @@
+#!/bin/sh
+# Gradle/Android Studio often lack nvm/fnm on PATH; this shim resolves node.
+set -e
+
+ANDROID_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+LOCAL_PROPS="$ANDROID_DIR/local.properties"
+
+if [ -f "$LOCAL_PROPS" ]; then
+  NODE_EXECUTABLE=$(grep '^node\.executable=' "$LOCAL_PROPS" | cut -d= -f2- | tr -d '\r')
+  if [ -n "$NODE_EXECUTABLE" ] && [ -x "$NODE_EXECUTABLE" ]; then
+    exec "$NODE_EXECUTABLE" "$@"
+  fi
+fi
+
+if [ -n "$NODE_BINARY" ] && [ -x "$NODE_BINARY" ]; then
+  exec "$NODE_BINARY" "$@"
+fi
+
+NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+if [ -d "$NVM_DIR/versions/node" ]; then
+  for dir in $(ls -1 "$NVM_DIR/versions/node" 2>/dev/null | sort -Vr); do
+    candidate="$NVM_DIR/versions/node/$dir/bin/node"
+    if [ -x "$candidate" ]; then
+      exec "$candidate" "$@"
+    fi
+  done
+fi
+
+FNM_DIR="${HOME}/.local/share/fnm/node-versions"
+if [ -d "$FNM_DIR" ]; then
+  for dir in $(ls -1 "$FNM_DIR" 2>/dev/null | sort -Vr); do
+    candidate="$FNM_DIR/$dir/installation/bin/node"
+    if [ -x "$candidate" ]; then
+      exec "$candidate" "$@"
+    fi
+  done
+fi
+
+exec node "$@"
+
+#!/bin/sh
+# Gradle/Android Studio often lack nvm/fnm on PATH; this shim is found via android/bin on PATH.
+set -e
+
+ANDROID_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+LOCAL_PROPS="$ANDROID_DIR/local.properties"
+
+if [ -f "$LOCAL_PROPS" ]; then
+  NODE_EXECUTABLE=$(grep '^node\.executable=' "$LOCAL_PROPS" | cut -d= -f2- | tr -d '\r')
+  if [ -n "$NODE_EXECUTABLE" ] && [ -x "$NODE_EXECUTABLE" ]; then
+    exec "$NODE_EXECUTABLE" "$@"
+  fi
+fi
+
+if [ -n "$NODE_BINARY" ] && [ -x "$NODE_BINARY" ]; then
+  exec "$NODE_BINARY" "$@"
+fi
+
+NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+if [ -d "$NVM_DIR/versions/node" ]; then
+  for dir in $(ls -1 "$NVM_DIR/versions/node" 2>/dev/null | sort -Vr); do
+    candidate="$NVM_DIR/versions/node/$dir/bin/node"
+    if [ -x "$candidate" ]; then
+      exec "$candidate" "$@"
+    fi
+  done
+fi
+
+FNM_DIR="${HOME}/.local/share/fnm/node-versions"
+if [ -d "$FNM_DIR" ]; then
+  for dir in $(ls -1 "$FNM_DIR" 2>/dev/null | sort -Vr); do
+    candidate="$FNM_DIR/$dir/installation/bin/node"
+    if [ -x "$candidate" ]; then
+      exec "$candidate" "$@"
+    fi
+  done
+fi
+
+exec node "$@"

@@ -1,0 +1,30 @@
+diff --git a/android/build.gradle b/android/build.gradle
+--- a/android/build.gradle
++++ b/android/build.gradle
+@@ -11,6 +11,14 @@ def safeAppExtGet(prop, fallback) {
+     appProject?.ext?.has(prop) ? appProject.ext.get(prop) : fallback
+ }
++
++def nodeBinary = System.getenv("NODE_BINARY")
++if (nodeBinary == null || nodeBinary.isEmpty()) {
++    nodeBinary = System.getProperty("expo.autolinking.nodeBinary")
++}
++if (nodeBinary == null || nodeBinary.isEmpty()) {
++    nodeBinary = "node"
++}
++project.ext.expoNodeBinary = nodeBinary
+ 
+ def isNewArchitectureEnabled() {
+@@ -30,7 +38,7 @@ def resolveReactNativeDirectory() {
+     def reactNativePackage = file(
+         providers.exec {
+             workingDir(rootDir)
+-            commandLine("node", "--print", "require.resolve('react-native/package.json')")
++            commandLine(project.ext.expoNodeBinary, "--print", "require.resolve('react-native/package.json')")
+         }.standardOutput.asText.get().trim()
+     )
+@@ -294,7 +302,7 @@ tasks.register("validateReactNativeVersion", Exec) {
+     // if RN version doesn't match, this will terminate the build with an error
+-    commandLine("node", "./../scripts/validate-react-native-version.js", REACT_NATIVE_VERSION.toString())
++    commandLine(nodeBinary, "./../scripts/validate-react-native-version.js", REACT_NATIVE_VERSION.toString())
+ }

@@ -1,0 +1,24 @@
+diff --git a/android/build.gradle b/android/build.gradle
+--- a/android/build.gradle
++++ b/android/build.gradle
+@@ -41,6 +41,14 @@ def areDebugLogsEnabled() {
+     return project.hasProperty("rnsDebugLogsEnabled") && project.rnsDebugLogsEnabled == "true"
+ }
++
++def nodeBinary = System.getenv("NODE_BINARY")
++if (nodeBinary == null || nodeBinary.isEmpty()) {
++    nodeBinary = System.getProperty("expo.autolinking.nodeBinary")
++}
++if (nodeBinary == null || nodeBinary.isEmpty()) {
++    nodeBinary = "node"
++}
++project.ext.expoNodeBinary = nodeBinary
+ 
+ def resolveReactNativeDirectory() {
+@@ -63,7 +71,7 @@ def resolveReactNativeDirectory() {
+     // We're in non standard setup, e.g. monorepo - try to use node resolver to locate the react-native package.
+     String maybeRnPackagePath = providers.exec {
+         workingDir(rootDir)
+-        commandLine("node", "--print", "require.resolve('react-native/package.json')")
++        commandLine(project.ext.expoNodeBinary, "--print", "require.resolve('react-native/package.json')")
+     }.standardOutput.asText.get().trim()

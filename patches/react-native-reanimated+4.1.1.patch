@@ -1,0 +1,46 @@
+diff --git a/android/build.gradle b/android/build.gradle
+--- a/android/build.gradle
++++ b/android/build.gradle
+@@ -11,6 +11,14 @@ def safeAppExtGet(prop, fallback) {
+     appProject?.ext?.has(prop) ? appProject.ext.get(prop) : fallback
+ }
++
++def nodeBinary = System.getenv("NODE_BINARY")
++if (nodeBinary == null || nodeBinary.isEmpty()) {
++    nodeBinary = System.getProperty("expo.autolinking.nodeBinary")
++}
++if (nodeBinary == null || nodeBinary.isEmpty()) {
++    nodeBinary = "node"
++}
++project.ext.expoNodeBinary = nodeBinary
+ 
+ def isNewArchitectureEnabled() {
+@@ -30,7 +38,7 @@ def resolveReactNativeDirectory() {
+     def reactNativePackage = file(
+         providers.exec {
+             workingDir(rootDir)
+-            commandLine("node", "--print", "require.resolve('react-native/package.json')")
++            commandLine(project.ext.expoNodeBinary, "--print", "require.resolve('react-native/package.json')")
+         }.standardOutput.asText.get().trim()
+     )
+@@ -52,7 +60,7 @@ def resolveReactNativeWorkletsDirectory() {
+     def reactNativeWorkletsPackage = file(
+         providers.exec {
+             workingDir(rootDir)
+-            commandLine("node", "--print", "require.resolve('react-native-worklets/package.json')")
++            commandLine(project.ext.expoNodeBinary, "--print", "require.resolve('react-native-worklets/package.json')")
+         }.standardOutput.asText.get().trim()
+     )
+@@ -277,7 +285,7 @@ tasks.register("validateReactNativeVersion", Exec) {
+     // For context, see: https://github.com/software-mansion/react-native-reanimated/issues/5867
+     workingDir("$projectDir")
+     // if RN version doesn't match, this will terminate the build with an error
+-    commandLine("node", "./../scripts/validate-react-native-version.js", REACT_NATIVE_VERSION.toString())
++    commandLine(nodeBinary, "./../scripts/validate-react-native-version.js", REACT_NATIVE_VERSION.toString())
+ }
+@@ -302,7 +310,7 @@ tasks.register("validateWorkletsBuild", Exec) {
+     // script will throw error if worklets android version doesn't match reanimated android version
+     workingDir("$projectDir")
+-    commandLine("node", "./../scripts/validate-worklets-build.js")
++    commandLine(nodeBinary, "./../scripts/validate-worklets-build.js")
+ }

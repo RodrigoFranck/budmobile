@@ -28,7 +28,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.bud.app",
+      "package": "com.falecombud.bud",
       "permissions": ["RECORD_AUDIO"]
     },
     "plugins": [
