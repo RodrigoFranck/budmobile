@@ -1,4 +1,4 @@
-package com.bud.app
+package com.falecombud.bud
 
 import android.app.Application
 import android.content.res.Configuration

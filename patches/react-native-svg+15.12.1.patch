@@ -1,0 +1,25 @@
+diff --git a/android/build.gradle b/android/build.gradle
+--- a/android/build.gradle
++++ b/android/build.gradle
+@@ -36,6 +36,14 @@ def safeExtGet(prop, fallback) {
+     rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+ }
++
++def nodeBinary = System.getenv("NODE_BINARY")
++if (nodeBinary == null || nodeBinary.isEmpty()) {
++    nodeBinary = System.getProperty("expo.autolinking.nodeBinary")
++}
++if (nodeBinary == null || nodeBinary.isEmpty()) {
++    nodeBinary = "node"
++}
++project.ext.expoNodeBinary = nodeBinary
+ 
+ def resolveReactNativeDirectory() {
+@@ -47,7 +55,7 @@ def resolveReactNativeDirectory() {
+   def reactNativePackage = file(
+       providers.exec {
+           workingDir(rootDir)
+-          commandLine("node", "--print", "require.resolve('react-native/package.json')")
++          commandLine(project.ext.expoNodeBinary, "--print", "require.resolve('react-native/package.json')")
+       }.standardOutput.asText.get().trim()
+   )
