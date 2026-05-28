@@ -18,6 +18,7 @@
       "bundleIdentifier": "com.bud.app",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Bud precisa acessar o microfone para conversas de voz.",
+        "NSCameraUsageDescription": "Bud precisa acessar a câmera para tirar fotos e anexar imagens em conversas e solicitações.",
         "ITSAppUsesNonExemptEncryption": false
       },
       "scheme": "com.bud.app"

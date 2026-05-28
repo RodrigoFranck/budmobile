@@ -50,6 +50,8 @@
 	</dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Bud precisa acessar o microfone para conversas de voz.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Bud precisa acessar a câmera para tirar fotos e anexar imagens em conversas e solicitações.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
