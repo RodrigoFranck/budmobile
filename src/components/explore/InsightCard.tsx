@@ -60,6 +60,9 @@ export function InsightCard({
     );
   }
 
+  const isUpgradeLocked = locked && !!lockedMessage;
+  const isButtonDisabled = locked && !lockedMessage;
+
   const CardContent = (
     <View style={insightCardStyles.contentContainer}>
       {/* Dark overlay for text legibility when background image exists */}
@@ -139,20 +142,20 @@ export function InsightCard({
         {!!buttonText && !!onButtonClick && (
           <TouchableOpacity
             onPress={onButtonClick}
-            disabled={locked}
+            disabled={isButtonDisabled}
             accessibilityRole="button"
-            accessibilityLabel={locked ? lockedMessage || buttonText : buttonText}
+            accessibilityLabel={isUpgradeLocked ? lockedMessage || buttonText : buttonText}
             activeOpacity={0.85}
             style={[
               insightCardStyles.actionButton,
-              locked ? insightCardStyles.actionButtonLocked : insightCardStyles.actionButtonEnabled,
+              isButtonDisabled ? insightCardStyles.actionButtonLocked : insightCardStyles.actionButtonEnabled,
             ]}
           >
             <Text
               style={insightCardStyles.actionButtonText}
               numberOfLines={1}
             >
-              {locked ? lockedMessage || buttonText : buttonText}
+              {isUpgradeLocked ? lockedMessage || buttonText : buttonText}
             </Text>
             <ChevronUp size={18} color="#EFEAE6" />
           </TouchableOpacity>
@@ -198,17 +201,17 @@ export function InsightCard({
       {!!buttonText && !!onButtonClick && (
         <TouchableOpacity
           onPress={onButtonClick}
-          disabled={locked}
+          disabled={isButtonDisabled}
           accessibilityRole="button"
-          accessibilityLabel={locked ? lockedMessage || buttonText : buttonText}
+          accessibilityLabel={isUpgradeLocked ? lockedMessage || buttonText : buttonText}
           activeOpacity={0.85}
           style={[
             insightCardStyles.actionButton,
-            locked ? insightCardStyles.actionButtonLocked : insightCardStyles.actionButtonEnabled,
+            isButtonDisabled ? insightCardStyles.actionButtonLocked : insightCardStyles.actionButtonEnabled,
           ]}
         >
           <Text style={insightCardStyles.actionButtonText} numberOfLines={1}>
-            {locked ? lockedMessage || buttonText : buttonText}
+            {isUpgradeLocked ? lockedMessage || buttonText : buttonText}
           </Text>
           <ChevronUp size={18} color="#EFEAE6" />
         </TouchableOpacity>

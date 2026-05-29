@@ -20,6 +20,7 @@ export type RootStackParamList = {
   Explore: undefined;
   History: undefined;
   Settings: undefined;
+  CrisisResources: undefined;
   SupportFeedback: undefined;
   Onboarding: undefined;
 };

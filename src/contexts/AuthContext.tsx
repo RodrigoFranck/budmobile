@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useLayoutEffect, useState, useMemo } from 'react';
 import { Session, User } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import * as Crypto from 'expo-crypto';
@@ -26,6 +28,9 @@ interface AuthContextType {
   signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
+  signInWithApple: () => Promise<{ error: Error | null }>;
+  isAppleSignInAvailable: boolean;
+  deleteAccount: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshOnboardingStatus: () => Promise<void>;
 }
@@ -62,6 +67,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean>(false);
   const [onboardingStatusLoaded, setOnboardingStatusLoaded] = useState(false);
+  const [isAppleSignInAvailable, setIsAppleSignInAvailable] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') {
+      return;
+    }
+
+    AppleAuthentication.isAvailableAsync()
+      .then(setIsAppleSignInAvailable)
+      .catch(() => setIsAppleSignInAvailable(false));
+  }, []);
 
   useLayoutEffect(() => {
     if (user?.id) {
@@ -287,6 +303,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithApple = async () => {
+    if (Platform.OS !== 'ios') {
+      return { error: new Error('Entrar com Apple está disponível apenas no iOS') };
+    }
+
+    try {
+      const isAvailable = await AppleAuthentication.isAvailableAsync();
+      if (!isAvailable) {
+        return { error: new Error('Entrar com Apple não está disponível neste dispositivo') };
+      }
+
+      const rawNonce = Crypto.randomUUID();
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        rawNonce,
+      );
+
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+        nonce: hashedNonce,
+      });
+
+      if (!credential.identityToken) {
+        return { error: new Error('Token Apple não recebido') };
+      }
+
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken,
+        nonce: rawNonce,
+      });
+
+      if (signInError) {
+        return { error: new Error(signInError.message) };
+      }
+
+      if (credential.fullName && signInData?.user?.id) {
+        const givenName = credential.fullName.givenName?.trim() ?? '';
+        const familyName = credential.fullName.familyName?.trim() ?? '';
+        const fullName = [givenName, familyName].filter(Boolean).join(' ').trim();
+
+        if (fullName) {
+          await supabase
+            .from('profiles')
+            .update({ name: fullName })
+            .eq('id', signInData.user.id);
+        }
+      }
+
+      return { error: null };
+    } catch (error) {
+      if (error instanceof Error && error.message === 'ERR_REQUEST_CANCELED') {
+        return { error: new Error('Login cancelado pelo usuário') };
+      }
+      return { error: error as Error };
+    }
+  };
+
   const signInWithGoogle = async () => {
     try {
       const rawNonce = Crypto.randomUUID();
@@ -359,6 +436,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const deleteAccount = async () => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      if (!accessToken) {
+        return { error: new Error('Sessão inválida. Faça login novamente.') };
+      }
+
+      const { data, error } = await supabase.functions.invoke('delete-account', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (error) {
+        let message = error.message;
+
+        const errorContext =
+          typeof error === 'object' &&
+          error !== null &&
+          'context' in error &&
+          error.context instanceof Response
+            ? error.context
+            : null;
+
+        if (errorContext) {
+          try {
+            const body = (await errorContext.json()) as { error?: string; message?: string; code?: string };
+            if (body.error) {
+              message = body.error;
+            } else if (body.code === 'NOT_FOUND') {
+              message = 'Serviço de exclusão indisponível. Tente novamente mais tarde.';
+            } else if (body.message) {
+              message = body.message;
+            }
+          } catch {
+            // keep default message
+          }
+        }
+
+        return { error: new Error(message) };
+      }
+
+      if (data?.error) {
+        return { error: new Error(String(data.error)) };
+      }
+
+      setSession(null);
+      setUser(null);
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut({ scope: 'global' });
@@ -403,10 +537,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signUp,
       signIn,
       signInWithGoogle,
+      signInWithApple,
+      isAppleSignInAvailable,
+      deleteAccount,
       signOut,
       refreshOnboardingStatus
     };
-  }, [session, user, loading, onboardingCompleted, onboardingStatusLoaded, signUp, signIn, signInWithGoogle, signOut, refreshOnboardingStatus]);
+  }, [session, user, loading, onboardingCompleted, onboardingStatusLoaded, isAppleSignInAvailable, signUp, signIn, signInWithGoogle, signInWithApple, deleteAccount, signOut, refreshOnboardingStatus]);
 
   return (
     <AuthContext.Provider value={contextValue}>

@@ -46,6 +46,20 @@ export const authStyles = StyleSheet.create({
     lineHeight: 22,
     marginTop: 8,
   },
+  appleButton: {
+    height: 56,
+    backgroundColor: '#000000',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  appleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: '#FFFFFF',
+  },
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: 'rgba(255, 255, 255, 0.15)',

@@ -10,6 +10,8 @@ import AuthScreen from '@/pages/Auth/Auth';
 import ForgotPasswordScreen from '@/pages/ForgotPassword';
 import OnboardingNavigator from '@/navigation/OnboardingNavigator';
 import SettingsScreen from '@/pages/Settings';
+import CrisisResourcesScreen from '@/pages/CrisisResources';
+import SupportFeedbackScreen from '@/pages/SupportFeedback';
 import MainTabs from '@/navigation/MainTabs';
 import type { RootStackParamList } from '@/types/navigation';
 
@@ -70,6 +72,8 @@ export default function AppNavigator() {
             <>
               <Stack.Screen name="MainTabs" component={MainTabs} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
+              <Stack.Screen name="CrisisResources" component={CrisisResourcesScreen} />
+              <Stack.Screen name="SupportFeedback" component={SupportFeedbackScreen} />
             </>
           )}
         </Stack.Navigator>

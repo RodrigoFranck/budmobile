@@ -16,7 +16,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.bud.app",
-      "buildNumber": "3",
+      "usesAppleSignIn": true,
+      "buildNumber": "4",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Bud precisa acessar o microfone para conversas de voz.",
         "NSCameraUsageDescription": "Bud precisa acessar a câmera para tirar fotos e anexar imagens em conversas e solicitações.",
@@ -35,6 +36,7 @@
       "permissions": ["RECORD_AUDIO"]
     },
     "plugins": [
+      "expo-apple-authentication",
       [
         "expo-notifications",
         {
