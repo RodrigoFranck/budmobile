@@ -150,6 +150,14 @@ export function ChatContainer({ messages, loading, topPadding }: ChatContainerPr
 
   const showEmpty = messages.length === 0 && !loading;
 
+  const listFooter = useMemo(() => (
+    showTypingFooter ? (
+      <View style={styles.footerWrap}>
+        <Text style={styles.footerText}>Bud está digitando...</Text>
+      </View>
+    ) : null
+  ), [showTypingFooter, styles.footerText, styles.footerWrap]);
+
   return (
     <FlatList
       ref={flatListRef}
@@ -164,13 +172,7 @@ export function ChatContainer({ messages, loading, topPadding }: ChatContainerPr
         });
       }}
       ListEmptyComponent={showEmpty ? <ChatEmptyPrompt /> : null}
-      ListFooterComponent={
-        showTypingFooter ? (
-          <View style={styles.footerWrap}>
-            <Text style={styles.footerText}>Bud está digitando...</Text>
-          </View>
-        ) : null
-      }
+      ListFooterComponent={listFooter}
     />
   );
 }

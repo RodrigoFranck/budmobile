@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, Animated } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,6 +13,7 @@ import type { MainTabNavigationProp, RootNavigationProp } from '@/types/navigati
 import { LayoutSpacing, ExploreGradientColors } from '@/constants/layout';
 import { WeekCalendarHeader } from '@/components/ui/WeekCalendarHeader';
 import { useTheme } from '@/contexts/ThemeContext';
+import { BUDMIND_PRICING_URL } from '@/constants/preferences';
 
 export default function ExploreScreen() {
   const navigation = useNavigation<MainTabNavigationProp>();
@@ -65,9 +67,13 @@ export default function ExploreScreen() {
     navigation.navigate('Chat');
   };
 
+  const openPricing = useCallback(() => {
+    WebBrowser.openBrowserAsync(BUDMIND_PRICING_URL);
+  }, []);
+
   const handleTalkAboutInsight = () => {
     if (!hasInspiredAccess) {
-      // TODO: Mostrar paywall
+      openPricing();
       return;
     }
     navigation.navigate('Chat');
@@ -75,7 +81,7 @@ export default function ExploreScreen() {
 
   const handleTalkAboutFrequency = () => {
     if (!hasFrequencyAccess) {
-      // TODO: Mostrar paywall
+      openPricing();
       return;
     }
     navigation.navigate('Chat');
@@ -83,7 +89,7 @@ export default function ExploreScreen() {
 
   const handleStartHabit = () => {
     if (!hasHabitAccess) {
-      // TODO: Mostrar paywall
+      openPricing();
       return;
     }
     navigation.navigate('Chat');

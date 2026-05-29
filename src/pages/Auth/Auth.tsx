@@ -10,7 +10,7 @@ import {
   ImageBackground,
   ScrollView,
   KeyboardAvoidingView,
-  Platform
+  Platform,
 } from 'react-native';
 import { Eye, EyeOff } from 'lucide-react-native';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,6 +20,7 @@ import type { RootStackParamList } from '@/types/navigation';
 import { PlatformConstants } from '@/constants/layout';
 import { authStyles as styles } from './Auth.styles';
 import { SITE_ORIGIN } from '@/constants/auth';
+import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/constants/healthSafety';
 
 const backgroundLogin = require('@/assets/background-login.png');
 const budLogo = require('@/assets/bud-logo.png');
@@ -27,10 +28,11 @@ const budLogo = require('@/assets/bud-logo.png');
 type Props = NativeStackScreenProps<RootStackParamList, 'Auth'>;
 
 export default function AuthScreen({ navigation }: Props) {
-  const { signUp, signIn, signInWithGoogle, user, loading: authLoading } = useAuth();
+  const { signUp, signIn, signInWithGoogle, signInWithApple, isAppleSignInAvailable, user, loading: authLoading } = useAuth();
   const [isLoadingLogin, setIsLoadingLogin] = useState(false);
   const [isLoadingSignup, setIsLoadingSignup] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
+  const [isLoadingApple, setIsLoadingApple] = useState(false);
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
   const [awaitingVerification, setAwaitingVerification] = useState(false);
 
@@ -132,6 +134,20 @@ export default function AuthScreen({ navigation }: Props) {
       setIsLoadingGoogle(false);
     }
   };
+
+  const handleAppleSignIn = async () => {
+    setIsLoadingApple(true);
+    try {
+      const { error } = await signInWithApple();
+      if (error) {
+        alert(`Erro ao fazer login: ${error.message}`);
+      }
+    } finally {
+      setIsLoadingApple(false);
+    }
+  };
+
+  const isSocialLoading = isLoadingGoogle || isLoadingApple;
 
   const handleForgotPassword = () => {
     navigation.navigate('ForgotPassword');
@@ -362,11 +378,25 @@ export default function AuthScreen({ navigation }: Props) {
               <View style={styles.dividerLine} />
             </View>
 
-            {/* Google Sign In Button */}
+            {Platform.OS === 'ios' && isAppleSignInAvailable && (
+              <TouchableOpacity
+                style={[styles.appleButton, isSocialLoading && styles.buttonDisabled]}
+                onPress={handleAppleSignIn}
+                disabled={isSocialLoading || isLoadingLogin || isLoadingSignup}
+                activeOpacity={0.7}
+              >
+                {isLoadingApple ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.appleButtonText}>Continuar com a Apple</Text>
+                )}
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
-              style={[styles.googleButton, isLoadingGoogle && styles.buttonDisabled]}
+              style={[styles.googleButton, isSocialLoading && styles.buttonDisabled]}
               onPress={handleGoogleSignIn}
-              disabled={isLoadingGoogle || isLoadingLogin || isLoadingSignup}
+              disabled={isSocialLoading || isLoadingLogin || isLoadingSignup}
               activeOpacity={0.7}
             >
               {isLoadingGoogle ? (
@@ -388,14 +418,14 @@ export default function AuthScreen({ navigation }: Props) {
               Ao se cadastrar e utilizar o Bud, você concorda com os{' '}
               <Text 
                 style={styles.termsLink}
-                onPress={() => Linking.openURL('https://falecombud.com.br/terms')}
+                onPress={() => Linking.openURL(TERMS_OF_SERVICE_URL)}
               >
                 Termos de Serviço
               </Text>
               {' '}e{' '}
               <Text 
                 style={styles.termsLink}
-                onPress={() => Linking.openURL('https://falecombud.com.br/privacy')}
+                onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
               >
                 Políticas de Privacidade
               </Text>

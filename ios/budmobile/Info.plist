@@ -34,7 +34,9 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>4</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSMinimumSystemVersion</key>
 	<string>12.0</string>
 	<key>LSRequiresIPhoneOS</key>
@@ -48,6 +50,8 @@
 	</dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Bud precisa acessar o microfone para conversas de voz.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Bud precisa acessar a câmera para tirar fotos e anexar imagens em conversas e solicitações.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

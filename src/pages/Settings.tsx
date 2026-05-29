@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Share,
   StyleSheet,
+  Linking,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,8 +17,13 @@ import * as WebBrowser from "expo-web-browser";
 import { ArrowLeft, ExternalLink, Link2 } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
 import type { NavigationProp } from "@/types/navigation";
-import { Spacing, Typography } from "@/constants/styles";
+import { Spacing } from "@/constants/styles";
 import { BUDMIND_HELP_URL } from "@/constants/preferences";
+import {
+  HEALTH_DISCLAIMER,
+  PRIVACY_POLICY_URL,
+  TERMS_OF_SERVICE_URL,
+} from "@/constants/healthSafety";
 import { useTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -55,6 +61,7 @@ const createStyles = (colors: Colors) =>
       backgroundColor: colors.background,
     },
     content: {
+      flexGrow: 1,
       paddingHorizontal: 18,
       paddingTop: Spacing.md,
       gap: Spacing.base,
@@ -93,16 +100,42 @@ const createStyles = (colors: Colors) =>
     switch: {
       transform: [{ translateY: -1 }],
     },
+    footer: {
+      marginTop: "auto",
+      paddingTop: Spacing.xl,
+      gap: Spacing.md,
+      alignItems: "center",
+    },
+    footerDisclaimer: {
+      color: colors.icon,
+      fontSize: 12,
+      lineHeight: 17,
+      textAlign: "center",
+    },
+    footerLegal: {
+      color: colors.icon,
+      fontSize: 14,
+      lineHeight: 20,
+      textAlign: "center",
+    },
+    legalLink: {
+      color: colors.primary,
+      textDecorationLine: "underline",
+    },
+    destructiveText: {
+      color: "#E05252",
+    },
   });
 
 export default function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
-  const { user, signOut, refreshOnboardingStatus } = useAuth();
+  const { user, signOut, deleteAccount, refreshOnboardingStatus } = useAuth();
   const { mode, loaded: themeLoaded, setMode } = useTheme();
   const darkMode = mode === "dark";
   const darkModeLoading = !themeLoaded;
   const [resettingOnboarding, setResettingOnboarding] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const lightModeValue = useMemo(() => !darkMode, [darkMode]);
   const colors = useMemo(() => (darkMode ? DARK_COLORS : LIGHT_COLORS), [darkMode]);
@@ -124,6 +157,10 @@ export default function SettingsScreen() {
     navigation.navigate("SupportFeedback");
   }, [navigation]);
 
+  const openCrisisResources = useCallback(() => {
+    navigation.navigate("CrisisResources");
+  }, [navigation]);
+
   const shareBud = useCallback(async () => {
     try {
       await Share.share({
@@ -133,6 +170,39 @@ export default function SettingsScreen() {
       console.error("Share error:", error);
     }
   }, []);
+
+  const openPrivacyPolicy = useCallback(() => {
+    Linking.openURL(PRIVACY_POLICY_URL);
+  }, []);
+
+  const openTerms = useCallback(() => {
+    Linking.openURL(TERMS_OF_SERVICE_URL);
+  }, []);
+
+  const handleDeleteAccount = useCallback(() => {
+    Alert.alert(
+      "Excluir conta",
+      "Esta ação é permanente. Todos os seus dados, conversas e preferências serão removidos e não poderão ser recuperados.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir conta",
+          style: "destructive",
+          onPress: async () => {
+            setDeletingAccount(true);
+            try {
+              const { error } = await deleteAccount();
+              if (error) {
+                Alert.alert("Erro", error.message);
+              }
+            } finally {
+              setDeletingAccount(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [deleteAccount]);
 
   const handleSignOut = useCallback(() => {
     Alert.alert("Sair", "Deseja sair da sua conta?", [
@@ -215,6 +285,16 @@ export default function SettingsScreen() {
           <ExternalLink size={20} color={colors.icon} />
         </TouchableOpacity>
 
+        <TouchableOpacity
+          onPress={openCrisisResources}
+          activeOpacity={0.8}
+          style={styles.row}
+          accessibilityRole="button"
+          accessibilityLabel="Recursos de crise"
+        >
+          <Text style={styles.rowText}>Recursos de crise</Text>
+        </TouchableOpacity>
+
         <View style={styles.row}>
           <Text style={styles.rowText}>Modo claro</Text>
           <View style={styles.rightSlot}>
@@ -270,6 +350,19 @@ export default function SettingsScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          onPress={handleDeleteAccount}
+          activeOpacity={0.8}
+          style={styles.row}
+          accessibilityRole="button"
+          accessibilityLabel="Excluir conta"
+          disabled={deletingAccount}
+        >
+          <Text style={[styles.rowText, styles.destructiveText]}>
+            {deletingAccount ? "Excluindo conta..." : "Excluir conta"}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           onPress={handleSignOut}
           activeOpacity={0.8}
           style={styles.row}
@@ -278,6 +371,19 @@ export default function SettingsScreen() {
         >
           <Text style={styles.rowText}>Sair</Text>
         </TouchableOpacity>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerDisclaimer}>{HEALTH_DISCLAIMER}</Text>
+          <Text style={styles.footerLegal}>
+            <Text style={styles.legalLink} onPress={openTerms}>
+              Termos de Serviço
+            </Text>
+            {" · "}
+            <Text style={styles.legalLink} onPress={openPrivacyPolicy}>
+              Política de Privacidade
+            </Text>
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );
