@@ -1,5 +1,8 @@
 export const HEALTH_DISCLAIMER =
-  'O Bud é um companheiro emocional e não substitui acompanhamento psicológico, psiquiátrico ou atendimento de emergência.';
+  'O Bud é um companheiro emocional e não substitui acompanhamento médico, psicológico, psiquiátrico ou atendimento de emergência. Consulte um profissional de saúde antes de tomar decisões médicas.';
+
+export const APP_STORE_HEALTH_DISCLAIMER =
+  'O Bud é um companheiro emocional e não oferece diagnóstico, tratamento ou aconselhamento médico. Consulte sempre um profissional de saúde antes de tomar decisões médicas, além de usar este app.';
 
 export const CRISIS_RESOURCES = [
   {

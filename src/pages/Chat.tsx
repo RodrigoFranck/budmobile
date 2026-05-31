@@ -9,7 +9,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useConversations } from '@/hooks/useConversations';
 import { useMessages } from '@/hooks/useMessages';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { useUserPlan } from '@/hooks/useUserPlan';
 import { ChatContainer } from '@/components/chat/ChatContainer';
 import { MessageInputBar } from '@/components/chat/MessageInputBar';
 import { streamChat, type InsightContext, type UserContext } from '@/utils/chatStream';
@@ -30,7 +29,6 @@ export default function ChatScreen() {
   const colors = useAppColors();
   const { user } = useAuth();
   const { profile } = useUserProfile();
-  const { canSendMessage, incrementMessageCount } = useUserPlan();
   const { getOrCreateTodayConversation } = useConversations();
   const insets = useSafeAreaInsets();
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -189,11 +187,6 @@ export default function ChatScreen() {
 
   const handleSendMessage = useCallback(
     async (message: string, contextOverride?: InsightContext | null) => {
-      if (!canSendMessage) {
-        alert('Você atingiu o limite de mensagens do plano gratuito.');
-        return;
-      }
-
       if (!currentConversationId || !user) return;
 
       const activeInsightContext = contextOverride ?? insightContext;
@@ -268,7 +261,6 @@ export default function ChatScreen() {
 
           setStreamingMessages([]);
 
-          incrementMessageCount();
         },
         onError: (error) => {
           setIsStreaming(false);
@@ -281,13 +273,11 @@ export default function ChatScreen() {
       });
     },
     [
-      canSendMessage,
       currentConversationId,
       user,
       dbMessages,
       userContext,
       insightContext,
-      incrementMessageCount,
       addMessage,
     ],
   );

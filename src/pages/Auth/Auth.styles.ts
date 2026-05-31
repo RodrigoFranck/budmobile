@@ -46,19 +46,47 @@ export const authStyles = StyleSheet.create({
     lineHeight: 22,
     marginTop: 8,
   },
-  appleButton: {
-    height: 56,
-    backgroundColor: '#000000',
+  socialButton: {
+    height: 52,
     borderRadius: 12,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 12,
     marginBottom: 12,
   },
-  appleButtonText: {
+  socialButtonApple: {
+    backgroundColor: '#000000',
+  },
+  socialButtonGoogle: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  socialButtonText: {
     fontSize: 16,
     fontWeight: '600',
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+  },
+  socialButtonTextApple: {
     color: '#FFFFFF',
+  },
+  socialButtonTextGoogle: {
+    color: '#000000',
+  },
+  socialIconContainer: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tabContainer: {
     flexDirection: 'row',
@@ -175,33 +203,8 @@ export const authStyles = StyleSheet.create({
     gap: 20,
     paddingBottom: 20,
   },
-  googleButton: {
-    height: 56,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-  },
   buttonDisabled: {
     opacity: 0.6,
-  },
-  googleIconContainer: {
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   googleIcon: {
     width: 20,
@@ -218,12 +221,6 @@ export const authStyles = StyleSheet.create({
     fontWeight: '600',
     color: '#4285F4',
   },
-  googleButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
-    color: '#000000',
-  },
   termsText: {
     fontSize: 14,
     fontWeight: '400',
@@ -232,6 +229,17 @@ export const authStyles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 20,
     lineHeight: 20,
+    marginTop: 16,
+  },
+  disclaimerText: {
+    fontSize: 12,
+    fontWeight: '400',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: '#666666',
+    textAlign: 'center',
+    paddingHorizontal: 20,
+    lineHeight: 17,
+    marginTop: 24,
   },
   termsLink: {
     textDecorationLine: 'underline',

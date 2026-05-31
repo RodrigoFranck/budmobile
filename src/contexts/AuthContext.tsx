@@ -5,6 +5,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import * as Crypto from 'expo-crypto';
+import { CodedError } from 'expo-modules-core';
 import { supabase } from '@/integrations/supabase/client';
 import { MOBILE_OAUTH_WEB_CALLBACK } from '@/constants/auth';
 import { z } from 'zod';
@@ -57,6 +58,16 @@ function ensureStrictBoolean(value: unknown): boolean {
   }
   if (typeof value === 'number') {
     return value === 1;
+  }
+  return false;
+}
+
+function isAppleAuthCanceled(error: unknown): boolean {
+  if (error instanceof CodedError && error.code === 'ERR_REQUEST_CANCELED') {
+    return true;
+  }
+  if (error instanceof Error && error.message.includes('ERR_REQUEST_CANCELED')) {
+    return true;
   }
   return false;
 }
@@ -339,6 +350,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (signInError) {
+        console.error('Apple signInWithIdToken error:', signInError.message);
         return { error: new Error(signInError.message) };
       }
 
@@ -348,19 +360,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const fullName = [givenName, familyName].filter(Boolean).join(' ').trim();
 
         if (fullName) {
-          await supabase
+          const { error: profileError } = await supabase
             .from('profiles')
-            .update({ name: fullName })
-            .eq('id', signInData.user.id);
+            .upsert({ id: signInData.user.id, name: fullName }, { onConflict: 'id' });
+
+          if (profileError) {
+            console.warn('Apple sign-in profile upsert failed:', profileError.message);
+          }
         }
       }
 
       return { error: null };
     } catch (error) {
-      if (error instanceof Error && error.message === 'ERR_REQUEST_CANCELED') {
-        return { error: new Error('Login cancelado pelo usuário') };
+      if (isAppleAuthCanceled(error)) {
+        return { error: null };
       }
-      return { error: error as Error };
+      console.error('Apple sign-in unexpected error:', error);
+      return { error: error instanceof Error ? error : new Error('Erro ao entrar com Apple') };
     }
   };
 

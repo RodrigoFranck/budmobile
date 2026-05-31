@@ -17,7 +17,6 @@ import {
 import { Mic, MicOff } from 'lucide-react-native';
 import { useConversation } from '@elevenlabs/react-native';
 import { supabase } from '@/integrations/supabase/client';
-import { useUserPlan } from '@/hooks/useUserPlan';
 import { isSafetyResponse } from '@/utils/safetyDetection';
 import {
   buildVoicePrompt,
@@ -85,7 +84,6 @@ function VoiceInterfaceNativeInner(
   }: VoiceInterfaceProps,
   ref: React.Ref<VoiceInterfaceRef>,
 ) {
-  const { canAccess } = useUserPlan();
   const processedRef = useRef<Set<string>>(new Set());
   const sessionStartedAtRef = useRef<number | null>(null);
   const receivedAiRef = useRef(false);
@@ -406,13 +404,6 @@ function VoiceInterfaceNativeInner(
   }, []);
 
   const startConversation = useCallback(async () => {
-    if (!__DEV__ && !canAccess('voice_mode')) {
-      Alert.alert(
-        'Modo de voz',
-        'Converse com o Bud por voz no plano Profundo. Faça upgrade para desbloquear.',
-      );
-      return;
-    }
     const hasMic = await ensureMicrophonePermission();
     if (!hasMic) {
       Alert.alert(
@@ -461,7 +452,6 @@ function VoiceInterfaceNativeInner(
       setIsLoading(false);
     }
   }, [
-    canAccess,
     conversation,
     ensureMicrophonePermission,
     internalProfile,
@@ -537,7 +527,6 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
     },
     ref,
   ) {
-    const { canAccess } = useUserPlan();
     const [isConnected, setIsConnected] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const conversationRef = useRef<ElevenLabsConversation | null>(null);
@@ -557,13 +546,6 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
     useImperativeHandle(ref, () => ({ endConversation }), [endConversation]);
 
     const startConversation = useCallback(async () => {
-      if (!__DEV__ && !canAccess('voice_mode')) {
-        Alert.alert(
-          'Modo de voz',
-          'Converse com o Bud por voz no plano Profundo. Faça upgrade para desbloquear.',
-        );
-        return;
-      }
       setIsLoading(true);
       try {
         const { data, error } = await supabase.functions.invoke('chat-voice');
@@ -649,7 +631,6 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
         setIsLoading(false);
       }
     }, [
-      canAccess,
       userContext,
       messageHistory,
       recentInsights,

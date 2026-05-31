@@ -15,7 +15,6 @@ import { enUS, ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 
 import { useConversations } from '@/hooks/useConversations';
-import { useUserPlan } from '@/hooks/useUserPlan';
 import type { ConversationWithDate } from '@/utils/dateGrouping';
 import ConversationDetail from '@/components/history/ConversationDetail';
 import { LayoutSpacing } from '@/constants/layout';
@@ -47,13 +46,10 @@ function getConversationDate(conv: ConversationWithDate) {
 
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
-  const { effectivePlan, isLoading: planLoading } = useUserPlan();
   const colors = useAppColors();
-  
-  // Histórico sempre mostra todas as conversas desde a criação da conta
-  // O limite de dias não se aplica ao histórico
+
   const daysLimit = undefined;
-  
+
   const { conversations, loading: conversationsLoading, deleteConversation } = useConversations(daysLimit);
   const [selectedConversation, setSelectedConversation] = useState<{
     id: string;
@@ -64,7 +60,7 @@ export default function HistoryScreen() {
   const [conversationToDelete, setConversationToDelete] = useState<ConversationToDelete | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const isLoading = planLoading || conversationsLoading;
+  const isLoading = conversationsLoading;
 
   const weekStart = useMemo(
     () => getWeekStartBrasilia(weekReferenceDate),

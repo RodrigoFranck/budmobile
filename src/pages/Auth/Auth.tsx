@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
+import { useState, useEffect } from "react";
+import {
+  View,
+  Text,
   Image,
   TextInput,
   TouchableOpacity,
@@ -11,29 +11,41 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-} from 'react-native';
-import { Eye, EyeOff } from 'lucide-react-native';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '@/types/navigation';
-import { PlatformConstants } from '@/constants/layout';
-import { authStyles as styles } from './Auth.styles';
-import { SITE_ORIGIN } from '@/constants/auth';
-import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/constants/healthSafety';
+} from "react-native";
+import { Apple, Eye, EyeOff } from "lucide-react-native";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "@/types/navigation";
+import { PlatformConstants } from "@/constants/layout";
+import { authStyles as styles } from "./Auth.styles";
+import { SITE_ORIGIN } from "@/constants/auth";
+import {
+  PRIVACY_POLICY_URL,
+  TERMS_OF_SERVICE_URL,
+  HEALTH_DISCLAIMER,
+} from "@/constants/healthSafety";
 
-const backgroundLogin = require('@/assets/background-login.png');
-const budLogo = require('@/assets/bud-logo.png');
+const backgroundLogin = require("@/assets/background-login.png");
+const budLogo = require("@/assets/bud-logo.png");
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Auth'>;
+type Props = NativeStackScreenProps<RootStackParamList, "Auth">;
 
 export default function AuthScreen({ navigation }: Props) {
-  const { signUp, signIn, signInWithGoogle, signInWithApple, isAppleSignInAvailable, user, loading: authLoading } = useAuth();
+  const {
+    signUp,
+    signIn,
+    signInWithGoogle,
+    signInWithApple,
+    isAppleSignInAvailable,
+    user,
+    loading: authLoading,
+  } = useAuth();
   const [isLoadingLogin, setIsLoadingLogin] = useState(false);
   const [isLoadingSignup, setIsLoadingSignup] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [isLoadingApple, setIsLoadingApple] = useState(false);
-  const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
+  const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
   const [awaitingVerification, setAwaitingVerification] = useState(false);
 
   // Password visibility states
@@ -42,14 +54,14 @@ export default function AuthScreen({ navigation }: Props) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Login form
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
 
   // Signup form
-  const [signupName, setSignupName] = useState('');
-  const [signupEmail, setSignupEmail] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
-  const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
+  const [signupName, setSignupName] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
 
   // Redirect if already logged in
   useEffect(() => {
@@ -75,7 +87,7 @@ export default function AuthScreen({ navigation }: Props) {
 
   const handleSignup = async () => {
     if (signupPassword !== signupConfirmPassword) {
-      alert('As senhas não coincidem');
+      alert("As senhas não coincidem");
       return;
     }
 
@@ -95,7 +107,7 @@ export default function AuthScreen({ navigation }: Props) {
     const userId = sessionData?.session?.user?.id;
 
     if (!userId) {
-      alert('Não foi possível obter o ID do usuário.');
+      alert("Não foi possível obter o ID do usuário.");
       setIsLoadingSignup(false);
       setAwaitingVerification(false);
       return;
@@ -103,24 +115,27 @@ export default function AuthScreen({ navigation }: Props) {
 
     try {
       // email_confirmation monta link `${redirectTo}/verify?token=...` — precisa ser origem do site, não URL do Supabase
-      const { error: fnError } = await supabase.functions.invoke('send-auth-email', {
-        body: {
-          email: signupEmail.trim(),
-          type: 'email_confirmation',
-          name: signupName,
-          userId,
-          redirectTo: SITE_ORIGIN,
+      const { error: fnError } = await supabase.functions.invoke(
+        "send-auth-email",
+        {
+          body: {
+            email: signupEmail.trim(),
+            type: "email_confirmation",
+            name: signupName,
+            userId,
+            redirectTo: SITE_ORIGIN,
+          },
         },
-      });
+      );
       if (fnError) {
-        console.error('send-auth-email error:', fnError);
+        console.error("send-auth-email error:", fnError);
       }
     } catch (emailErr) {
-      console.error('Error invoking send-auth-email:', emailErr);
+      console.error("Error invoking send-auth-email:", emailErr);
     }
 
     setIsLoadingSignup(false);
-    alert('Conta criada! Verifique seu email para confirmar.');
+    alert("Conta criada! Verifique seu email para confirmar.");
   };
 
   const handleGoogleSignIn = async () => {
@@ -136,6 +151,15 @@ export default function AuthScreen({ navigation }: Props) {
   };
 
   const handleAppleSignIn = async () => {
+    if (
+      isLoadingApple ||
+      isSocialLoading ||
+      isLoadingLogin ||
+      isLoadingSignup
+    ) {
+      return;
+    }
+
     setIsLoadingApple(true);
     try {
       const { error } = await signInWithApple();
@@ -150,7 +174,7 @@ export default function AuthScreen({ navigation }: Props) {
   const isSocialLoading = isLoadingGoogle || isLoadingApple;
 
   const handleForgotPassword = () => {
-    navigation.navigate('ForgotPassword');
+    navigation.navigate("ForgotPassword");
   };
 
   if (authLoading) {
@@ -180,8 +204,8 @@ export default function AuthScreen({ navigation }: Props) {
           <View style={styles.content}>
             {/* Header */}
             <View style={styles.header}>
-              <Image 
-                source={budLogo} 
+              <Image
+                source={budLogo}
                 style={styles.logo}
                 resizeMode="contain"
               />
@@ -191,27 +215,37 @@ export default function AuthScreen({ navigation }: Props) {
             {/* Tab Selector */}
             <View style={styles.tabContainer}>
               <TouchableOpacity
-                style={[styles.tab, activeTab === 'login' && styles.tabActive]}
-                onPress={() => setActiveTab('login')}
+                style={[styles.tab, activeTab === "login" && styles.tabActive]}
+                onPress={() => setActiveTab("login")}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.tabText, activeTab === 'login' && styles.tabTextActive]}>
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === "login" && styles.tabTextActive,
+                  ]}
+                >
                   Login
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.tab, activeTab === 'signup' && styles.tabActive]}
-                onPress={() => setActiveTab('signup')}
+                style={[styles.tab, activeTab === "signup" && styles.tabActive]}
+                onPress={() => setActiveTab("signup")}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.tabText, activeTab === 'signup' && styles.tabTextActive]}>
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === "signup" && styles.tabTextActive,
+                  ]}
+                >
                   Cadastro
                 </Text>
               </TouchableOpacity>
             </View>
 
             {/* Login Form */}
-            {activeTab === 'login' && (
+            {activeTab === "login" && (
               <View style={styles.form}>
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Email</Text>
@@ -230,8 +264,13 @@ export default function AuthScreen({ navigation }: Props) {
                 <View style={styles.inputGroup}>
                   <View style={styles.labelRow}>
                     <Text style={styles.label}>Senha</Text>
-                    <TouchableOpacity onPress={handleForgotPassword} activeOpacity={0.7}>
-                      <Text style={styles.forgotPassword}>Esqueceu a senha?</Text>
+                    <TouchableOpacity
+                      onPress={handleForgotPassword}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.forgotPassword}>
+                        Esqueceu a senha?
+                      </Text>
                     </TouchableOpacity>
                   </View>
                   <View style={styles.passwordInputContainer}>
@@ -259,7 +298,10 @@ export default function AuthScreen({ navigation }: Props) {
                 </View>
 
                 <TouchableOpacity
-                  style={[styles.button, isLoadingLogin && styles.buttonDisabled]}
+                  style={[
+                    styles.button,
+                    isLoadingLogin && styles.buttonDisabled,
+                  ]}
                   onPress={handleLogin}
                   disabled={isLoadingLogin}
                   activeOpacity={0.7}
@@ -274,7 +316,7 @@ export default function AuthScreen({ navigation }: Props) {
             )}
 
             {/* Signup Form */}
-            {activeTab === 'signup' && (
+            {activeTab === "signup" && (
               <View style={styles.form}>
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Nome</Text>
@@ -343,7 +385,9 @@ export default function AuthScreen({ navigation }: Props) {
                       editable={!isLoadingSignup}
                     />
                     <TouchableOpacity
-                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                      onPress={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
                       style={styles.eyeIcon}
                       activeOpacity={0.7}
                     >
@@ -357,7 +401,10 @@ export default function AuthScreen({ navigation }: Props) {
                 </View>
 
                 <TouchableOpacity
-                  style={[styles.button, isLoadingSignup && styles.buttonDisabled]}
+                  style={[
+                    styles.button,
+                    isLoadingSignup && styles.buttonDisabled,
+                  ]}
                   onPress={handleSignup}
                   disabled={isLoadingSignup}
                   activeOpacity={0.7}
@@ -378,9 +425,13 @@ export default function AuthScreen({ navigation }: Props) {
               <View style={styles.dividerLine} />
             </View>
 
-            {Platform.OS === 'ios' && isAppleSignInAvailable && (
+            {Platform.OS === "ios" && isAppleSignInAvailable && (
               <TouchableOpacity
-                style={[styles.appleButton, isSocialLoading && styles.buttonDisabled]}
+                style={[
+                  styles.socialButton,
+                  styles.socialButtonApple,
+                  isSocialLoading && styles.buttonDisabled,
+                ]}
                 onPress={handleAppleSignIn}
                 disabled={isSocialLoading || isLoadingLogin || isLoadingSignup}
                 activeOpacity={0.7}
@@ -388,13 +439,29 @@ export default function AuthScreen({ navigation }: Props) {
                 {isLoadingApple ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.appleButtonText}>Continuar com a Apple</Text>
+                  <>
+                    <View style={styles.socialIconContainer}>
+                      <Apple size={20} color="#FFFFFF" fill="#FFFFFF" />
+                    </View>
+                    <Text
+                      style={[
+                        styles.socialButtonText,
+                        styles.socialButtonTextApple,
+                      ]}
+                    >
+                      Continuar com Apple
+                    </Text>
+                  </>
                 )}
               </TouchableOpacity>
             )}
 
             <TouchableOpacity
-              style={[styles.googleButton, isSocialLoading && styles.buttonDisabled]}
+              style={[
+                styles.socialButton,
+                styles.socialButtonGoogle,
+                isSocialLoading && styles.buttonDisabled,
+              ]}
               onPress={handleGoogleSignIn}
               disabled={isSocialLoading || isLoadingLogin || isLoadingSignup}
               activeOpacity={0.7}
@@ -403,27 +470,35 @@ export default function AuthScreen({ navigation }: Props) {
                 <ActivityIndicator size="small" color="#000" />
               ) : (
                 <>
-                  <View style={styles.googleIconContainer}>
+                  <View style={styles.socialIconContainer}>
                     <View style={styles.googleIcon}>
                       <Text style={styles.googleIconText}>G</Text>
                     </View>
                   </View>
-                  <Text style={styles.googleButtonText}>Continue com o Google</Text>
+                  <Text
+                    style={[
+                      styles.socialButtonText,
+                      styles.socialButtonTextGoogle,
+                    ]}
+                  >
+                    Continuar com Google
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
 
             {/* Terms and Privacy */}
+            <Text style={styles.disclaimerText}>{HEALTH_DISCLAIMER}</Text>
             <Text style={styles.termsText}>
-              Ao se cadastrar e utilizar o Bud, você concorda com os{' '}
-              <Text 
+              Ao se cadastrar e utilizar o Bud, você concorda com os{" "}
+              <Text
                 style={styles.termsLink}
                 onPress={() => Linking.openURL(TERMS_OF_SERVICE_URL)}
               >
                 Termos de Serviço
-              </Text>
-              {' '}e{' '}
-              <Text 
+              </Text>{" "}
+              e{" "}
+              <Text
                 style={styles.termsLink}
                 onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
               >

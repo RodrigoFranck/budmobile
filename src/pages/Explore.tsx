@@ -1,26 +1,22 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, Animated } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
+import { useEffect, useRef } from 'react';
+import { View, ScrollView, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Book, Settings } from 'lucide-react-native';
 import { useExploreInsights } from '@/hooks/useExploreInsights';
 import type { Insight } from '@/hooks/useExploreInsights';
-import { useUserPlan } from '@/hooks/useUserPlan';
 import { InsightCard } from '@/components/explore/InsightCard';
 import type { MainTabNavigationProp, RootNavigationProp } from '@/types/navigation';
 import { LayoutSpacing, ExploreGradientColors } from '@/constants/layout';
 import { WeekCalendarHeader } from '@/components/ui/WeekCalendarHeader';
 import { useTheme } from '@/contexts/ThemeContext';
-import { BUDMIND_PRICING_URL } from '@/constants/preferences';
 
 export default function ExploreScreen() {
   const navigation = useNavigation<MainTabNavigationProp>();
   const rootNavigation = useNavigation<RootNavigationProp>();
   const insets = useSafeAreaInsets();
   const { mode } = useTheme();
-  const { canAccess } = useUserPlan();
   const {
     yesterdayInsight,
     generalInsight,
@@ -28,7 +24,6 @@ export default function ExploreScreen() {
     habitInsight,
   } = useExploreInsights();
 
-  // Animação do gradiente usando múltiplos gradientes sobrepostos
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -48,11 +43,6 @@ export default function ExploreScreen() {
     ).start();
   }, [opacityAnim]);
 
-  // Verificar acesso a features
-  const hasInspiredAccess = canAccess('inspired_insight');
-  const hasFrequencyAccess = canAccess('frequency_insight');
-  const hasHabitAccess = canAccess('habit_insight');
-
   const navigateToChatVoice = (insightType: string, insight: Insight) => {
     navigation.navigate('Chat', {
       voiceInsight: {
@@ -67,37 +57,20 @@ export default function ExploreScreen() {
     navigation.navigate('Chat');
   };
 
-  const openPricing = useCallback(() => {
-    WebBrowser.openBrowserAsync(BUDMIND_PRICING_URL);
-  }, []);
-
   const handleTalkAboutInsight = () => {
-    if (!hasInspiredAccess) {
-      openPricing();
-      return;
-    }
     navigation.navigate('Chat');
   };
 
   const handleTalkAboutFrequency = () => {
-    if (!hasFrequencyAccess) {
-      openPricing();
-      return;
-    }
     navigation.navigate('Chat');
   };
 
   const handleStartHabit = () => {
-    if (!hasHabitAccess) {
-      openPricing();
-      return;
-    }
     navigation.navigate('Chat');
   };
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Gradiente base */}
       <LinearGradient
         colors={mode === 'dark' ? ExploreGradientColors.dark.base : ExploreGradientColors.light.base}
         start={{ x: 0, y: 0 }}
@@ -110,7 +83,6 @@ export default function ExploreScreen() {
           bottom: 0,
         }}
       />
-      {/* Gradiente animado sobreposto */}
       <Animated.View
         style={{
           position: 'absolute',
@@ -144,7 +116,6 @@ export default function ExploreScreen() {
           onPressRight={() => rootNavigation.navigate('Settings')}
         />
 
-        {/* Card 1: Jornada de Ontem */}
         <View className="mb-6">
           <InsightCard
             badge="SUA JORNADA DE ONTEM"
@@ -160,7 +131,6 @@ export default function ExploreScreen() {
           />
         </View>
 
-        {/* Card 2: Insight Geral */}
         <View className="mb-6">
           <InsightCard
             badge="INSPIRADO EM VOCÊ"
@@ -169,17 +139,13 @@ export default function ExploreScreen() {
             buttonText="Envie uma mensagem"
             onButtonClick={handleTalkAboutInsight}
             loading={generalInsight.loading}
-            locked={generalInsight.locked || !hasInspiredAccess}
+            locked={generalInsight.locked}
             remaining={generalInsight.remaining}
-            lockedMessage={!hasInspiredAccess ? 'Upgrade para desbloquear' : undefined}
-            onMicClick={() =>
-              navigateToChatVoice('general_insight', generalInsight)
-            }
-            micDisabled={generalInsight.locked || !hasInspiredAccess}
+            onMicClick={() => navigateToChatVoice('general_insight', generalInsight)}
+            micDisabled={generalInsight.locked}
           />
         </View>
 
-        {/* Card 3: Frequência */}
         <View className="mb-6">
           <InsightCard
             badge="SUA FREQUÊNCIA"
@@ -188,15 +154,13 @@ export default function ExploreScreen() {
             buttonText="Envie uma mensagem"
             onButtonClick={handleTalkAboutFrequency}
             loading={frequencyInsight.loading}
-            locked={frequencyInsight.locked || !hasFrequencyAccess}
+            locked={frequencyInsight.locked}
             remaining={frequencyInsight.remaining}
-            lockedMessage={!hasFrequencyAccess ? 'Upgrade para desbloquear' : undefined}
             onMicClick={() => navigateToChatVoice('frequency', frequencyInsight)}
-            micDisabled={frequencyInsight.locked || !hasFrequencyAccess}
+            micDisabled={frequencyInsight.locked}
           />
         </View>
 
-        {/* Card 4: Hábito Saudável */}
         <View className="mb-6">
           <InsightCard
             badge="CONSTRUA UM HÁBITO"
@@ -205,11 +169,10 @@ export default function ExploreScreen() {
             buttonText="Envie uma mensagem"
             onButtonClick={handleStartHabit}
             loading={habitInsight.loading}
-            locked={habitInsight.locked || !hasHabitAccess}
+            locked={habitInsight.locked}
             remaining={habitInsight.remaining}
-            lockedMessage={!hasHabitAccess ? 'Upgrade para desbloquear' : undefined}
             onMicClick={() => navigateToChatVoice('habit', habitInsight)}
-            micDisabled={habitInsight.locked || !hasHabitAccess}
+            micDisabled={habitInsight.locked}
           />
         </View>
       </ScrollView>
