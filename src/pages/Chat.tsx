@@ -125,6 +125,23 @@ export default function ChatScreen() {
     void start();
   }, [shouldAutoStartVoice, currentConversationId]);
 
+  useEffect(() => {
+    if (streamingMessages.length === 0) return;
+
+    const allStreamingInDb = streamingMessages.every((streamMsg) => {
+      if (streamMsg.isStreaming) return false;
+      if (!streamMsg.content.trim()) return false;
+
+      return dbMessages.some(
+        (dbMsg) => dbMsg.role === streamMsg.role && dbMsg.content === streamMsg.content,
+      );
+    });
+
+    if (allStreamingInDb) {
+      setStreamingMessages([]);
+    }
+  }, [dbMessages, streamingMessages]);
+
   const allMessages = useMemo(() => {
     const dbMessagesFormatted = dbMessages.map((msg) => ({
       id: msg.id,
@@ -258,9 +275,6 @@ export default function ChatScreen() {
 
           await userMessagePromise;
           await addMessage(accumulatedContent, 'assistant');
-
-          setStreamingMessages([]);
-
         },
         onError: (error) => {
           setIsStreaming(false);

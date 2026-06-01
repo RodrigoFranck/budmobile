@@ -1,11 +1,15 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Appearance } from 'react-native';
 import { useColorScheme } from 'nativewind';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
 type ThemeMode = 'light' | 'dark';
 type ThemePreference = ThemeMode | 'system';
+
+function resolveSystemMode(scheme: string | null | undefined): ThemeMode {
+  return scheme === 'light' ? 'light' : 'dark';
+}
 
 interface ThemeContextType {
   mode: ThemeMode;
@@ -25,13 +29,26 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { colorScheme, setColorScheme } = useColorScheme();
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
   const [loaded, setLoaded] = useState(false);
+  const [systemMode, setSystemMode] = useState<ThemeMode>(() =>
+    resolveSystemMode(Appearance.getColorScheme()),
+  );
+
+  useEffect(() => {
+    const subscription = Appearance.addChangeListener(({ colorScheme: nextScheme }) => {
+      setSystemMode(resolveSystemMode(nextScheme));
+    });
+    return () => subscription.remove();
+  }, []);
 
   const resolvedMode: ThemeMode = useMemo(() => {
-    if (preference === 'system') {
-      return colorScheme === 'light' ? 'light' : 'dark';
+    if (preference !== 'system') {
+      return preference;
     }
-    return preference;
-  }, [colorScheme, preference]);
+    if (colorScheme === 'light' || colorScheme === 'dark') {
+      return colorScheme;
+    }
+    return systemMode;
+  }, [colorScheme, preference, systemMode]);
 
   useEffect(() => {
     if (preference === 'system') {

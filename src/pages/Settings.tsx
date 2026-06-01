@@ -10,6 +10,8 @@ import {
   Share,
   StyleSheet,
   Linking,
+  Appearance,
+  Platform,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,7 +20,7 @@ import { ArrowLeft, ExternalLink, Link2 } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
 import type { NavigationProp } from "@/types/navigation";
 import { Spacing } from "@/constants/styles";
-import { BUDMIND_HELP_URL } from "@/constants/preferences";
+import { BUDMIND_HELP_URL, BUD_NATIVE_LINK_URL } from "@/constants/preferences";
 import {
   HEALTH_DISCLAIMER,
   PRIVACY_POLICY_URL,
@@ -131,7 +133,7 @@ export default function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
   const { user, signOut, deleteAccount, refreshOnboardingStatus } = useAuth();
-  const { mode, loaded: themeLoaded, setMode } = useTheme();
+  const { mode, loaded: themeLoaded, setMode, setPreference } = useTheme();
   const darkMode = mode === "dark";
   const darkModeLoading = !themeLoaded;
   const [resettingOnboarding, setResettingOnboarding] = useState(false);
@@ -144,9 +146,14 @@ export default function SettingsScreen() {
   const handleToggleDarkMode = useCallback(
     async (isLightMode: boolean) => {
       const nextMode = isLightMode ? "light" : "dark";
+      const deviceMode = Appearance.getColorScheme() === "light" ? "light" : "dark";
+      if (nextMode === deviceMode) {
+        await setPreference("system");
+        return;
+      }
       await setMode(nextMode);
     },
-    [setMode],
+    [setMode, setPreference],
   );
 
   const openHelp = useCallback(() => {
@@ -163,9 +170,12 @@ export default function SettingsScreen() {
 
   const shareBud = useCallback(async () => {
     try {
-      await Share.share({
-        message: `Bud — ${BUDMIND_HELP_URL}`,
-      });
+      const message = `Conheça o Bud — a primeira IA de saúde mental do Brasil.\n\n${BUD_NATIVE_LINK_URL}`;
+      await Share.share(
+        Platform.OS === "ios"
+          ? { message, url: BUD_NATIVE_LINK_URL, title: "Bud" }
+          : { message, title: "Bud" },
+      );
     } catch (error: unknown) {
       console.error("Share error:", error);
     }
