@@ -1274,9 +1274,15 @@ export function buildVoicePrompt(
 
   let prompt = interpolatePrompt(BASE_PROMPT, ctx, insightContext);
   
-  // Replace internal profile placeholder
-  const profileText = internalProfile || "Perfil interno ainda não disponível — este é um usuário novo ou o perfil ainda não foi gerado.";
+  const profileText =
+    internalProfile?.trim() ||
+    'Perfil interno ainda não disponível — este é um usuário novo ou o perfil ainda não foi gerado.';
   prompt = prompt.replace(/\{\{internalProfile\}\}/g, profileText);
+
+  if (internalProfile?.includes('CONVERSAS DE OUTROS DIAS')) {
+    prompt +=
+      '\nIMPORTANTE: A seção CONVERSAS DE OUTROS DIAS contém memória de dias anteriores. Use-a para retomar temas com naturalidade, como um amigo que lembra — nunca como notas clínicas.\n';
+  }
 
   // Adicionar histórico de conversa se existir
   if (messageHistory && messageHistory.length > 0) {

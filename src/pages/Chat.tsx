@@ -8,6 +8,7 @@ import { Book, Settings } from 'lucide-react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConversations } from '@/hooks/useConversations';
 import { useMessages } from '@/hooks/useMessages';
+import { useChatMemoryContext } from '@/hooks/useChatMemoryContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { ChatContainer } from '@/components/chat/ChatContainer';
 import { MessageInputBar } from '@/components/chat/MessageInputBar';
@@ -29,6 +30,7 @@ export default function ChatScreen() {
   const colors = useAppColors();
   const { user } = useAuth();
   const { profile } = useUserProfile();
+  const { internalProfileText, memoryContext, loading: memoryLoading } = useChatMemoryContext();
   const { getOrCreateTodayConversation } = useConversations();
   const insets = useSafeAreaInsets();
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -252,6 +254,7 @@ export default function ChatScreen() {
         messages: apiMessages,
         userContext,
         insightContext: activeInsightContext ?? undefined,
+        memoryContext: memoryLoading ? undefined : memoryContext,
         onDelta: (deltaText) => {
           accumulatedContent += deltaText;
           setStreamingMessages((prev) =>
@@ -292,6 +295,8 @@ export default function ChatScreen() {
       dbMessages,
       userContext,
       insightContext,
+      memoryContext,
+      memoryLoading,
       addMessage,
     ],
   );
@@ -371,6 +376,7 @@ export default function ChatScreen() {
           userContext={userContext}
           messageHistory={messageHistory}
           recentInsights={recentInsights}
+          internalProfile={memoryLoading ? undefined : internalProfileText}
         />
       </KeyboardAvoidingView>
       <VoiceMode
