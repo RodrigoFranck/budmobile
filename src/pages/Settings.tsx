@@ -168,6 +168,10 @@ export default function SettingsScreen() {
     navigation.navigate("CrisisResources");
   }, [navigation]);
 
+  const openPsychologicalAssessment = useCallback(() => {
+    navigation.navigate("PsychologicalAssessment");
+  }, [navigation]);
+
   const shareBud = useCallback(async () => {
     try {
       const message = `Conheça o Bud — a primeira IA de saúde mental do Brasil.\n\n${BUD_NATIVE_LINK_URL}`;
@@ -303,6 +307,16 @@ export default function SettingsScreen() {
           accessibilityLabel="Recursos de crise"
         >
           <Text style={styles.rowText}>Recursos de crise</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={openPsychologicalAssessment}
+          activeOpacity={0.8}
+          style={styles.row}
+          accessibilityRole="button"
+          accessibilityLabel="Avaliação psicológica"
+        >
+          <Text style={styles.rowText}>Avaliação psicológica</Text>
         </TouchableOpacity>
 
         <View style={styles.row}>

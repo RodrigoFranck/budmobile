@@ -12,6 +12,7 @@ import OnboardingNavigator from '@/navigation/OnboardingNavigator';
 import SettingsScreen from '@/pages/Settings';
 import CrisisResourcesScreen from '@/pages/CrisisResources';
 import SupportFeedbackScreen from '@/pages/SupportFeedback';
+import PsychologicalAssessmentNavigator from '@/navigation/PsychologicalAssessmentNavigator';
 import MainTabs from '@/navigation/MainTabs';
 import type { RootStackParamList } from '@/types/navigation';
 
@@ -74,6 +75,10 @@ export default function AppNavigator() {
               <Stack.Screen name="Settings" component={SettingsScreen} />
               <Stack.Screen name="CrisisResources" component={CrisisResourcesScreen} />
               <Stack.Screen name="SupportFeedback" component={SupportFeedbackScreen} />
+              <Stack.Screen
+                name="PsychologicalAssessment"
+                component={PsychologicalAssessmentNavigator}
+              />
             </>
           )}
         </Stack.Navigator>
