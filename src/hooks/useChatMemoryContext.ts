@@ -110,6 +110,7 @@ export function useChatMemoryContext() {
   return {
     memoryContext,
     internalProfileText: memoryContext.internalProfileText,
+    profile,
     loading: profileLoading || extrasLoading,
     refetch: fetchMemoryExtras,
   };

@@ -1302,6 +1302,26 @@ export function buildVoicePrompt(
   return prompt;
 }
 
+export function enrichVoicePrompt(
+  basePrompt: string,
+  extras?: {
+    approachGuidance?: string | null;
+    clinicalContext?: string | null;
+  },
+): string {
+  let prompt = basePrompt;
+
+  if (extras?.approachGuidance?.trim()) {
+    prompt += `\n\n${extras.approachGuidance.trim()}`;
+  }
+
+  if (extras?.clinicalContext?.trim()) {
+    prompt += extras.clinicalContext.trim();
+  }
+
+  return prompt;
+}
+
 export function buildFirstMessage(ctx?: UserContext): string {
   // Sem firstMessage pre-setado: deixa o agente iniciar a conversa naturalmente.
   return '';

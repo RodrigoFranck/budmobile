@@ -12,6 +12,7 @@ import { useChatMemoryContext } from '@/hooks/useChatMemoryContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { ChatContainer } from '@/components/chat/ChatContainer';
 import { MessageInputBar } from '@/components/chat/MessageInputBar';
+import { countUserTurns, matchApproach } from '@/utils/approachMatcher';
 import { streamChat, type InsightContext, type UserContext } from '@/utils/chatStream';
 import type { ChatInsightParam } from '@/types/chatInsight';
 import { takePendingChatInsight } from '@/utils/navigateToChat';
@@ -30,7 +31,12 @@ export default function ChatScreen() {
   const colors = useAppColors();
   const { user } = useAuth();
   const { profile } = useUserProfile();
-  const { internalProfileText, memoryContext, loading: memoryLoading } = useChatMemoryContext();
+  const {
+    internalProfileText,
+    memoryContext,
+    profile: internalProfile,
+    loading: memoryLoading,
+  } = useChatMemoryContext();
   const { getOrCreateTodayConversation } = useConversations();
   const insets = useSafeAreaInsets();
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -250,11 +256,21 @@ export default function ChatScreen() {
 
       let accumulatedContent = '';
 
+      const approachDecision = matchApproach(
+        message,
+        memoryLoading ? null : internalProfile,
+        countUserTurns(apiMessages),
+      );
+
       await streamChat({
         messages: apiMessages,
         userContext,
         insightContext: activeInsightContext ?? undefined,
         memoryContext: memoryLoading ? undefined : memoryContext,
+        approachContext: {
+          strategy: approachDecision.strategy,
+          guidanceText: approachDecision.guidanceText,
+        },
         onDelta: (deltaText) => {
           accumulatedContent += deltaText;
           setStreamingMessages((prev) =>
@@ -297,6 +313,7 @@ export default function ChatScreen() {
       insightContext,
       memoryContext,
       memoryLoading,
+      internalProfile,
       addMessage,
     ],
   );

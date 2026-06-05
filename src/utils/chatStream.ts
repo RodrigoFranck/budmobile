@@ -17,6 +17,11 @@ export interface UserContext {
   isFirstInteractionOfDay: boolean;
 }
 
+export interface ApproachContext {
+  strategy: string;
+  guidanceText: string;
+}
+
 export interface InsightContext {
   insightType?: string;
   contextSummary?: string;
@@ -37,6 +42,7 @@ export async function streamChat({
   userContext,
   insightContext,
   memoryContext,
+  approachContext,
   onDelta,
   onDone,
   onError,
@@ -45,6 +51,7 @@ export async function streamChat({
   userContext?: UserContext;
   insightContext?: InsightContext;
   memoryContext?: ChatMemoryContext;
+  approachContext?: ApproachContext;
   onDelta: (deltaText: string) => void;
   onDone: () => void;
   onError: (error: string) => void;
@@ -157,6 +164,7 @@ export async function streamChat({
         userContext,
         insightContext,
         memoryContext,
+        approachContext,
         internalProfile: memoryContext?.internalProfileText ?? null,
       }),
     );

@@ -20,6 +20,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { isSafetyResponse } from '@/utils/safetyDetection';
 import {
   buildVoicePrompt,
+  enrichVoicePrompt,
   type UserContext,
 } from '@/voice/voicePrompt';
 import { colors } from '@/lib/colors';
@@ -415,7 +416,9 @@ function VoiceInterfaceNativeInner(
     setIsLoading(true);
     try {
       voiceLog('fetching token');
-      const { data, error } = await supabase.functions.invoke('chat-voice');
+      const { data, error } = await supabase.functions.invoke('chat-voice', {
+        body: { messages: messageHistory ?? [] },
+      });
       if (error) {
         voiceLog('token error', error);
         const serverMsg =
@@ -427,11 +430,19 @@ function VoiceInterfaceNativeInner(
       const token = data?.token as string | undefined;
       voiceLog('token received', Boolean(token));
       if (!token) throw new Error('Token de voz não retornado');
-      const prompt = buildVoicePrompt(
-        userContext,
-        messageHistory,
-        recentInsights,
-        internalProfile,
+      const serverProfile =
+        (data?.internal_profile as string | undefined) ?? internalProfile;
+      const prompt = enrichVoicePrompt(
+        buildVoicePrompt(
+          userContext,
+          messageHistory,
+          recentInsights,
+          serverProfile,
+        ),
+        {
+          approachGuidance: data?.approach_guidance as string | undefined,
+          clinicalContext: data?.clinical_context as string | undefined,
+        },
       );
       voiceLog('prompt chars', prompt.length);
       lastSessionConfigRef.current = { token, prompt };
@@ -548,22 +559,33 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
     const startConversation = useCallback(async () => {
       setIsLoading(true);
       try {
-        const { data, error } = await supabase.functions.invoke('chat-voice');
+        const { data, error } = await supabase.functions.invoke('chat-voice', {
+          body: { messages: messageHistory ?? [] },
+        });
         if (error) throw error;
         const signedUrl = data?.signed_url as string | undefined;
         if (!signedUrl) throw new Error('Failed to get signed URL');
+        const serverProfile =
+          (data?.internal_profile as string | undefined) ?? internalProfile;
+        const prompt = enrichVoicePrompt(
+          buildVoicePrompt(
+            userContext,
+            messageHistory,
+            recentInsights,
+            serverProfile,
+          ),
+          {
+            approachGuidance: data?.approach_guidance as string | undefined,
+            clinicalContext: data?.clinical_context as string | undefined,
+          },
+        );
         const { Conversation } = await import('@elevenlabs/client');
         conversationRef.current = await Conversation.startSession({
           signedUrl,
           overrides: {
             agent: {
               prompt: {
-                prompt: buildVoicePrompt(
-                  userContext,
-                  messageHistory,
-                  recentInsights,
-                  internalProfile,
-                ),
+                prompt,
               },
             },
           },
