@@ -58,6 +58,20 @@ async function resolveVoiceFunctionError(
   return 'Erro ao obter token de voz';
 }
 
+function sendVoiceContextUpdate(
+  conversation: { sendContextualUpdate?: (text: string) => void },
+  prompt: string | undefined,
+) {
+  const text = prompt?.trim();
+  if (!text || !conversation.sendContextualUpdate) return;
+
+  try {
+    conversation.sendContextualUpdate(text);
+  } catch {
+    // contextual update is best-effort after connect
+  }
+}
+
 interface ElevenLabsMessage {
   source: 'user' | 'ai';
   message?: string;
@@ -70,6 +84,7 @@ interface ElevenLabsModeChange {
 
 interface ElevenLabsConversation {
   endSession: () => Promise<void>;
+  sendContextualUpdate?: (text: string) => void;
 }
 
 export interface VoiceInterfaceProps {
@@ -219,6 +234,10 @@ function VoiceInterfaceNativeInner(
 
       onConnectingChange?.(false);
       restartGuardRef.current = { inFlight: false, lastAt: 0, attempts: 0 };
+      sendVoiceContextUpdate(
+        conversation,
+        lastSessionConfigRef.current?.prompt,
+      );
 
       if (micArmTimerRef.current) {
         clearInterval(micArmTimerRef.current);
@@ -320,11 +339,6 @@ function VoiceInterfaceNativeInner(
                 }
                 await conversation.startSession({
                   conversationToken: cfg.token,
-                  overrides: {
-                    agent: {
-                      prompt: { prompt: cfg.prompt },
-                    },
-                  },
                 });
                 try {
                   conversation.setMuted(false);
@@ -537,11 +551,6 @@ function VoiceInterfaceNativeInner(
       lastSessionConfigRef.current = { token, prompt };
       await conversation.startSession({
         conversationToken: token,
-        overrides: {
-          agent: {
-            prompt: { prompt },
-          },
-        },
       });
     } catch (e) {
       if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
@@ -627,6 +636,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
     const [isConnected, setIsConnected] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const conversationRef = useRef<ElevenLabsConversation | null>(null);
+    const sessionPromptRef = useRef<string | null>(null);
     const processedMessagesRef = useRef<Set<string>>(new Set());
     const voiceSessionActiveRef = useRef(false);
     const startGenerationRef = useRef(0);
@@ -683,20 +693,20 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
             clinicalContext: data?.clinical_context as string | undefined,
           },
         );
+        sessionPromptRef.current = prompt;
         const { Conversation } = await import('@elevenlabs/client');
         conversationRef.current = await Conversation.startSession({
           signedUrl,
-          overrides: {
-            agent: {
-              prompt: {
-                prompt,
-              },
-            },
-          },
           onConnect: () => {
             if (!voiceSessionActiveRef.current) {
               void conversationRef.current?.endSession();
               return;
+            }
+            if (conversationRef.current) {
+              sendVoiceContextUpdate(
+                conversationRef.current,
+                sessionPromptRef.current ?? undefined,
+              );
             }
             setIsConnected(true);
             setIsLoading(false);
