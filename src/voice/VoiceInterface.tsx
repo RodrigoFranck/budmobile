@@ -33,6 +33,7 @@ import {
 } from '@/voice/VoiceInterface.styles';
 import { ProminentVoiceButton } from '@/voice/ProminentVoiceButton';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
+import { buildVoiceSessionStartOptions, type VoiceSessionStartOptions } from '@/voice/voiceElevenLabsSession';
 
 async function resolveVoiceFunctionError(
   error: unknown,
@@ -56,20 +57,6 @@ async function resolveVoiceFunctionError(
     return error.message;
   }
   return 'Erro ao obter token de voz';
-}
-
-function sendVoiceContextUpdate(
-  conversation: { sendContextualUpdate?: (text: string) => void },
-  prompt: string | undefined,
-) {
-  const text = prompt?.trim();
-  if (!text || !conversation.sendContextualUpdate) return;
-
-  try {
-    conversation.sendContextualUpdate(text);
-  } catch {
-    // contextual update is best-effort after connect
-  }
 }
 
 interface ElevenLabsMessage {
@@ -204,9 +191,7 @@ function VoiceInterfaceNativeInner(
   const speakingDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
-  const lastSessionConfigRef = useRef<{ token: string; prompt: string } | null>(
-    null,
-  );
+  const lastSessionConfigRef = useRef<VoiceSessionStartOptions | null>(null);
   const restartGuardRef = useRef({ inFlight: false, lastAt: 0, attempts: 0 });
   const vadRef = useRef({
     sawVoice: false,
@@ -234,10 +219,6 @@ function VoiceInterfaceNativeInner(
 
       onConnectingChange?.(false);
       restartGuardRef.current = { inFlight: false, lastAt: 0, attempts: 0 };
-      sendVoiceContextUpdate(
-        conversation,
-        lastSessionConfigRef.current?.prompt,
-      );
 
       if (micArmTimerRef.current) {
         clearInterval(micArmTimerRef.current);
@@ -324,7 +305,7 @@ function VoiceInterfaceNativeInner(
             if (guard.attempts >= 3) return;
 
             const cfg = lastSessionConfigRef.current;
-            if (!cfg) return;
+            if (!cfg?.conversationToken) return;
 
             guard.inFlight = true;
             guard.lastAt = now;
@@ -337,9 +318,9 @@ function VoiceInterfaceNativeInner(
                 } catch {
                   // session may already be ended
                 }
-                await conversation.startSession({
-                  conversationToken: cfg.token,
-                });
+                const sessionOptions = lastSessionConfigRef.current;
+                if (!sessionOptions) return;
+                await conversation.startSession(sessionOptions);
                 try {
                   conversation.setMuted(false);
                 } catch {
@@ -534,6 +515,9 @@ function VoiceInterfaceNativeInner(
 
       const token = data?.token as string | undefined;
       if (!token) throw new Error('Token de voz não retornado');
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       const serverProfile =
         (data?.internal_profile as string | undefined) ?? internalProfile;
       const prompt = enrichVoicePrompt(
@@ -548,10 +532,14 @@ function VoiceInterfaceNativeInner(
           clinicalContext: data?.clinical_context as string | undefined,
         },
       );
-      lastSessionConfigRef.current = { token, prompt };
-      await conversation.startSession({
+      const sessionOptions = buildVoiceSessionStartOptions({
         conversationToken: token,
+        prompt,
+        userId: user?.id,
+        userContext,
       });
+      lastSessionConfigRef.current = sessionOptions;
+      await conversation.startSession(sessionOptions);
     } catch (e) {
       if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
         return;
@@ -618,6 +606,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
   function VoiceInterfaceWeb(
     {
       appearance = 'default',
+      prominentSize,
       onTranscript,
       onVoiceModeChange,
       onConnectingChange,
@@ -636,7 +625,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
     const [isConnected, setIsConnected] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const conversationRef = useRef<ElevenLabsConversation | null>(null);
-    const sessionPromptRef = useRef<string | null>(null);
+    const lastSessionConfigRef = useRef<VoiceSessionStartOptions | null>(null);
     const processedMessagesRef = useRef<Set<string>>(new Set());
     const voiceSessionActiveRef = useRef(false);
     const startGenerationRef = useRef(0);
@@ -679,6 +668,9 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
 
         const signedUrl = data?.signed_url as string | undefined;
         if (!signedUrl) throw new Error('Failed to get signed URL');
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
         const serverProfile =
           (data?.internal_profile as string | undefined) ?? internalProfile;
         const prompt = enrichVoicePrompt(
@@ -693,20 +685,20 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
             clinicalContext: data?.clinical_context as string | undefined,
           },
         );
-        sessionPromptRef.current = prompt;
+        const sessionOptions = buildVoiceSessionStartOptions({
+          signedUrl,
+          prompt,
+          userId: user?.id,
+          userContext,
+        });
+        lastSessionConfigRef.current = sessionOptions;
         const { Conversation } = await import('@elevenlabs/client');
         conversationRef.current = await Conversation.startSession({
-          signedUrl,
+          ...sessionOptions,
           onConnect: () => {
             if (!voiceSessionActiveRef.current) {
               void conversationRef.current?.endSession();
               return;
-            }
-            if (conversationRef.current) {
-              sendVoiceContextUpdate(
-                conversationRef.current,
-                sessionPromptRef.current ?? undefined,
-              );
             }
             setIsConnected(true);
             setIsLoading(false);
