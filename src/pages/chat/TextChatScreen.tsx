@@ -76,6 +76,7 @@ export default function TextChatScreen() {
             autoFocus
             onSendMessage={handleSendMessage}
             disabled={isStreaming}
+            voiceAppearance="prominent"
             voiceInterfaceRef={voiceInterfaceRef}
             onVoiceModeChange={setIsVoiceModeActive}
             onVoiceConnectingChange={setIsVoiceConnecting}

@@ -12,6 +12,7 @@ export interface MessageInputBarLayout {
   textPaddingLeft: number;
   textLineHeight: number;
   voiceSlotWidth: number;
+  prominentVoiceSize: number;
 }
 
 const ROW_GAP = 12;
@@ -54,6 +55,7 @@ export function getMessageInputBarLayout(
     textPaddingLeft,
     textLineHeight,
     voiceSlotWidth,
+    prominentVoiceSize: pillHeight,
   };
 }
 

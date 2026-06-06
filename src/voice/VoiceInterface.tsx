@@ -13,7 +13,6 @@ import {
   PermissionsAndroid,
   Platform,
   TouchableOpacity,
-  View,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import { Mic, MicOff } from 'lucide-react-native';
@@ -27,6 +26,12 @@ import {
 } from '@/voice/voicePrompt';
 import { useAppColors } from '@/lib/colors';
 import { useVoiceSessionKeepAwake } from '@/hooks/useVoiceSessionKeepAwake';
+import {
+  getVoiceButtonDimensions,
+  getVoiceButtonStyles,
+  type VoiceAppearance,
+} from '@/voice/VoiceInterface.styles';
+import { ProminentVoiceButton } from '@/voice/ProminentVoiceButton';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
 
 async function resolveVoiceFunctionError(
@@ -68,7 +73,8 @@ interface ElevenLabsConversation {
 }
 
 export interface VoiceInterfaceProps {
-  appearance?: 'default' | 'companion';
+  appearance?: VoiceAppearance;
+  prominentSize?: number;
   onTranscript?: (text: string) => void;
   onVoiceModeChange?: (active: boolean) => void;
   onConnectingChange?: (connecting: boolean) => void;
@@ -89,9 +95,71 @@ export interface VoiceInterfaceProps {
 
 export type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
 
+function VoiceButtonVisual({
+  appearance,
+  prominentSize,
+  isConnected,
+  isLoading,
+  onPress,
+  disabled,
+}: {
+  appearance: VoiceAppearance;
+  prominentSize?: number;
+  isConnected: boolean;
+  isLoading: boolean;
+  onPress: () => void;
+  disabled: boolean;
+}) {
+  const colors = useAppColors();
+
+  if (appearance === 'prominent') {
+    return (
+      <ProminentVoiceButton
+        colors={colors}
+        size={prominentSize ?? 52}
+        isConnected={isConnected}
+        isLoading={isLoading}
+        onPress={onPress}
+        disabled={disabled}
+      />
+    );
+  }
+
+  const { iconSize } = getVoiceButtonDimensions(appearance);
+  const { button, iconColor } = getVoiceButtonStyles(
+    colors,
+    appearance,
+    isConnected,
+  );
+
+  const showLoading = isLoading && appearance !== 'companion';
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={
+        isConnected ? 'Encerrar voz' : 'Iniciar conversa por voz'
+      }
+      style={button}
+      activeOpacity={0.85}
+    >
+      {showLoading ? (
+        <ActivityIndicator size="small" color={iconColor} />
+      ) : isConnected ? (
+        <MicOff size={iconSize} color={iconColor} />
+      ) : (
+        <Mic size={iconSize} color={iconColor} strokeWidth={2.25} />
+      )}
+    </TouchableOpacity>
+  );
+}
+
 function VoiceInterfaceNativeInner(
   {
     appearance = 'default',
+    prominentSize,
     onTranscript,
     onVoiceModeChange,
     onConnectingChange,
@@ -107,7 +175,6 @@ function VoiceInterfaceNativeInner(
   }: VoiceInterfaceProps,
   ref: React.Ref<VoiceInterfaceRef>,
 ) {
-  const colors = useAppColors();
   const processedRef = useRef<Set<string>>(new Set());
   const noResponseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastUserMsgAtRef = useRef<number | null>(null);
@@ -509,35 +576,16 @@ function VoiceInterfaceNativeInner(
 
   const isConnected = conversation.status === 'connected';
   useVoiceSessionKeepAwake(isConnected || isLoading);
-  const isCompanion = appearance === 'companion';
 
   return (
-    <TouchableOpacity
+    <VoiceButtonVisual
+      appearance={appearance}
+      prominentSize={prominentSize}
+      isConnected={isConnected}
+      isLoading={isLoading}
       onPress={isConnected ? endConversation : startConversation}
       disabled={isLoading}
-      accessibilityRole="button"
-      accessibilityLabel={
-        isConnected ? 'Encerrar voz' : 'Iniciar conversa por voz'
-      }
-      className={
-        isCompanion
-          ? 'h-[52px] w-[40px] items-center justify-center'
-          : 'h-10 w-10 items-center justify-center'
-      }
-    >
-      {!isCompanion && isLoading ? (
-        <ActivityIndicator size="small" color={colors.foreground} />
-      ) : isConnected ? (
-        <MicOff size={22} color={colors.destructive} />
-      ) : (
-        <Mic
-          size={22}
-          color={
-            isCompanion ? colors['chat-body'] : colors['foreground-muted']
-          }
-        />
-      )}
-    </TouchableOpacity>
+    />
   );
 }
 
@@ -576,7 +624,6 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
     },
     ref,
   ) {
-    const colors = useAppColors();
     const [isConnected, setIsConnected] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const conversationRef = useRef<ElevenLabsConversation | null>(null);
@@ -752,35 +799,16 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
     }, []);
 
     useVoiceSessionKeepAwake(isConnected || isLoading);
-    const isCompanion = appearance === 'companion';
 
     return (
-      <TouchableOpacity
+      <VoiceButtonVisual
+        appearance={appearance}
+        prominentSize={prominentSize}
+        isConnected={isConnected}
+        isLoading={isLoading}
         onPress={isConnected ? endConversation : startConversation}
         disabled={isLoading}
-        accessibilityRole="button"
-        accessibilityLabel={
-          isConnected ? 'Encerrar voz' : 'Iniciar conversa por voz'
-        }
-        className={
-          isCompanion
-            ? 'h-[52px] w-[40px] items-center justify-center'
-            : 'h-10 w-10 items-center justify-center'
-        }
-      >
-        {(!isCompanion && isLoading) ? (
-          <ActivityIndicator size="small" color={colors.foreground} />
-        ) : isConnected ? (
-          <MicOff size={22} color={colors.destructive} />
-        ) : (
-          <Mic
-            size={22}
-            color={
-              isCompanion ? colors['chat-body'] : colors['foreground-muted']
-            }
-          />
-        )}
-      </TouchableOpacity>
+      />
     );
   },
 );

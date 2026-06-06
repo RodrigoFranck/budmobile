@@ -43,6 +43,7 @@ const baseStyles = StyleSheet.create({
   voiceSlot: {
     justifyContent: 'center',
     alignItems: 'center',
+    alignSelf: 'center',
   },
 });
 
@@ -50,8 +51,9 @@ export function getMessageInputBarStyles(params: {
   colors: AppColors;
   bottomInset: number;
   layout: MessageInputBarLayout;
+  prominentVoice?: boolean;
 }) {
-  const { colors, bottomInset, layout } = params;
+  const { colors, bottomInset, layout, prominentVoice = false } = params;
   const {
     pillHeight,
     sendTouchSize,
@@ -100,7 +102,12 @@ export function getMessageInputBarStyles(params: {
     sendHitSlop: baseStyles.sendHitSlop,
     voiceSlot: [
       baseStyles.voiceSlot,
-      { width: layout.voiceSlotWidth, height: pillHeight },
+      prominentVoice
+        ? { minHeight: pillHeight }
+        : {
+            width: layout.voiceSlotWidth,
+            height: pillHeight,
+          },
     ] satisfies ViewStyle[],
   };
 }

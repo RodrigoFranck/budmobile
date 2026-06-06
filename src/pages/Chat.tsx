@@ -393,6 +393,7 @@ export default function ChatScreen() {
         <MessageInputBar
           onSendMessage={handleSendMessage}
           disabled={isStreaming}
+          voiceAppearance="prominent"
           voiceInterfaceRef={voiceInterfaceRef}
           onVoiceModeChange={setIsVoiceModeActive}
           onVoiceConnectingChange={setIsVoiceConnecting}

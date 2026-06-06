@@ -41,6 +41,7 @@ interface MessageInputBarProps {
     description: string;
   }>;
   internalProfile?: string | null;
+  voiceAppearance?: 'default' | 'companion' | 'prominent';
 }
 
 export function MessageInputBar({
@@ -61,6 +62,7 @@ export function MessageInputBar({
   messageHistory,
   recentInsights,
   internalProfile,
+  voiceAppearance,
 }: MessageInputBarProps) {
   const colors = useAppColors();
   const layout = useMessageInputBarLayout();
@@ -91,103 +93,112 @@ export function MessageInputBar({
   };
 
   const canSend = hasMessage && !disabled;
+  const isProminentVoice =
+    voiceAppearance === 'prominent' ||
+    (voiceAppearance == null && mode === 'trigger');
+
   const styles = useMemo(
     () =>
       getMessageInputBarStyles({
         colors,
         bottomInset: insets.bottom,
         layout,
+        prominentVoice: isProminentVoice,
       }),
-    [colors, insets.bottom, layout],
+    [colors, insets.bottom, isProminentVoice, layout],
+  );
+
+  const voiceInterface = voiceInterfaceRef ? (
+    <VoiceInterface
+      ref={voiceInterfaceRef}
+      appearance={voiceAppearance ?? (mode === 'trigger' ? 'prominent' : 'companion')}
+      prominentSize={isProminentVoice ? layout.pillHeight : undefined}
+      onTranscript={(text) => {
+        messageRef.current = text;
+        setMessage(text);
+        onVoiceTranscript?.(text);
+      }}
+      onVoiceModeChange={onVoiceModeChange}
+      onConnectingChange={onVoiceConnectingChange}
+      onUserMessage={onVoiceUserMessage}
+      onAssistantMessage={onVoiceAssistantMessage}
+      onAssistantTranscript={onVoiceTranscript}
+      onSpeakingChange={onSpeakingChange}
+      onSafetyTriggered={onSafetyTriggered}
+      userContext={userContext}
+      messageHistory={messageHistory}
+      recentInsights={recentInsights}
+      internalProfile={internalProfile}
+    />
+  ) : null;
+
+  const textTrigger = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Abrir chat por texto"
+      onPress={onPressTrigger}
+      style={styles.inputWrap}
+    >
+      <Text
+        style={[styles.textInput, { color: colors['chat-label-muted'] }]}
+        numberOfLines={1}
+      >
+        Envie uma mensagem
+      </Text>
+      <View style={[styles.sendButton, { opacity: 0.35 }]}>
+        <ChevronUp
+          size={Math.round(layout.sendTouchSize * 0.55)}
+          color={colors['chat-body']}
+          strokeWidth={2.5}
+        />
+      </View>
+    </Pressable>
+  );
+
+  const textEditable = (
+    <View style={styles.inputWrap}>
+      <TextInput
+        ref={inputRef}
+        placeholder="Envie uma mensagem"
+        placeholderTextColor={colors['chat-label-muted']}
+        value={message}
+        onChangeText={(text) => {
+          messageRef.current = text;
+          setMessage(text);
+        }}
+        multiline
+        editable={!disabled}
+        onSubmitEditing={handleSend}
+        blurOnSubmit={false}
+        scrollEnabled={hasMessage}
+        style={styles.textInput}
+        {...(Platform.OS === 'android' && {
+          includeFontPadding: false,
+        })}
+      />
+      <TouchableOpacity
+        onPress={handleSend}
+        disabled={!canSend}
+        accessibilityRole="button"
+        accessibilityLabel="Enviar mensagem"
+        style={[styles.sendButton, { opacity: canSend ? 1 : 0.35 }]}
+        hitSlop={styles.sendHitSlop}
+      >
+        <ChevronUp
+          size={Math.round(layout.sendTouchSize * 0.55)}
+          color={colors['chat-body']}
+          strokeWidth={2.5}
+        />
+      </TouchableOpacity>
+    </View>
   );
 
   return (
     <View style={styles.root}>
       <View style={styles.row}>
-        {mode === 'trigger' ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Abrir chat por texto"
-            onPress={onPressTrigger}
-            style={styles.inputWrap}
-          >
-            <Text
-              style={[
-                styles.textInput,
-                { color: colors['chat-label-muted'] },
-              ]}
-              numberOfLines={1}
-            >
-              Envie uma mensagem
-            </Text>
-            <View style={[styles.sendButton, { opacity: 0.35 }]}>
-              <ChevronUp
-                size={Math.round(layout.sendTouchSize * 0.55)}
-                color={colors['chat-body']}
-                strokeWidth={2.5}
-              />
-            </View>
-          </Pressable>
-        ) : (
-          <View style={styles.inputWrap}>
-            <TextInput
-              ref={inputRef}
-              placeholder="Envie uma mensagem"
-              placeholderTextColor={colors['chat-label-muted']}
-              value={message}
-              onChangeText={(text) => {
-                messageRef.current = text;
-                setMessage(text);
-              }}
-              multiline
-              editable={!disabled}
-              onSubmitEditing={handleSend}
-              blurOnSubmit={false}
-              scrollEnabled={hasMessage}
-              style={styles.textInput}
-              {...(Platform.OS === 'android' && {
-                includeFontPadding: false,
-              })}
-            />
-            <TouchableOpacity
-              onPress={handleSend}
-              disabled={!canSend}
-              accessibilityRole="button"
-              accessibilityLabel="Enviar mensagem"
-              style={[styles.sendButton, { opacity: canSend ? 1 : 0.35 }]}
-              hitSlop={styles.sendHitSlop}
-            >
-              <ChevronUp
-                size={Math.round(layout.sendTouchSize * 0.55)}
-                color={colors['chat-body']}
-                strokeWidth={2.5}
-              />
-            </TouchableOpacity>
-          </View>
-        )}
-        {voiceInterfaceRef ? (
-          <View style={styles.voiceSlot}>
-            <VoiceInterface
-              ref={voiceInterfaceRef}
-              appearance="companion"
-              onTranscript={(text) => {
-                messageRef.current = text;
-                setMessage(text);
-                onVoiceTranscript?.(text);
-              }}
-              onVoiceModeChange={onVoiceModeChange}
-              onConnectingChange={onVoiceConnectingChange}
-              onUserMessage={onVoiceUserMessage}
-              onAssistantMessage={onVoiceAssistantMessage}
-              onAssistantTranscript={onVoiceTranscript}
-              onSpeakingChange={onSpeakingChange}
-              onSafetyTriggered={onSafetyTriggered}
-              userContext={userContext}
-              messageHistory={messageHistory}
-              recentInsights={recentInsights}
-              internalProfile={internalProfile}
-            />
-          </View>
+        {mode === 'trigger' ? textTrigger : textEditable}
+        {voiceInterface ? (
+          <View style={styles.voiceSlot}>{voiceInterface}</View>
         ) : null}
       </View>
     </View>

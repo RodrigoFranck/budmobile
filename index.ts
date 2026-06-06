@@ -3,6 +3,8 @@ if (__DEV__) {
   require('./src/config/ReactotronConfig');
 }
 
+import './src/config/silenceWebRtcLogs';
+
 import { registerRootComponent } from 'expo';
 
 import App from './App';

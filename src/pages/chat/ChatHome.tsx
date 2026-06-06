@@ -11,11 +11,9 @@ import { TabScreenHeader } from '@/components/ui/TabScreenHeader';
 import { WeekCalendarHeader } from '@/components/ui/WeekCalendarHeader';
 import { Spacing } from '@/constants/styles';
 import { useTabScreenLoading } from '@/contexts/TabScreenContext';
-import { useChatSession } from '@/features/chat/ChatSessionProvider';
 import { useAppColors } from '@/lib/colors';
 import type { ChatStackNavigationProp } from '@/types/chatNavigation.types';
 import type { MainTabNavigationProp, RootNavigationProp } from '@/types/navigation';
-import { VoiceMode } from '@/voice/VoiceMode';
 
 export default function ChatHome() {
   const colors = useAppColors();
@@ -23,28 +21,8 @@ export default function ChatHome() {
   const navigation = useNavigation<ChatStackNavigationProp>();
   const tabNavigation = useNavigation<MainTabNavigationProp>();
   const rootNavigation = useNavigation<RootNavigationProp>();
-  const {
-    chatHomeResetToken,
-    voiceInterfaceRef,
-    isVoiceModeActive,
-    setIsVoiceModeActive,
-    isVoiceConnecting,
-    setIsVoiceConnecting,
-    voiceTranscript,
-    setVoiceTranscript,
-    isBudSpeaking,
-    setIsBudSpeaking,
-    userContext,
-    messageHistory,
-    recentInsights,
-    memoryLoading,
-    internalProfileText,
-    handleVoiceUserMessage,
-    handleVoiceAssistantMessage,
-    handleEndVoiceSession,
-  } = useChatSession();
 
-  const openTextChat = () => {
+  const openBudConversation = () => {
     navigation.navigate('TextChat');
   };
 
@@ -69,32 +47,12 @@ export default function ChatHome() {
           <ChatContainer
             messages={[]}
             topPadding={Spacing.base}
-            scrollResetToken={chatHomeResetToken}
           />
           <MessageInputBar
             mode="trigger"
-            onPressTrigger={openTextChat}
-            voiceInterfaceRef={voiceInterfaceRef}
-            onVoiceModeChange={setIsVoiceModeActive}
-            onVoiceConnectingChange={setIsVoiceConnecting}
-            onVoiceUserMessage={handleVoiceUserMessage}
-            onVoiceAssistantMessage={handleVoiceAssistantMessage}
-            onVoiceTranscript={setVoiceTranscript}
-            onSpeakingChange={setIsBudSpeaking}
-            userContext={userContext}
-            messageHistory={messageHistory}
-            recentInsights={recentInsights}
-            internalProfile={memoryLoading ? undefined : internalProfileText}
+            onPressTrigger={openBudConversation}
           />
         </View>
-        <VoiceMode
-          visible={isVoiceModeActive}
-          onClose={() => setIsVoiceModeActive(false)}
-          onEndVoice={handleEndVoiceSession}
-          transcript={voiceTranscript}
-          isBudSpeaking={isBudSpeaking}
-          isConnecting={isVoiceConnecting}
-        />
       </View>
     </ScreenLoadingGate>
   );

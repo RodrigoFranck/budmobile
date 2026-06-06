@@ -46,6 +46,7 @@ function ChatInsightHandler() {
 }
 
 function ChatVoiceInsightHandler() {
+  const navigation = useNavigation<ChatStackNavigationProp>();
   const route = useRoute<RouteProp<MainTabParamList, 'Chat'>>();
   const { handleVoiceInsight } = useChatSession();
   const voiceInsight = route.params?.voiceInsight;
@@ -53,7 +54,8 @@ function ChatVoiceInsightHandler() {
   useEffect(() => {
     if (!voiceInsight) return;
     handleVoiceInsight(voiceInsight);
-  }, [handleVoiceInsight, voiceInsight]);
+    navigation.navigate('TextChat');
+  }, [handleVoiceInsight, navigation, voiceInsight]);
 
   return null;
 }
@@ -64,6 +66,7 @@ function ChatStackResetHandler() {
 
   useEffect(() => {
     if (chatHomeResetToken === 0) return;
+    if (!navigation.canGoBack()) return;
     navigation.dispatch(StackActions.popToTop());
   }, [chatHomeResetToken, navigation]);
 

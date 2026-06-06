@@ -62,12 +62,25 @@ function ensureStrictBoolean(value: unknown): boolean {
   return false;
 }
 
+function getAppleAuthErrorCode(error: unknown): string | undefined {
+  if (error instanceof CodedError) {
+    return error.code;
+  }
+  if (error instanceof Error && 'code' in error && typeof error.code === 'string') {
+    return error.code;
+  }
+  return undefined;
+}
+
 function isAppleAuthCanceled(error: unknown): boolean {
-  if (error instanceof CodedError && error.code === 'ERR_REQUEST_CANCELED') {
+  const code = getAppleAuthErrorCode(error);
+  if (code === 'ERR_REQUEST_CANCELED' || code === 'ERR_REQUEST_UNKNOWN') {
     return true;
   }
-  if (error instanceof Error && error.message.includes('ERR_REQUEST_CANCELED')) {
-    return true;
+  if (error instanceof Error) {
+    if (error.message.includes('user canceled the authorization attempt')) {
+      return true;
+    }
   }
   return false;
 }
