@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { getTodayInBrasilia, getNowInBrasilia } from "@/utils/dateUtils";
@@ -118,6 +118,15 @@ export function useConversations(daysLimit?: number) {
     previousDaysLimitRef.current = daysLimit;
 
     // Subscribe to realtime updates
+    let refetchTimer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleRefetch = () => {
+      if (!isMounted) return;
+      if (refetchTimer) clearTimeout(refetchTimer);
+      refetchTimer = setTimeout(() => {
+        void fetchConversations();
+      }, 400);
+    };
+
     const channel = supabase
       .channel(`conversations-changes-${user.id}-${Date.now()}`)
       .on(
@@ -128,22 +137,18 @@ export function useConversations(daysLimit?: number) {
           table: "conversations",
           filter: `user_id=eq.${user.id}`,
         },
-        () => {
-          // Atualizar em background quando há mudanças em tempo real
-          if (isMounted) {
-            fetchConversations();
-          }
-        }
+        scheduleRefetch,
       )
       .subscribe();
 
     return () => {
       isMounted = false;
+      if (refetchTimer) clearTimeout(refetchTimer);
       supabase.removeChannel(channel);
     };
   }, [user, daysLimit]);
 
-  const getOrCreateTodayConversation = async () => {
+  const getOrCreateTodayConversation = useCallback(async () => {
     if (!user) return null;
 
     try {
@@ -197,12 +202,11 @@ export function useConversations(daysLimit?: number) {
       console.error("Error getting or creating today's conversation:", error);
       return null;
     }
-  };
+  }, [user]);
 
-  const createConversation = async () => {
-    // Manter para compatibilidade, mas agora usa a lógica de conversa diária
+  const createConversation = useCallback(async () => {
     return getOrCreateTodayConversation();
-  };
+  }, [getOrCreateTodayConversation]);
 
   const deleteConversation = async (conversationId: string) => {
     try {
@@ -234,7 +238,7 @@ export function useConversations(daysLimit?: number) {
     }
   };
 
-  const refetch = async (options?: { silent?: boolean }) => {
+  const refetch = useCallback(async (options?: { silent?: boolean }) => {
     if (!user) return;
 
     const silent = options?.silent ?? false;
@@ -293,7 +297,7 @@ export function useConversations(daysLimit?: number) {
         setLoading(false);
       }
     }
-  };
+  }, [user, daysLimit]);
 
   return {
     conversations,

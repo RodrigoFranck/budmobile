@@ -1,27 +1,29 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import {
-  StackActions,
-  useFocusEffect,
-  useNavigation,
-  useRoute,
-} from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 
 import { ChatSessionProvider, useChatSession } from '@/features/chat/ChatSessionProvider';
 import ChatHome from '@/pages/chat/ChatHome';
 import TextChatScreen from '@/pages/chat/TextChatScreen';
 import { takePendingChatInsight } from '@/utils/navigateToChat';
-import type { ChatStackNavigationProp, ChatStackParamList } from '@/types/chatNavigation.types';
+import type { ChatStackParamList } from '@/types/chatNavigation.types';
 import type { MainTabNavigationProp, MainTabParamList } from '@/types/navigation';
 
 const Stack = createNativeStackNavigator<ChatStackParamList>();
 
 function ChatInsightHandler() {
-  const navigation = useNavigation<ChatStackNavigationProp>();
   const tabNavigation = useNavigation<MainTabNavigationProp>();
   const route = useRoute<RouteProp<MainTabParamList, 'Chat'>>();
-  const { applyChatInsight, trySendPendingInsight } = useChatSession();
+  const { applyChatInsight, trySendPendingInsight, chatHomeResetToken } = useChatSession();
+  const trySendPendingInsightRef = useRef(trySendPendingInsight);
+  const handledInsightKeyRef = useRef<string | null>(null);
+
+  trySendPendingInsightRef.current = trySendPendingInsight;
+
+  useEffect(() => {
+    handledInsightKeyRef.current = null;
+  }, [chatHomeResetToken]);
 
   useFocusEffect(
     useCallback(() => {
@@ -30,23 +32,27 @@ function ChatInsightHandler() {
       const insight = fromParams ?? fromStash;
       if (!insight) return;
 
+      const insightKey = `${insight.insightType}:${insight.title}:${insight.initialUserMessage ?? ''}`;
+      if (handledInsightKeyRef.current === insightKey) return;
+      handledInsightKeyRef.current = insightKey;
+
       applyChatInsight(insight);
       if (fromParams) {
         tabNavigation.setParams({ chatInsight: undefined });
       }
 
-      navigation.navigate('TextChat');
+      tabNavigation.navigate('Chat', { screen: 'TextChat' });
       requestAnimationFrame(() => {
-        trySendPendingInsight();
+        trySendPendingInsightRef.current();
       });
-    }, [applyChatInsight, navigation, route.params?.chatInsight, tabNavigation, trySendPendingInsight]),
+    }, [applyChatInsight, route.params?.chatInsight, tabNavigation]),
   );
 
   return null;
 }
 
 function ChatVoiceInsightHandler() {
-  const navigation = useNavigation<ChatStackNavigationProp>();
+  const tabNavigation = useNavigation<MainTabNavigationProp>();
   const route = useRoute<RouteProp<MainTabParamList, 'Chat'>>();
   const { handleVoiceInsight } = useChatSession();
   const voiceInsight = route.params?.voiceInsight;
@@ -54,21 +60,20 @@ function ChatVoiceInsightHandler() {
   useEffect(() => {
     if (!voiceInsight) return;
     handleVoiceInsight(voiceInsight);
-    navigation.navigate('TextChat');
-  }, [handleVoiceInsight, navigation, voiceInsight]);
+    tabNavigation.navigate('Chat', { screen: 'TextChat' });
+  }, [handleVoiceInsight, tabNavigation, voiceInsight]);
 
   return null;
 }
 
 function ChatStackResetHandler() {
-  const navigation = useNavigation<ChatStackNavigationProp>();
+  const tabNavigation = useNavigation<MainTabNavigationProp>();
   const { chatHomeResetToken } = useChatSession();
 
   useEffect(() => {
     if (chatHomeResetToken === 0) return;
-    if (!navigation.canGoBack()) return;
-    navigation.dispatch(StackActions.popToTop());
-  }, [chatHomeResetToken, navigation]);
+    tabNavigation.navigate('Chat', { screen: 'ChatHome' });
+  }, [chatHomeResetToken, tabNavigation]);
 
   return null;
 }

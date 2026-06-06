@@ -1,10 +1,23 @@
-import { CommonActions } from '@react-navigation/native';
 import type { NavigationProp, ParamListBase } from '@react-navigation/native';
 
 import type { MainTabParamList } from '@/types/navigation';
 import type { ChatInsightParam } from '@/types/chatInsight';
 
 export type ChatTabParams = NonNullable<MainTabParamList['Chat']>;
+
+function findTabNavigator(navigation: NavigationProp<ParamListBase>): NavigationProp<ParamListBase> {
+  let current: NavigationProp<ParamListBase> | undefined = navigation;
+
+  while (current) {
+    const routeNames = current.getState?.()?.routeNames ?? [];
+    if (routeNames.includes('Chat') && routeNames.includes('Explore')) {
+      return current;
+    }
+    current = current.getParent?.() as NavigationProp<ParamListBase> | undefined;
+  }
+
+  return navigation;
+}
 
 let pendingChatInsight: ChatInsightParam | null = null;
 
@@ -31,16 +44,9 @@ export function navigateToChatTab(
     stashPendingChatInsight(params.chatInsight);
   }
 
-  const tabNav = navigation.getParent();
-  if (tabNav) {
-    tabNav.navigate('Chat', params);
-    return;
-  }
-
-  navigation.dispatch(
-    CommonActions.navigate({
-      name: 'Chat',
-      params,
-    }),
-  );
+  const tabNav = findTabNavigator(navigation);
+  tabNav.navigate('Chat', {
+    ...params,
+    screen: 'TextChat',
+  });
 }

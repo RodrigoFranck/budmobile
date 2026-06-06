@@ -35,7 +35,7 @@ export default function HistoryScreen() {
   const colors = useAppColors();
   const styles = useMemo(() => createHistoryStyles(colors), [colors]);
   const tabLoading = useTabScreenLoading('History');
-  const { conversations, refetchConversations: refetch, generalInsight, insightsLoading } =
+  const { conversations, generalInsight, insightsLoading } =
     useTabScreenContext();
 
   const [resolvedTitles, setResolvedTitles] = useState<Record<string, string>>({});
@@ -68,8 +68,16 @@ export default function HistoryScreen() {
       return;
     }
 
+    const conversationsNeedingTitle = conversations.filter((conv) =>
+      needsConversationTitleRegeneration(conv.title),
+    );
+
+    if (conversationsNeedingTitle.length === 0) {
+      return;
+    }
+
     let cancelled = false;
-    const conversationIds = conversations.map((conv) => conv.id);
+    const conversationIds = conversationsNeedingTitle.map((conv) => conv.id);
 
     const syncTitles = async () => {
       const { data: messages, error } = await supabase
@@ -93,7 +101,7 @@ export default function HistoryScreen() {
       });
 
       const nextTitles: Record<string, string> = {};
-      conversations.forEach((conv) => {
+      conversationsNeedingTitle.forEach((conv) => {
         const userMessages = userMessagesByConversation.get(conv.id);
         if (!userMessages) {
           return;
@@ -109,7 +117,7 @@ export default function HistoryScreen() {
       }
 
       if (Object.keys(nextTitles).length > 0) {
-        setResolvedTitles(nextTitles);
+        setResolvedTitles((prev) => ({ ...prev, ...nextTitles }));
       }
 
       await Promise.all(
@@ -119,10 +127,6 @@ export default function HistoryScreen() {
           }),
         ),
       );
-
-      if (!cancelled) {
-        refetch({ silent: true });
-      }
     };
 
     syncTitles();
@@ -130,7 +134,7 @@ export default function HistoryScreen() {
     return () => {
       cancelled = true;
     };
-  }, [conversations, tabLoading, refetch]);
+  }, [conversations, tabLoading]);
 
   const monthGroups = useMemo(
     () => groupConversationsByMonth(conversationsForDisplay),
