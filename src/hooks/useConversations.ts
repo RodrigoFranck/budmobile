@@ -261,11 +261,15 @@ export function useConversations(daysLimit?: number) {
     }
   };
 
-  const refetch = async () => {
+  const refetch = async (options?: { silent?: boolean }) => {
     if (!user) return;
-    
+
+    const silent = options?.silent ?? false;
+
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       
       // Primeiro, buscar todas as conversas do usuário
       let query = supabase
@@ -286,7 +290,9 @@ export function useConversations(daysLimit?: number) {
 
       if (!allConversations || allConversations.length === 0) {
         setConversations([]);
-        setLoading(false);
+        if (!silent) {
+          setLoading(false);
+        }
         return;
       }
 
@@ -304,7 +310,9 @@ export function useConversations(daysLimit?: number) {
           new Map(allConversations.map((c: Conversation) => [c.id, c])).values()
         );
         setConversations(uniqueConversations);
-        setLoading(false);
+        if (!silent) {
+          setLoading(false);
+        }
         return;
       }
 
@@ -325,7 +333,9 @@ export function useConversations(daysLimit?: number) {
     } catch (error) {
       console.error("Error refetching conversations:", error);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 

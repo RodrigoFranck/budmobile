@@ -21,6 +21,7 @@ interface VoiceModeProps {
   onEndVoice?: () => void;
   transcript?: string;
   isBudSpeaking?: boolean;
+  isConnecting?: boolean;
 }
 
 function VoiceActivityBars({
@@ -79,6 +80,7 @@ export function VoiceMode({
   onEndVoice,
   transcript = '',
   isBudSpeaking = false,
+  isConnecting = false,
 }: VoiceModeProps) {
   const colors = useAppColors();
   const insets = useSafeAreaInsets();
@@ -117,7 +119,13 @@ export function VoiceMode({
     return () => clearInterval(interval);
   }, [transcript]);
 
-  const statusLabel = isBudSpeaking ? 'Bud está falando' : 'Bud está ouvindo';
+  const statusLabel = isConnecting
+    ? 'Bud está conectando...'
+    : isBudSpeaking
+      ? 'Bud está falando'
+      : 'Bud está ouvindo...';
+
+  const transcriptPlaceholder = isConnecting ? 'Conectando…' : 'Ouvindo…';
 
   return (
     <Modal
@@ -141,7 +149,7 @@ export function VoiceMode({
 
         <View style={styles.main}>
           <Text style={styles.transcript}>
-            {displayedText || 'Ouvindo…'}
+            {displayedText || transcriptPlaceholder}
           </Text>
         </View>
 

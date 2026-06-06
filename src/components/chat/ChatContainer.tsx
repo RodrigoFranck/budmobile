@@ -18,6 +18,7 @@ interface ChatContainerProps {
   messages: Message[];
   loading?: boolean;
   topPadding?: number;
+  scrollResetToken?: number;
 }
 
 type ListItem =
@@ -90,7 +91,7 @@ function DateDivider({ label }: { label: string }) {
   );
 }
 
-export function ChatContainer({ messages, loading, topPadding }: ChatContainerProps) {
+export function ChatContainer({ messages, loading, topPadding, scrollResetToken }: ChatContainerProps) {
   const colors = useAppColors();
   const flatListRef = useRef<FlatList>(null);
   const styles = useMemo(
@@ -124,6 +125,14 @@ export function ChatContainer({ messages, loading, topPadding }: ChatContainerPr
       });
     }
   }, [listItems.length]);
+
+  useEffect(() => {
+    if (!scrollResetToken) return;
+
+    requestAnimationFrame(() => {
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+    });
+  }, [scrollResetToken]);
 
   const renderItem = useCallback(
     ({ item }: { item: ListItem }) => {

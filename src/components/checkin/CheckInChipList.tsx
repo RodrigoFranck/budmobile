@@ -6,12 +6,11 @@ import { useCheckInFlowStyles } from './checkInFlow.styles';
 
 interface CheckInChipListProps {
   options: CheckInChipOption[];
-  value: string | string[] | undefined;
-  multi?: boolean;
-  onChange: (value: string | string[]) => void;
+  value: string | undefined;
+  onChange: (value: string) => void;
 }
 
-export function CheckInChipList({ options, value, multi = false, onChange }: CheckInChipListProps) {
+export function CheckInChipList({ options, value, onChange }: CheckInChipListProps) {
   const styles = useCheckInFlowStyles();
 
   return (
@@ -19,17 +18,9 @@ export function CheckInChipList({ options, value, multi = false, onChange }: Che
       {options.map((opt) => {
         const label = getOptionLabel(opt);
         const subtitle = getOptionSubtitle(opt);
-        const selected = multi
-          ? ((value as string[] | undefined) ?? []).includes(label)
-          : value === label;
+        const selected = value === label;
 
         const handlePress = () => {
-          if (multi) {
-            const current = (value as string[] | undefined) ?? [];
-            const next = selected ? current.filter((x) => x !== label) : [...current, label];
-            onChange(next);
-            return;
-          }
           onChange(label);
         };
 

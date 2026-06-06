@@ -13,7 +13,6 @@ import { Brain, ChevronLeft, Clock } from 'lucide-react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import checkInIntroHero from '@/assets/yesterday-journey-bg.png';
-import { useHideTabBar } from '@/hooks/useHideTabBar';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { getNowInBrasilia } from '@/utils/dateUtils';
 import { useActivitiesTheme } from '@/lib/activitiesTheme';
@@ -77,8 +76,6 @@ function getCtaFadeColors(surface: string): readonly [string, string, string] {
 }
 
 export default function CheckInIntro() {
-  useHideTabBar();
-
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const { profile, loading: profileLoading } = useUserProfile();

@@ -9,11 +9,13 @@ import {
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   PermissionsAndroid,
   Platform,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Audio } from 'expo-av';
 import { Mic, MicOff } from 'lucide-react-native';
 import { useConversation } from '@elevenlabs/react-native';
 import { supabase } from '@/integrations/supabase/client';
@@ -23,12 +25,32 @@ import {
   enrichVoicePrompt,
   type UserContext,
 } from '@/voice/voicePrompt';
-import { colors } from '@/lib/colors';
+import { useAppColors } from '@/lib/colors';
+import { useVoiceSessionKeepAwake } from '@/hooks/useVoiceSessionKeepAwake';
+import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
 
-function voiceLog(...args: unknown[]) {
-  if (!__DEV__) return;
-  // eslint-disable-next-line no-console
-  console.log('[voice]', ...args);
+async function resolveVoiceFunctionError(
+  error: unknown,
+  response?: Response,
+): Promise<string> {
+  if (response) {
+    try {
+      const body = (await response.json()) as { error?: string };
+      if (body.error) return body.error;
+    } catch {
+      // response body may be empty or non-JSON
+    }
+  }
+  if (error instanceof Error) {
+    if (error.message.includes('Failed to send a request')) {
+      return 'Sem conexão com o servidor de voz. Verifique sua internet e tente novamente.';
+    }
+    if (error.message.includes('non-2xx')) {
+      return 'Serviço de voz temporariamente indisponível. Tente novamente em instantes.';
+    }
+    return error.message;
+  }
+  return 'Erro ao obter token de voz';
 }
 
 interface ElevenLabsMessage {
@@ -49,6 +71,7 @@ export interface VoiceInterfaceProps {
   appearance?: 'default' | 'companion';
   onTranscript?: (text: string) => void;
   onVoiceModeChange?: (active: boolean) => void;
+  onConnectingChange?: (connecting: boolean) => void;
   onUserMessage?: (text: string) => void;
   onAssistantMessage?: (text: string) => void;
   onAssistantTranscript?: (text: string) => void;
@@ -64,15 +87,14 @@ export interface VoiceInterfaceProps {
   internalProfile?: string | null;
 }
 
-export interface VoiceInterfaceRef {
-  endConversation: () => Promise<void>;
-}
+export type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
 
 function VoiceInterfaceNativeInner(
   {
     appearance = 'default',
     onTranscript,
     onVoiceModeChange,
+    onConnectingChange,
     onUserMessage,
     onAssistantMessage,
     onAssistantTranscript,
@@ -85,14 +107,12 @@ function VoiceInterfaceNativeInner(
   }: VoiceInterfaceProps,
   ref: React.Ref<VoiceInterfaceRef>,
 ) {
+  const colors = useAppColors();
   const processedRef = useRef<Set<string>>(new Set());
-  const sessionStartedAtRef = useRef<number | null>(null);
-  const receivedAiRef = useRef(false);
   const noResponseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastUserMsgAtRef = useRef<number | null>(null);
   const lastAiMsgAtRef = useRef<number | null>(null);
   const micArmTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const debugPollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const statusRef = useRef<string>('idle');
   const modeRef = useRef<{ mode: 'speaking' | 'listening'; at: number }>({
     mode: 'listening',
@@ -113,36 +133,25 @@ function VoiceInterfaceNativeInner(
     mode: 'listening' as 'speaking' | 'listening',
     listeningSinceAt: 0,
   });
+  const voiceSessionActiveRef = useRef(false);
+  const startGenerationRef = useRef(0);
 
   const conversation = useConversation({
     onStatusChange: (event: { status: string }) => {
       statusRef.current = event.status;
-      voiceLog('status', event.status);
     },
     onConnect: () => {
-      sessionStartedAtRef.current = Date.now();
-      receivedAiRef.current = false;
-      restartGuardRef.current = { inFlight: false, lastAt: 0, attempts: 0 };
-      voiceLog('connected');
-
-      // Poll a bit right after connect to capture muted/status state on Android.
-      if (debugPollTimerRef.current) {
-        clearInterval(debugPollTimerRef.current);
-        debugPollTimerRef.current = null;
-      }
-      let polls = 0;
-      debugPollTimerRef.current = setInterval(() => {
-        polls += 1;
-        voiceLog('state', {
-          status: statusRef.current,
-          isMuted: conversation.isMuted,
-          isSpeaking: conversation.isSpeaking,
-        });
-        if (polls >= 20 && debugPollTimerRef.current) {
-          clearInterval(debugPollTimerRef.current);
-          debugPollTimerRef.current = null;
+      if (!voiceSessionActiveRef.current) {
+        try {
+          void conversation.endSession();
+        } catch {
+          // session may already be ended
         }
-      }, 250);
+        return;
+      }
+
+      onConnectingChange?.(false);
+      restartGuardRef.current = { inFlight: false, lastAt: 0, attempts: 0 };
 
       if (micArmTimerRef.current) {
         clearInterval(micArmTimerRef.current);
@@ -151,9 +160,8 @@ function VoiceInterfaceNativeInner(
       setTimeout(() => {
         try {
           conversation.setMuted(false);
-          voiceLog('mic unmuted (post-connect)');
-        } catch (e) {
-          voiceLog('failed to unmute mic (post-connect)', e);
+        } catch {
+          // ignore unmute failures on connect
         }
       }, 600);
       let attempts = 0;
@@ -168,20 +176,19 @@ function VoiceInterfaceNativeInner(
         }
         try {
           conversation.setMuted(false);
-          voiceLog('mic unmuted (armed)', attempts);
-        } catch (e) {
-          voiceLog('failed to unmute mic (armed)', attempts, e);
+        } catch {
+          // ignore unmute failures while arming mic
         }
         if (attempts >= 20 && micArmTimerRef.current) {
           clearInterval(micArmTimerRef.current);
           micArmTimerRef.current = null;
         }
       }, 200);
-      onVoiceModeChange?.(true);
     },
     onDisconnect: () => {
+      voiceSessionActiveRef.current = false;
+      onConnectingChange?.(false);
       onVoiceModeChange?.(false);
-      voiceLog('disconnected');
       if (noResponseTimerRef.current) {
         clearTimeout(noResponseTimerRef.current);
         noResponseTimerRef.current = null;
@@ -194,21 +201,10 @@ function VoiceInterfaceNativeInner(
         clearInterval(micArmTimerRef.current);
         micArmTimerRef.current = null;
       }
-      if (debugPollTimerRef.current) {
-        clearInterval(debugPollTimerRef.current);
-        debugPollTimerRef.current = null;
-      }
-      const startedAt = sessionStartedAtRef.current;
-      const elapsedMs = startedAt ? Date.now() - startedAt : null;
-      const disconnectedTooFast = elapsedMs !== null && elapsedMs < 8000;
-      if (disconnectedTooFast && !receivedAiRef.current) {
-        voiceLog('disconnected too fast (ms)', elapsedMs);
-      }
     },
     onMessage: (props: { message: string; source: 'user' | 'ai' }) => {
       const text = (props.message || '').trim();
       if (!text) return;
-      voiceLog('message', props.source, text.slice(0, 180));
       const messageKey = `${props.source}-${text}`;
       if (processedRef.current.has(messageKey)) return;
       processedRef.current.add(messageKey);
@@ -247,17 +243,13 @@ function VoiceInterfaceNativeInner(
             guard.inFlight = true;
             guard.lastAt = now;
             guard.attempts += 1;
-            voiceLog('no AI response; restarting session', {
-              attempts: guard.attempts,
-              sinceUserMs: now - lastUserAt,
-            });
 
             Promise.resolve()
               .then(async () => {
                 try {
                   await conversation.endSession();
-                } catch (e) {
-                  voiceLog('restart endSession failed', e);
+                } catch {
+                  // session may already be ended
                 }
                 await conversation.startSession({
                   conversationToken: cfg.token,
@@ -269,11 +261,11 @@ function VoiceInterfaceNativeInner(
                 });
                 try {
                   conversation.setMuted(false);
-                } catch (e) {
-                  voiceLog('restart unmute failed', e);
+                } catch {
+                  // ignore unmute failures after restart
                 }
               })
-              .catch((e) => voiceLog('restart failed', e))
+              .catch(() => {})
               .finally(() => {
                 restartGuardRef.current.inFlight = false;
               });
@@ -282,7 +274,6 @@ function VoiceInterfaceNativeInner(
         onUserMessage?.(text);
       }
       if (props.source === 'ai') {
-        receivedAiRef.current = true;
         lastAiMsgAtRef.current = Date.now();
         if (noResponseTimerRef.current) {
           clearTimeout(noResponseTimerRef.current);
@@ -308,7 +299,6 @@ function VoiceInterfaceNativeInner(
       }
     },
     onModeChange: (props: { mode: 'speaking' | 'listening' }) => {
-      voiceLog('mode', props.mode);
       modeRef.current = { mode: props.mode, at: Date.now() };
 
       // Debounce mode changes on Android to prevent UI flicker and avoid
@@ -337,22 +327,9 @@ function VoiceInterfaceNativeInner(
         vadRef.current.listeningSinceAt = Date.now();
       }, 500);
     },
-    onVadScore: (event: { vadScore: number }) => {
-      voiceLog('vad', event.vadScore);
-      // Disabled on Android: muting/unmuting based on VAD was causing mode flapping
-      // and making the conversation get stuck after the first turn.
-    },
-    onAsrInitiationMetadata: (event: unknown) => {
-      voiceLog('asr metadata', event);
-    },
-    onConversationMetadata: (event: unknown) => {
-      voiceLog('conversation metadata', event);
-    },
-    onDebug: (event: unknown) => {
-      voiceLog('debug', event);
-    },
     onError: (message: string) => {
-      voiceLog('error', message);
+      voiceSessionActiveRef.current = false;
+      onConnectingChange?.(false);
       Alert.alert('Erro', message || 'Erro na conexão de voz');
       onVoiceModeChange?.(false);
     },
@@ -364,71 +341,117 @@ function VoiceInterfaceNativeInner(
         clearInterval(micArmTimerRef.current);
         micArmTimerRef.current = null;
       }
-      if (debugPollTimerRef.current) {
-        clearInterval(debugPollTimerRef.current);
-        debugPollTimerRef.current = null;
-      }
     };
   }, []);
 
   const endConversation = useCallback(async () => {
+    startGenerationRef.current += 1;
+    voiceSessionActiveRef.current = false;
+    onConnectingChange?.(false);
     await conversation.endSession();
     onVoiceModeChange?.(false);
     onTranscript?.('');
     processedRef.current.clear();
-  }, [conversation, onVoiceModeChange, onTranscript]);
-
-  useImperativeHandle(ref, () => ({ endConversation }), [endConversation]);
+  }, [conversation, onConnectingChange, onVoiceModeChange, onTranscript]);
 
   const [isLoading, setIsLoading] = useState(false);
 
   const ensureMicrophonePermission = useCallback(async () => {
-    if (Platform.OS !== 'android') return true;
-    const alreadyGranted = await PermissionsAndroid.check(
-      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-    );
-    voiceLog('mic perm check', alreadyGranted);
-    if (alreadyGranted) return true;
-    const granted = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-      {
-        title: 'Permissão de microfone',
-        message:
-          'O Bud precisa do microfone para transcrever sua fala no modo por voz.',
-        buttonNeutral: 'Depois',
-        buttonNegative: 'Cancelar',
-        buttonPositive: 'OK',
-      },
-    );
-    voiceLog('mic perm request result', granted);
-    return granted === PermissionsAndroid.RESULTS.GRANTED;
+    if (Platform.OS === 'android') {
+      const alreadyGranted = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+      );
+      if (alreadyGranted) return true;
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+        {
+          title: 'Permissão de microfone',
+          message:
+            'O Bud precisa do microfone para transcrever sua fala no modo por voz.',
+          buttonNeutral: 'Depois',
+          buttonNegative: 'Cancelar',
+          buttonPositive: 'OK',
+        },
+      );
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
+    }
+
+    if (Platform.OS === 'ios') {
+      const current = await Audio.getPermissionsAsync();
+      if (current.status === 'granted') return true;
+
+      const requested = await Audio.requestPermissionsAsync();
+      if (requested.status === 'granted') return true;
+
+      Alert.alert(
+        'Permissão necessária',
+        'Ative o microfone do Bud em Ajustes para usar conversas por voz.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Abrir Ajustes',
+            onPress: () => {
+              Linking.openSettings().catch(() => {});
+            },
+          },
+        ],
+      );
+      return false;
+    }
+
+    return true;
   }, []);
 
   const startConversation = useCallback(async () => {
+    const generation = ++startGenerationRef.current;
+    voiceSessionActiveRef.current = true;
+    onVoiceModeChange?.(true);
+    onConnectingChange?.(true);
+    setIsLoading(true);
+
     const hasMic = await ensureMicrophonePermission();
     if (!hasMic) {
+      if (generation !== startGenerationRef.current) {
+        return;
+      }
+      voiceSessionActiveRef.current = false;
+      onConnectingChange?.(false);
+      onVoiceModeChange?.(false);
+      setIsLoading(false);
       Alert.alert(
         'Permissão necessária',
         'Sem permissão de microfone, o modo por voz não consegue transcrever sua fala.',
       );
       return;
     }
-    setIsLoading(true);
+
     try {
-      voiceLog('fetching token');
-      const { data, error } = await supabase.functions.invoke('chat-voice', {
-        body: { messages: messageHistory ?? [] },
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
       });
-      if (error) {
-        voiceLog('token error', error);
-        const serverMsg =
-          typeof error === 'object' && error !== null && 'message' in error
-            ? String((error as { message?: string }).message)
-            : null;
-        throw new Error(serverMsg || 'Erro ao obter token de voz');
+
+      if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
+        return;
       }
+
+      const { data, error, response } = await supabase.functions.invoke(
+        'chat-voice',
+        {
+          body: { messages: messageHistory ?? [] },
+        },
+      );
+      if (error) {
+        throw new Error(await resolveVoiceFunctionError(error, response));
+      }
+
+      if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
+        return;
+      }
+
       const token = data?.token as string | undefined;
-      voiceLog('token received', Boolean(token));
       if (!token) throw new Error('Token de voz não retornado');
       const serverProfile =
         (data?.internal_profile as string | undefined) ?? internalProfile;
@@ -444,7 +467,6 @@ function VoiceInterfaceNativeInner(
           clinicalContext: data?.clinical_context as string | undefined,
         },
       );
-      voiceLog('prompt chars', prompt.length);
       lastSessionConfigRef.current = { token, prompt };
       await conversation.startSession({
         conversationToken: token,
@@ -454,24 +476,39 @@ function VoiceInterfaceNativeInner(
           },
         },
       });
-      voiceLog('startSession resolved');
     } catch (e) {
-      voiceLog('startConversation catch', e);
+      if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
+        return;
+      }
+      voiceSessionActiveRef.current = false;
+      onConnectingChange?.(false);
+      onVoiceModeChange?.(false);
       const msg = e instanceof Error ? e.message : 'Falha ao iniciar conversa';
       Alert.alert('Erro', msg);
     } finally {
-      setIsLoading(false);
+      if (generation === startGenerationRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [
     conversation,
     ensureMicrophonePermission,
     internalProfile,
     messageHistory,
+    onConnectingChange,
+    onVoiceModeChange,
     recentInsights,
     userContext,
   ]);
 
+  useImperativeHandle(
+    ref,
+    () => ({ startConversation, endConversation }),
+    [startConversation, endConversation],
+  );
+
   const isConnected = conversation.status === 'connected';
+  useVoiceSessionKeepAwake(isConnected || isLoading);
   const isCompanion = appearance === 'companion';
 
   return (
@@ -488,7 +525,7 @@ function VoiceInterfaceNativeInner(
           : 'h-10 w-10 items-center justify-center'
       }
     >
-      {isLoading ? (
+      {!isCompanion && isLoading ? (
         <ActivityIndicator size="small" color={colors.foreground} />
       ) : isConnected ? (
         <MicOff size={22} color={colors.destructive} />
@@ -526,6 +563,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
       appearance = 'default',
       onTranscript,
       onVoiceModeChange,
+      onConnectingChange,
       onUserMessage,
       onAssistantMessage,
       onAssistantTranscript,
@@ -538,31 +576,50 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
     },
     ref,
   ) {
+    const colors = useAppColors();
     const [isConnected, setIsConnected] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const conversationRef = useRef<ElevenLabsConversation | null>(null);
     const processedMessagesRef = useRef<Set<string>>(new Set());
+    const voiceSessionActiveRef = useRef(false);
+    const startGenerationRef = useRef(0);
 
     const endConversation = useCallback(async () => {
+      startGenerationRef.current += 1;
+      voiceSessionActiveRef.current = false;
+      onConnectingChange?.(false);
       if (conversationRef.current) {
         await conversationRef.current.endSession();
         conversationRef.current = null;
-        setIsConnected(false);
-        onVoiceModeChange?.(false);
-        onTranscript?.('');
-        processedMessagesRef.current.clear();
       }
-    }, [onVoiceModeChange, onTranscript]);
-
-    useImperativeHandle(ref, () => ({ endConversation }), [endConversation]);
+      setIsConnected(false);
+      setIsLoading(false);
+      onVoiceModeChange?.(false);
+      onTranscript?.('');
+      processedMessagesRef.current.clear();
+    }, [onConnectingChange, onVoiceModeChange, onTranscript]);
 
     const startConversation = useCallback(async () => {
+      const generation = ++startGenerationRef.current;
+      voiceSessionActiveRef.current = true;
+      onVoiceModeChange?.(true);
+      onConnectingChange?.(true);
       setIsLoading(true);
       try {
-        const { data, error } = await supabase.functions.invoke('chat-voice', {
-          body: { messages: messageHistory ?? [] },
-        });
-        if (error) throw error;
+        const { data, error, response } = await supabase.functions.invoke(
+          'chat-voice',
+          {
+            body: { messages: messageHistory ?? [] },
+          },
+        );
+        if (error) {
+          throw new Error(await resolveVoiceFunctionError(error, response));
+        }
+
+        if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
+          return;
+        }
+
         const signedUrl = data?.signed_url as string | undefined;
         if (!signedUrl) throw new Error('Failed to get signed URL');
         const serverProfile =
@@ -590,12 +647,18 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
             },
           },
           onConnect: () => {
+            if (!voiceSessionActiveRef.current) {
+              void conversationRef.current?.endSession();
+              return;
+            }
             setIsConnected(true);
             setIsLoading(false);
-            onVoiceModeChange?.(true);
+            onConnectingChange?.(false);
           },
           onDisconnect: () => {
+            voiceSessionActiveRef.current = false;
             setIsConnected(false);
+            onConnectingChange?.(false);
             onVoiceModeChange?.(false);
           },
           onMessage: (message: ElevenLabsMessage) => {
@@ -641,12 +704,21 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
             }
           },
           onError: () => {
+            voiceSessionActiveRef.current = false;
+            onConnectingChange?.(false);
             Alert.alert('Erro', 'Erro na conexão de voz');
             setIsConnected(false);
             setIsLoading(false);
+            onVoiceModeChange?.(false);
           },
         });
       } catch (e) {
+        if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
+          return;
+        }
+        voiceSessionActiveRef.current = false;
+        onConnectingChange?.(false);
+        onVoiceModeChange?.(false);
         const msg =
           e instanceof Error ? e.message : 'Falha ao iniciar conversa';
         Alert.alert('Erro', msg);
@@ -657,6 +729,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
       messageHistory,
       recentInsights,
       internalProfile,
+      onConnectingChange,
       onVoiceModeChange,
       onTranscript,
       onUserMessage,
@@ -666,12 +739,19 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
       onSafetyTriggered,
     ]);
 
+    useImperativeHandle(
+      ref,
+      () => ({ startConversation, endConversation }),
+      [startConversation, endConversation],
+    );
+
     useEffect(() => {
       return () => {
         conversationRef.current?.endSession();
       };
     }, []);
 
+    useVoiceSessionKeepAwake(isConnected || isLoading);
     const isCompanion = appearance === 'companion';
 
     return (
@@ -688,7 +768,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
             : 'h-10 w-10 items-center justify-center'
         }
       >
-        {isLoading ? (
+        {(!isCompanion && isLoading) ? (
           <ActivityIndicator size="small" color={colors.foreground} />
         ) : isConnected ? (
           <MicOff size={22} color={colors.destructive} />

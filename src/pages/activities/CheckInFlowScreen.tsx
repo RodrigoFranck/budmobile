@@ -22,7 +22,6 @@ import { CheckInTextInput } from '@/components/checkin/CheckInTextInput';
 import { useCheckInFlowStyles } from '@/components/checkin/checkInFlow.styles';
 import { getCheckInSteps } from '@/features/checkin/checkInSteps';
 import type { CheckInStepConfig } from '@/features/checkin/checkInFlow.types';
-import { useHideTabBar } from '@/hooks/useHideTabBar';
 import { useCheckIns, type CheckinType } from '@/hooks/useCheckIns';
 import { resolveCheckInGradient, useActivitiesTheme } from '@/lib/activitiesTheme';
 import type { ActivitiesStackParamList } from '@/types/activitiesNavigation.types';
@@ -39,8 +38,6 @@ function isStepAnswered(step: CheckInStepConfig, value: unknown): boolean {
 }
 
 export default function CheckInFlowScreen() {
-  useHideTabBar();
-
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
@@ -153,15 +150,6 @@ export default function CheckInFlowScreen() {
           <CheckInChipList
             options={step.options ?? []}
             value={value as string | undefined}
-            onChange={(v) => setValue(step.key, v)}
-          />
-        );
-      case 'chips_multi':
-        return (
-          <CheckInChipList
-            options={step.options ?? []}
-            value={value as string[] | undefined}
-            multi
             onChange={(v) => setValue(step.key, v)}
           />
         );

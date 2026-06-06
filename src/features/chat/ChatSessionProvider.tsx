@@ -1,35 +1,71 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, KeyboardAvoidingView } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
-import type { RouteProp } from '@react-navigation/native';
-import { Book, Settings } from 'lucide-react-native';
-import { useAuth } from '@/contexts/AuthContext';
 import {
-  useTabScreenContext,
-  useTabScreenLoading,
-} from '@/contexts/TabScreenContext';
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
+
+import { useNavigation } from '@react-navigation/native';
+
+import { useAuth } from '@/contexts/AuthContext';
+import { useTabScreenContext } from '@/contexts/TabScreenContext';
 import { countUserTurns, matchApproach } from '@/utils/approachMatcher';
 import { streamChat, type InsightContext, type UserContext } from '@/utils/chatStream';
 import type { ChatInsightParam } from '@/types/chatInsight';
-import { takePendingChatInsight, clearPendingChatInsight } from '@/utils/navigateToChat';
+import { clearPendingChatInsight } from '@/utils/navigateToChat';
 import type { StreamingMessage } from '@/types/messages';
-import { PlatformConstants } from '@/constants/layout';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
-import { VoiceMode } from '@/voice/VoiceMode';
-import { useAppColors } from '@/lib/colors';
-import type { MainTabNavigationProp, MainTabParamList, RootNavigationProp } from '@/types/navigation';
-import { TabScreenHeader } from '@/components/ui/TabScreenHeader';
-import { WeekCalendarHeader } from '@/components/ui/WeekCalendarHeader';
-import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
-import { ChatContainer } from '@/components/chat/ChatContainer';
-import { MessageInputBar } from '@/components/chat/MessageInputBar';
-import { Spacing } from '@/constants/styles';
+import type { MainTabNavigationProp } from '@/types/navigation';
 
-export default function ChatScreen() {
-  const colors = useAppColors();
+interface ChatSessionContextValue {
+  currentConversationId: string | null;
+  chatHomeResetToken: number;
+  allMessages: Array<{
+    id: string | number;
+    role: 'user' | 'assistant' | 'context';
+    content: string;
+    createdAt?: string;
+    isStreaming?: boolean;
+  }>;
+  isStreaming: boolean;
+  messagesLoading: boolean;
+  memoryLoading: boolean;
+  voiceInterfaceRef: RefObject<VoiceInterfaceRef | null>;
+  isVoiceModeActive: boolean;
+  setIsVoiceModeActive: (active: boolean) => void;
+  isVoiceConnecting: boolean;
+  setIsVoiceConnecting: (connecting: boolean) => void;
+  voiceTranscript: string;
+  setVoiceTranscript: (text: string) => void;
+  isBudSpeaking: boolean;
+  setIsBudSpeaking: (active: boolean) => void;
+  userContext: UserContext;
+  messageHistory: Array<{ role: string; content: string }>;
+  recentInsights: Array<{ insight_type: string; title: string; description: string }>;
+  internalProfileText: string | null | undefined;
+  handleSendMessage: (message: string, contextOverride?: InsightContext | null) => Promise<void>;
+  handleVoiceUserMessage: (text: string) => Promise<void>;
+  handleVoiceAssistantMessage: (text: string) => Promise<void>;
+  handleEndVoiceSession: () => Promise<void>;
+  applyChatInsight: (insight: ChatInsightParam) => void;
+  trySendPendingInsight: () => void;
+  handleVoiceInsight: (insight: {
+    insight_type: string;
+    title: string;
+    description: string;
+  }) => void;
+}
+
+const ChatSessionContext = createContext<ChatSessionContextValue | undefined>(undefined);
+
+export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const tabLoading = useTabScreenLoading('Chat');
+  const navigation = useNavigation<MainTabNavigationProp>();
   const {
     chatConversationId: currentConversationId,
     chatHomeResetToken,
@@ -42,6 +78,7 @@ export default function ChatScreen() {
     internalProfile,
     memoryLoading,
   } = useTabScreenContext();
+
   const [streamingMessages, setStreamingMessages] = useState<StreamingMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const streamingIdRef = useRef<string | null>(null);
@@ -50,10 +87,6 @@ export default function ChatScreen() {
   const [isVoiceConnecting, setIsVoiceConnecting] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [isBudSpeaking, setIsBudSpeaking] = useState(false);
-  const route = useRoute<RouteProp<MainTabParamList, 'Chat'>>();
-  const navigation = useNavigation<MainTabNavigationProp>();
-  const rootNavigation = useNavigation<RootNavigationProp>();
-
   const [insightContext, setInsightContext] = useState<InsightContext | null>(null);
   const [recentInsights, setRecentInsights] = useState<
     Array<{ insight_type: string; title: string; description: string }>
@@ -61,8 +94,6 @@ export default function ChatScreen() {
   const [shouldAutoStartVoice, setShouldAutoStartVoice] = useState(false);
   const pendingChatInsightRef = useRef<ChatInsightParam | null>(null);
   const didAutoSendInsightRef = useRef(false);
-
-  const voiceInsight = route.params?.voiceInsight;
 
   const mapChatInsightToContext = useCallback((insight: ChatInsightParam): InsightContext => ({
     insightType: insight.insightType,
@@ -89,6 +120,20 @@ export default function ChatScreen() {
     [mapChatInsightToContext],
   );
 
+  const handleVoiceInsight = useCallback(
+    (insight: { insight_type: string; title: string; description: string }) => {
+      setRecentInsights([
+        {
+          insight_type: insight.insight_type,
+          title: insight.title,
+          description: insight.description,
+        },
+      ]);
+      setShouldAutoStartVoice(true);
+    },
+    [],
+  );
+
   useEffect(() => {
     if (chatHomeResetToken === 0) return;
 
@@ -110,27 +155,13 @@ export default function ChatScreen() {
   }, [chatHomeResetToken, navigation]);
 
   useEffect(() => {
-    if (!voiceInsight) return;
-
-    setRecentInsights([
-      {
-        insight_type: voiceInsight.insight_type,
-        title: voiceInsight.title,
-        description: voiceInsight.description,
-      },
-    ]);
-
-    setShouldAutoStartVoice(true);
-  }, [voiceInsight]);
-
-  useEffect(() => {
     if (!shouldAutoStartVoice) return;
     if (!currentConversationId) return;
 
     const start = async () => {
       try {
         await voiceInterfaceRef.current?.startConversation();
-      } catch (e) {
+      } catch {
         // startConversation already alerts on most failures
       } finally {
         setShouldAutoStartVoice(false);
@@ -340,81 +371,73 @@ export default function ChatScreen() {
     void handleSendMessage(message, context);
   }, [currentConversationId, handleSendMessage, isStreaming, mapChatInsightToContext]);
 
-  useFocusEffect(
-    useCallback(() => {
-      const fromParams = route.params?.chatInsight;
-      const fromStash = takePendingChatInsight();
-      const insight = fromParams ?? fromStash;
-      if (!insight) return;
-
-      applyChatInsight(insight);
-      if (fromParams) {
-        navigation.setParams({ chatInsight: undefined });
-      }
-
-      requestAnimationFrame(() => {
-        trySendPendingInsight();
-      });
-    }, [applyChatInsight, navigation, route.params?.chatInsight, trySendPendingInsight]),
-  );
-
   useEffect(() => {
     trySendPendingInsight();
   }, [trySendPendingInsight]);
 
-  return (
-    <ScreenLoadingGate loading={tabLoading}>
-      <View className="flex-1 bg-background">
-      <LinearGradient
-        colors={[colors['chat-warm-bg'], colors['chat-gradient-end']]}
-        locations={[0.35, 1]}
-        style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
-      />
-      <KeyboardAvoidingView
-        behavior={PlatformConstants.keyboardBehavior}
-        className="flex-1"
-        keyboardVerticalOffset={PlatformConstants.keyboardVerticalOffset}
-      >
-        <TabScreenHeader>
-          <WeekCalendarHeader
-            leftIcon={Book}
-            onPressLeft={() => navigation.navigate('Explore')}
-            showLeftIndicatorDot
-            rightIcon={Settings}
-            onPressRight={() => rootNavigation.navigate('Settings')}
-          />
-        </TabScreenHeader>
-        <ChatContainer
-          messages={allMessages}
-          loading={isStreaming || messagesLoading}
-          topPadding={Spacing.base}
-          scrollResetToken={chatHomeResetToken}
-        />
-        <MessageInputBar
-          onSendMessage={handleSendMessage}
-          disabled={isStreaming}
-          voiceInterfaceRef={voiceInterfaceRef}
-          onVoiceModeChange={setIsVoiceModeActive}
-          onVoiceConnectingChange={setIsVoiceConnecting}
-          onVoiceUserMessage={handleVoiceUserMessage}
-          onVoiceAssistantMessage={handleVoiceAssistantMessage}
-          onVoiceTranscript={setVoiceTranscript}
-          onSpeakingChange={setIsBudSpeaking}
-          userContext={userContext}
-          messageHistory={messageHistory}
-          recentInsights={recentInsights}
-          internalProfile={memoryLoading ? undefined : internalProfileText}
-        />
-      </KeyboardAvoidingView>
-      <VoiceMode
-        visible={isVoiceModeActive}
-        onClose={() => setIsVoiceModeActive(false)}
-        onEndVoice={handleEndVoiceSession}
-        transcript={voiceTranscript}
-        isBudSpeaking={isBudSpeaking}
-        isConnecting={isVoiceConnecting}
-      />
-      </View>
-    </ScreenLoadingGate>
+  const value = useMemo<ChatSessionContextValue>(
+    () => ({
+      currentConversationId,
+      chatHomeResetToken,
+      allMessages,
+      isStreaming,
+      messagesLoading,
+      memoryLoading,
+      voiceInterfaceRef,
+      isVoiceModeActive,
+      setIsVoiceModeActive,
+      isVoiceConnecting,
+      setIsVoiceConnecting,
+      voiceTranscript,
+      setVoiceTranscript,
+      isBudSpeaking,
+      setIsBudSpeaking,
+      userContext,
+      messageHistory,
+      recentInsights,
+      internalProfileText,
+      handleSendMessage,
+      handleVoiceUserMessage,
+      handleVoiceAssistantMessage,
+      handleEndVoiceSession,
+      applyChatInsight,
+      trySendPendingInsight,
+      handleVoiceInsight,
+    }),
+    [
+      currentConversationId,
+      chatHomeResetToken,
+      allMessages,
+      isStreaming,
+      messagesLoading,
+      memoryLoading,
+      isVoiceModeActive,
+      isVoiceConnecting,
+      voiceTranscript,
+      isBudSpeaking,
+      userContext,
+      messageHistory,
+      recentInsights,
+      internalProfileText,
+      handleSendMessage,
+      handleVoiceUserMessage,
+      handleVoiceAssistantMessage,
+      handleEndVoiceSession,
+      applyChatInsight,
+      trySendPendingInsight,
+      handleVoiceInsight,
+    ],
   );
+
+  return (
+    <ChatSessionContext.Provider value={value}>{children}</ChatSessionContext.Provider>
+  );
+}
+
+export function useChatSession() {
+  const context = useContext(ChatSessionContext);
+  if (!context) {
+    throw new Error('useChatSession must be used within ChatSessionProvider');
+  }
+  return context;
 }

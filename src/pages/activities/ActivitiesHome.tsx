@@ -1,13 +1,14 @@
 import { useMemo } from 'react';
 import { ImageBackground, Pressable, ScrollView, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Book, Settings } from 'lucide-react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import checkInCardBg from '@/assets/checkin-card-bg.png';
+import { TabScreenHeader } from '@/components/ui/TabScreenHeader';
 import { WeekCalendarHeader } from '@/components/ui/WeekCalendarHeader';
-import { LayoutSpacing } from '@/constants/layout';
+import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
+import { useTabScreenLoading } from '@/contexts/TabScreenContext';
 import { useActivitiesTheme } from '@/lib/activitiesTheme';
 import type { ActivitiesStackParamList } from '@/types/activitiesNavigation.types';
 import type { MainTabNavigationProp, RootNavigationProp } from '@/types/navigation';
@@ -19,29 +20,30 @@ export default function ActivitiesHome() {
   const navigation = useNavigation<Nav>();
   const tabNavigation = useNavigation<MainTabNavigationProp>();
   const rootNavigation = useNavigation<RootNavigationProp>();
-  const insets = useSafeAreaInsets();
   const theme = useActivitiesTheme();
   const styles = useMemo(() => createActivitiesHomeStyles(theme), [theme]);
+  const tabLoading = useTabScreenLoading('Activities');
 
   return (
-    <View style={styles.root}>
+    <ScreenLoadingGate loading={tabLoading}>
+      <View style={styles.root}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingTop: insets.top + LayoutSpacing.contentPadding.top },
-        ]}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <WeekCalendarHeader
-          leftIcon={Book}
-          leftAccessibilityLabel="Histórico"
-          onPressLeft={() => tabNavigation.navigate('History')}
-          rightIcon={Settings}
-          rightAccessibilityLabel="Configurações"
-          onPressRight={() => rootNavigation.navigate('Settings')}
-        />
+        <TabScreenHeader>
+          <WeekCalendarHeader
+            leftIcon={Book}
+            leftAccessibilityLabel="Histórico"
+            onPressLeft={() => tabNavigation.navigate('History')}
+            rightIcon={Settings}
+            rightAccessibilityLabel="Configurações"
+            onPressRight={() => rootNavigation.navigate('Settings')}
+          />
+        </TabScreenHeader>
 
+        <View style={styles.bodyContent}>
         <Text style={styles.title} accessibilityRole="header">
           Atividades
         </Text>
@@ -65,7 +67,9 @@ export default function ActivitiesHome() {
             </View>
           </ImageBackground>
         </Pressable>
+        </View>
       </ScrollView>
-    </View>
+      </View>
+    </ScreenLoadingGate>
   );
 }

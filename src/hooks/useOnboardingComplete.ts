@@ -27,7 +27,7 @@ export function useOnboardingComplete() {
 
       const { error: profileError } = await supabase.from('profiles').upsert(
         {
-          id: user.id,
+          user_id: user.id,
           name: displayName.trim() || user.email?.split('@')[0] || 'Bud',
           age: ageLabel,
           initial_thoughts: initialThoughts.trim() || null,
@@ -35,7 +35,7 @@ export function useOnboardingComplete() {
           onboarding_completed: true,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: 'id' },
+        { onConflict: 'user_id' },
       );
 
       if (profileError) {

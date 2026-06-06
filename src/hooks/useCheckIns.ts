@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { formatDateBrasilia, getNowInBrasilia, getTodayInBrasilia } from '@/utils/dateUtils';
+import {
+  formatDateBrasilia,
+  getMsUntilNextMidnightBrasilia,
+  getNowInBrasilia,
+  getTodayInBrasilia,
+} from '@/utils/dateUtils';
 
 export type CheckinType = 'morning' | 'post_training';
 export type FeedbackType = 'negative' | 'positive' | 'love';
@@ -41,6 +48,7 @@ export function useCheckIns() {
 
     setLoading(true);
     const today = getTodayInBrasilia();
+    trackedBrasiliaDateRef.current = today;
     const sevenDaysAgo = getNowInBrasilia();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const sevenDaysAgoStr = formatDateBrasilia(sevenDaysAgo);
@@ -65,9 +73,60 @@ export function useCheckIns() {
     setLoading(false);
   }, [user]);
 
+  const trackedBrasiliaDateRef = useRef(getTodayInBrasilia());
+
   useEffect(() => {
     fetchCheckins();
   }, [fetchCheckins]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const scheduleMidnightRefresh = () => {
+      timeoutId = setTimeout(() => {
+        trackedBrasiliaDateRef.current = getTodayInBrasilia();
+        void fetchCheckins();
+        scheduleMidnightRefresh();
+      }, getMsUntilNextMidnightBrasilia());
+    };
+
+    scheduleMidnightRefresh();
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [user, fetchCheckins]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState !== 'active') return;
+
+      const today = getTodayInBrasilia();
+      if (today === trackedBrasiliaDateRef.current) return;
+
+      trackedBrasiliaDateRef.current = today;
+      void fetchCheckins();
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [user, fetchCheckins]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+
+      const today = getTodayInBrasilia();
+      if (today === trackedBrasiliaDateRef.current) return;
+
+      trackedBrasiliaDateRef.current = today;
+      void fetchCheckins();
+    }, [user, fetchCheckins]),
+  );
 
   const submitCheckin = useCallback(
     async (

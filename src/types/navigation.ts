@@ -2,6 +2,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 import type { ChatInsightParam } from '@/types/chatInsight';
+import type { ChatStackParamList } from '@/types/chatNavigation.types';
 
 /**
  * Root navigation stack parameter list
@@ -26,19 +27,24 @@ export type RootStackParamList = {
   Onboarding: undefined;
 };
 
-export type MainTabParamList = {
-  Chat:
+export type ChatTabParams = {
+  voiceInsight?:
     | {
-        voiceInsight?:
-          | {
-              insight_type: string;
-              title: string;
-              description: string;
-            }
-          | undefined;
-        chatInsight?: ChatInsightParam;
+        insight_type: string;
+        title: string;
+        description: string;
       }
     | undefined;
+  chatInsight?: ChatInsightParam;
+  screen?: keyof ChatStackParamList;
+  params?: ChatStackParamList[keyof ChatStackParamList];
+  merge?: boolean;
+  initial?: boolean;
+  pop?: boolean;
+};
+
+export type MainTabParamList = {
+  Chat: ChatTabParams | undefined;
   Explore: undefined;
   Activities: undefined;
   History: undefined;

@@ -73,7 +73,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         const { data, error } = await supabase
           .from('profiles')
           .select('dark_mode')
-          .eq('id', user.id)
+          .eq('user_id', user.id)
           .maybeSingle();
         if (cancelled) return;
         if (error) {
@@ -111,7 +111,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         const { error } = await supabase
           .from('profiles')
           .update({ dark_mode: nextDark })
-          .eq('id', user.id);
+          .eq('user_id', user.id);
         if (error) {
           setPreferenceState((current) => (current === 'dark' ? 'light' : 'dark'));
           Alert.alert('Erro', 'Não foi possível salvar sua preferência de tema.');

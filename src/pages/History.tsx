@@ -12,8 +12,11 @@ import { ChevronLeft, ChevronRight, Lock, MessageSquare, Sparkles } from 'lucide
 
 import ConversationDetail from '@/components/history/ConversationDetail';
 import { DeepInsightSheet } from '@/components/explore/DeepInsightSheet';
-import { useConversations } from '@/hooks/useConversations';
-import { useExploreInsights } from '@/hooks/useExploreInsights';
+import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
+import {
+  useTabScreenContext,
+  useTabScreenLoading,
+} from '@/contexts/TabScreenContext';
 import { LayoutSpacing } from '@/constants/layout';
 import { useAppColors } from '@/lib/colors';
 import { supabase } from '@/integrations/supabase/client';
@@ -31,9 +34,9 @@ export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const colors = useAppColors();
   const styles = useMemo(() => createHistoryStyles(colors), [colors]);
-
-  const { conversations, loading: conversationsLoading, refetch } = useConversations();
-  const { generalInsight, isLoading: insightsLoading } = useExploreInsights();
+  const tabLoading = useTabScreenLoading('History');
+  const { conversations, refetchConversations: refetch, generalInsight, insightsLoading } =
+    useTabScreenContext();
 
   const [resolvedTitles, setResolvedTitles] = useState<Record<string, string>>({});
 
@@ -61,7 +64,7 @@ export default function HistoryScreen() {
   );
 
   useEffect(() => {
-    if (conversationsLoading || conversations.length === 0) {
+    if (tabLoading || conversations.length === 0) {
       return;
     }
 
@@ -118,7 +121,7 @@ export default function HistoryScreen() {
       );
 
       if (!cancelled) {
-        refetch();
+        refetch({ silent: true });
       }
     };
 
@@ -127,7 +130,7 @@ export default function HistoryScreen() {
     return () => {
       cancelled = true;
     };
-  }, [conversations, conversationsLoading, refetch]);
+  }, [conversations, tabLoading, refetch]);
 
   const monthGroups = useMemo(
     () => groupConversationsByMonth(conversationsForDisplay),
@@ -151,19 +154,6 @@ export default function HistoryScreen() {
 
   const canOpenDeepInsight = !insightsLoading && !generalInsight.locked;
 
-  if (conversationsLoading) {
-    return (
-      <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <View style={[styles.center, { paddingHorizontal: LayoutSpacing.contentPadding.horizontal }]}>
-          <Text style={styles.pageTitle}>Histórico</Text>
-          <View style={styles.skeletonCard} />
-          <View style={[styles.skeletonLine, { width: '30%' }]} />
-          <View style={[styles.skeletonLine, { width: '100%', height: 80 }]} />
-        </View>
-      </View>
-    );
-  }
-
   if (selectedConversation) {
     return (
       <ConversationDetail
@@ -176,7 +166,8 @@ export default function HistoryScreen() {
   }
 
   return (
-    <View style={styles.screen}>
+    <ScreenLoadingGate loading={tabLoading}>
+      <View style={styles.screen}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
@@ -318,6 +309,7 @@ export default function HistoryScreen() {
       </ScrollView>
 
       <DeepInsightSheet visible={deepInsightOpen} onClose={() => setDeepInsightOpen(false)} />
-    </View>
+      </View>
+    </ScreenLoadingGate>
   );
 }

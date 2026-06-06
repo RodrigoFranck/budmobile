@@ -8,7 +8,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
 
 import { CHECKIN_LOADING_MESSAGES } from '@/features/checkin/checkInResult.constants';
-import { useHideTabBar } from '@/hooks/useHideTabBar';
 import { useCheckIns, type CheckinReport } from '@/hooks/useCheckIns';
 import { openCheckInChat } from '@/utils/buildCheckInChatInsight';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -28,8 +27,6 @@ const MORNING_GRADIENT = ['rgba(245,158,11,0.2)', 'rgba(244,63,94,0.1)', '#1D191
 const POST_TRAINING_GRADIENT = ['rgba(147,51,234,0.22)', 'rgba(59,130,246,0.1)', '#1D1916'] as const;
 
 export default function CheckInResultScreen() {
-  useHideTabBar();
-
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();

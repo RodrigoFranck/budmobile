@@ -242,7 +242,7 @@ export default function SettingsScreen() {
             const { error } = await supabase
               .from("profiles")
               .update({ onboarding_completed: false })
-              .eq("id", user.id);
+              .eq("user_id", user.id);
 
             if (error) {
               Alert.alert("Erro", error.message);

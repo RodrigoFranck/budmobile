@@ -106,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data } = await supabase
       .from("profiles")
       .select("onboarding_completed")
-      .eq("id", user.id)
+      .eq("user_id", user.id)
       .maybeSingle();
     
     // Ensure strict boolean conversion (Supabase may return as string in some cases)
@@ -129,7 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data } = await supabase
         .from("profiles")
         .select("onboarding_completed")
-        .eq("id", user.id)
+        .eq("user_id", user.id)
         .maybeSingle();
 
       if (cancelled) {
@@ -362,7 +362,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (fullName) {
           const { error: profileError } = await supabase
             .from('profiles')
-            .upsert({ id: signInData.user.id, name: fullName }, { onConflict: 'id' });
+            .upsert({ user_id: signInData.user.id, name: fullName }, { onConflict: 'user_id' });
 
           if (profileError) {
             console.warn('Apple sign-in profile upsert failed:', profileError.message);

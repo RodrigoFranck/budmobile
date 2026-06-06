@@ -1,47 +1,55 @@
-import React from 'react';
-import { View } from 'react-native';
+import React, { useMemo } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MessageSquare, Compass, History } from 'lucide-react-native';
 
 import { ActivitiesTabIcon } from '@/components/icons/ActivitiesTabIcon';
-import ChatScreen from '@/pages/Chat';
+import { TabScreenProvider, useTabScreenContext } from '@/contexts/TabScreenContext';
+import ChatNavigator from '@/navigation/ChatNavigator';
 import ExploreScreen from '@/pages/Explore';
 import HistoryScreen from '@/pages/History';
 import ActivitiesNavigator from '@/navigation/ActivitiesNavigator';
-import { getDefaultTabBarStyle } from '@/constants/tabBar';
+import {
+  getHiddenTabBarStyle,
+  getMainTabScreenOptions,
+  TAB_BAR_ICON_SIZE,
+} from '@/constants/tabBar';
 import type { MainTabParamList } from '@/types/navigation';
+
+const ACTIVITIES_TAB_BAR_VISIBLE_ROUTES = new Set(['ActivitiesHome']);
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-export default function MainTabs() {
+function MainTabsNavigator() {
   const insets = useSafeAreaInsets();
+  const { resetChatToHome } = useTabScreenContext();
+
+  const screenOptions = useMemo(
+    () => getMainTabScreenOptions(insets.bottom),
+    [insets.bottom],
+  );
 
   return (
     <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarShowLabel: true,
-        tabBarStyle: getDefaultTabBarStyle(insets.bottom),
-        tabBarLabelStyle: {
-          fontSize: 12,
-          marginTop: 2,
-        },
-        tabBarActiveTintColor: '#ffffff',
-        tabBarInactiveTintColor: '#9ca3af',
-      }}
+      safeAreaInsets={{ bottom: 0 }}
+      screenOptions={screenOptions}
     >
       <Tab.Screen
         name="Chat"
-        component={ChatScreen}
+        component={ChatNavigator}
         options={{
           tabBarLabel: 'Chat',
           tabBarIcon: ({ color, size }) => (
-            <View style={{ marginTop: 2 }}>
-              <MessageSquare color={color} size={size ?? 22} />
-            </View>
+            <MessageSquare color={color} size={size ?? TAB_BAR_ICON_SIZE} />
           ),
         }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            resetChatToHome();
+            navigation.navigate('Chat', { screen: 'ChatHome' });
+          },
+        })}
       />
       <Tab.Screen
         name="Explore"
@@ -49,22 +57,24 @@ export default function MainTabs() {
         options={{
           tabBarLabel: 'Explorar',
           tabBarIcon: ({ color, size }) => (
-            <View style={{ marginTop: 2 }}>
-              <Compass color={color} size={size ?? 22} />
-            </View>
+            <Compass color={color} size={size ?? TAB_BAR_ICON_SIZE} />
           ),
         }}
       />
       <Tab.Screen
         name="Activities"
         component={ActivitiesNavigator}
-        options={{
-          tabBarLabel: 'Atividades',
-          tabBarIcon: ({ color, size }) => (
-            <View style={{ marginTop: 2 }}>
-              <ActivitiesTabIcon color={color} size={size ?? 22} />
-            </View>
-          ),
+        options={({ route }) => {
+          const focusedRoute = getFocusedRouteNameFromRoute(route) ?? 'ActivitiesHome';
+          const showTabBar = ACTIVITIES_TAB_BAR_VISIBLE_ROUTES.has(focusedRoute);
+
+          return {
+            tabBarLabel: 'Atividades',
+            ...(showTabBar ? {} : { tabBarStyle: getHiddenTabBarStyle() }),
+            tabBarIcon: ({ color, size }) => (
+              <ActivitiesTabIcon color={color} size={size ?? TAB_BAR_ICON_SIZE} />
+            ),
+          };
         }}
       />
       <Tab.Screen
@@ -73,9 +83,7 @@ export default function MainTabs() {
         options={{
           tabBarLabel: 'Histórico',
           tabBarIcon: ({ color, size }) => (
-            <View style={{ marginTop: 2 }}>
-              <History color={color} size={size ?? 22} />
-            </View>
+            <History color={color} size={size ?? TAB_BAR_ICON_SIZE} />
           ),
         }}
       />
@@ -83,3 +91,10 @@ export default function MainTabs() {
   );
 }
 
+export default function MainTabs() {
+  return (
+    <TabScreenProvider>
+      <MainTabsNavigator />
+    </TabScreenProvider>
+  );
+}
