@@ -7,6 +7,7 @@ export type OnboardingStackParamList = {
   OnboardingExpectations: undefined;
   OnboardingCommitment: undefined;
   OnboardingNotifications: undefined;
+  OnboardingVoice: undefined;
   OnboardingReady: undefined;
 };
 

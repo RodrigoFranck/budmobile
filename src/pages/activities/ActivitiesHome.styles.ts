@@ -11,8 +11,10 @@ export function createActivitiesHomeStyles(t: ActivitiesThemeTokens) {
       backgroundColor: t.surface,
     },
     scrollContent: {
-      paddingHorizontal: LayoutSpacing.contentPadding.horizontal,
       paddingBottom: LayoutSpacing.contentPadding.bottom + 16,
+    },
+    bodyContent: {
+      paddingHorizontal: LayoutSpacing.contentPadding.horizontal,
     },
     title: {
       fontFamily: frauncesFont,

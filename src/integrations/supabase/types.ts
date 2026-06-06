@@ -10,72 +10,131 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "13.0.4"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
-      conversations: {
+      conversation_analysis: {
         Row: {
-          conversation_date: string | null
+          behavioral_analysis: Json | null
           created_at: string
           id: string
-          is_archived: boolean | null
-          is_consolidated: boolean | null
+          session_id: string
+          summary: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          behavioral_analysis?: Json | null
+          created_at?: string
+          id?: string
+          session_id: string
+          summary?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          behavioral_analysis?: Json | null
+          created_at?: string
+          id?: string
+          session_id?: string
+          summary?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      conversations: {
+        Row: {
+          conversation_date: string
+          created_at: string
+          id: string
+          is_archived: boolean
+          is_consolidated: boolean
           title: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
-          conversation_date?: string | null
+          conversation_date?: string
           created_at?: string
           id?: string
-          is_archived?: boolean | null
-          is_consolidated?: boolean | null
+          is_archived?: boolean
+          is_consolidated?: boolean
           title?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
-          conversation_date?: string | null
+          conversation_date?: string
           created_at?: string
           id?: string
-          is_archived?: boolean | null
-          is_consolidated?: boolean | null
+          is_archived?: boolean
+          is_consolidated?: boolean
           title?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "conversations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
-      daily_message_counts: {
+      daily_analysis: {
         Row: {
-          count: number
+          behavioral_analysis: Json | null
           created_at: string | null
+          date: string
           id: string
-          message_date: string
+          summary: string | null
+          transcript: Json | null
+          updated_at: string | null
           user_id: string
+          well_being_score: number | null
         }
         Insert: {
-          count?: number
+          behavioral_analysis?: Json | null
           created_at?: string | null
+          date: string
           id?: string
-          message_date?: string
+          summary?: string | null
+          transcript?: Json | null
+          updated_at?: string | null
           user_id: string
+          well_being_score?: number | null
         }
         Update: {
-          count?: number
+          behavioral_analysis?: Json | null
           created_at?: string | null
+          date?: string
           id?: string
-          message_date?: string
+          summary?: string | null
+          transcript?: Json | null
+          updated_at?: string | null
           user_id?: string
+          well_being_score?: number | null
         }
         Relationships: []
       }
@@ -115,79 +174,68 @@ export type Database = {
         }
         Relationships: []
       }
-      explore_cards: {
+      emotion_snapshots: {
         Row: {
-          card_type: string
-          category: string
-          completed_at: string | null
-          created_at: string
-          description: string
-          gradient: string
+          confidence: number
+          context: string | null
+          created_at: string | null
+          emotion: string
           id: string
-          is_completed: boolean | null
-          title: string
+          timestamp: string
           user_id: string
         }
         Insert: {
-          card_type: string
-          category: string
-          completed_at?: string | null
-          created_at?: string
-          description: string
-          gradient: string
+          confidence: number
+          context?: string | null
+          created_at?: string | null
+          emotion: string
           id?: string
-          is_completed?: boolean | null
-          title: string
+          timestamp?: string
           user_id: string
         }
         Update: {
-          card_type?: string
-          category?: string
-          completed_at?: string | null
-          created_at?: string
-          description?: string
-          gradient?: string
+          confidence?: number
+          context?: string | null
+          created_at?: string | null
+          emotion?: string
           id?: string
-          is_completed?: boolean | null
-          title?: string
+          timestamp?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "explore_cards_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
-      insight_feedback: {
+      legacy_conversation_logs: {
         Row: {
+          conversation_type: string | null
           created_at: string
-          feedback_type: string
           id: string
-          insight_content: Json | null
-          insight_headline: string | null
-          insight_type: string
+          is_user: boolean
+          message: string
+          session_id: string | null
+          subagent_context: string | null
+          timestamp: string
           user_id: string
         }
         Insert: {
+          conversation_type?: string | null
           created_at?: string
-          feedback_type: string
           id?: string
-          insight_content?: Json | null
-          insight_headline?: string | null
-          insight_type?: string
+          is_user: boolean
+          message: string
+          session_id?: string | null
+          subagent_context?: string | null
+          timestamp?: string
           user_id: string
         }
         Update: {
+          conversation_type?: string | null
           created_at?: string
-          feedback_type?: string
           id?: string
-          insight_content?: Json | null
-          insight_headline?: string | null
-          insight_type?: string
+          is_user?: boolean
+          message?: string
+          session_id?: string | null
+          subagent_context?: string | null
+          timestamp?: string
           user_id?: string
         }
         Relationships: []
@@ -198,7 +246,6 @@ export type Database = {
           conversation_id: string
           created_at: string
           id: string
-          message_type: string
           role: string
         }
         Insert: {
@@ -206,7 +253,6 @@ export type Database = {
           conversation_id: string
           created_at?: string
           id?: string
-          message_type?: string
           role: string
         }
         Update: {
@@ -214,7 +260,6 @@ export type Database = {
           conversation_id?: string
           created_at?: string
           id?: string
-          message_type?: string
           role?: string
         }
         Relationships: [
@@ -231,138 +276,151 @@ export type Database = {
         Row: {
           age: string | null
           avatar_url: string | null
+          birth_date: string | null
+          city: string | null
+          company_name: string | null
           conversation_goal: string | null
+          cpf: string | null
           created_at: string
           dark_mode: boolean | null
-          email_verified: boolean | null
-          ethnicity: string | null
+          department: string | null
+          email: string | null
+          first_name: string | null
           gender: string | null
+          has_seen_onboarding_modal: boolean | null
+          hire_date: string | null
           hobbies: string[] | null
           id: string
           initial_thoughts: string | null
-          location: string | null
+          last_name: string | null
+          location_city: string | null
+          location_state: string | null
           name: string | null
           occupation: string | null
           onboarding_completed: boolean | null
+          phone: string | null
+          position: string | null
           relationship: string | null
+          state: string | null
           updated_at: string
-          verification_token: string | null
-          verification_token_expires_at: string | null
+          user_id: string
         }
         Insert: {
           age?: string | null
           avatar_url?: string | null
+          birth_date?: string | null
+          city?: string | null
+          company_name?: string | null
           conversation_goal?: string | null
+          cpf?: string | null
           created_at?: string
           dark_mode?: boolean | null
-          email_verified?: boolean | null
-          ethnicity?: string | null
+          department?: string | null
+          email?: string | null
+          first_name?: string | null
           gender?: string | null
+          has_seen_onboarding_modal?: boolean | null
+          hire_date?: string | null
           hobbies?: string[] | null
-          id: string
+          id?: string
           initial_thoughts?: string | null
-          location?: string | null
+          last_name?: string | null
+          location_city?: string | null
+          location_state?: string | null
           name?: string | null
           occupation?: string | null
           onboarding_completed?: boolean | null
+          phone?: string | null
+          position?: string | null
           relationship?: string | null
+          state?: string | null
           updated_at?: string
-          verification_token?: string | null
-          verification_token_expires_at?: string | null
+          user_id: string
         }
         Update: {
           age?: string | null
           avatar_url?: string | null
+          birth_date?: string | null
+          city?: string | null
+          company_name?: string | null
           conversation_goal?: string | null
+          cpf?: string | null
           created_at?: string
           dark_mode?: boolean | null
-          email_verified?: boolean | null
-          ethnicity?: string | null
+          department?: string | null
+          email?: string | null
+          first_name?: string | null
           gender?: string | null
+          has_seen_onboarding_modal?: boolean | null
+          hire_date?: string | null
           hobbies?: string[] | null
           id?: string
           initial_thoughts?: string | null
-          location?: string | null
+          last_name?: string | null
+          location_city?: string | null
+          location_state?: string | null
           name?: string | null
           occupation?: string | null
           onboarding_completed?: boolean | null
+          phone?: string | null
+          position?: string | null
           relationship?: string | null
+          state?: string | null
           updated_at?: string
-          verification_token?: string | null
-          verification_token_expires_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
-      subscriptions: {
+      psychological_assessments: {
         Row: {
-          created_at: string | null
-          current_period_end: string | null
+          completed_at: string
+          created_at: string
           id: string
-          plan_id: string
-          status: string
-          stripe_customer_id: string | null
-          stripe_subscription_id: string | null
-          trial_ends_at: string | null
+          responses: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          created_at?: string
+          id?: string
+          responses?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          created_at?: string
+          id?: string
+          responses?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_emotion_preferences: {
+        Row: {
+          auto_start_in_chat: boolean | null
+          created_at: string | null
+          tracking_enabled: boolean | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
+          auto_start_in_chat?: boolean | null
           created_at?: string | null
-          current_period_end?: string | null
-          id?: string
-          plan_id?: string
-          status?: string
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
-          trial_ends_at?: string | null
+          tracking_enabled?: boolean | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
+          auto_start_in_chat?: boolean | null
           created_at?: string | null
-          current_period_end?: string | null
-          id?: string
-          plan_id?: string
-          status?: string
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
-          trial_ends_at?: string | null
+          tracking_enabled?: boolean | null
           updated_at?: string | null
           user_id?: string
         }
         Relationships: []
-      }
-      user_activities: {
-        Row: {
-          activity_type: string
-          created_at: string
-          data: Json
-          id: string
-          user_id: string
-        }
-        Insert: {
-          activity_type: string
-          created_at?: string
-          data?: Json
-          id?: string
-          user_id: string
-        }
-        Update: {
-          activity_type?: string
-          created_at?: string
-          data?: Json
-          id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_activities_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       user_insights: {
         Row: {
@@ -434,58 +492,231 @@ export type Database = {
       }
       user_internal_profile: {
         Row: {
-          blind_spots: Json | null
-          communication_style: Json | null
-          conversations_analyzed: number | null
-          created_at: string | null
-          effective_approaches: Json | null
-          emotional_patterns: Json | null
+          blind_spots: Json
+          communication_style: Json
+          conversations_analyzed: number
+          created_at: string
+          effective_approaches: Json
+          emotional_patterns: Json
           id: string
           journey_summary: string | null
           last_consolidated_at: string | null
-          recurring_themes: Json | null
-          updated_at: string | null
+          recurring_themes: Json
+          updated_at: string
           user_id: string
         }
         Insert: {
-          blind_spots?: Json | null
-          communication_style?: Json | null
-          conversations_analyzed?: number | null
-          created_at?: string | null
-          effective_approaches?: Json | null
-          emotional_patterns?: Json | null
+          blind_spots?: Json
+          communication_style?: Json
+          conversations_analyzed?: number
+          created_at?: string
+          effective_approaches?: Json
+          emotional_patterns?: Json
           id?: string
           journey_summary?: string | null
           last_consolidated_at?: string | null
-          recurring_themes?: Json | null
-          updated_at?: string | null
+          recurring_themes?: Json
+          updated_at?: string
           user_id: string
         }
         Update: {
-          blind_spots?: Json | null
-          communication_style?: Json | null
-          conversations_analyzed?: number | null
-          created_at?: string | null
-          effective_approaches?: Json | null
-          emotional_patterns?: Json | null
+          blind_spots?: Json
+          communication_style?: Json
+          conversations_analyzed?: number
+          created_at?: string
+          effective_approaches?: Json
+          emotional_patterns?: Json
           id?: string
           journey_summary?: string | null
           last_consolidated_at?: string | null
-          recurring_themes?: Json | null
+          recurring_themes?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_ocean_profile: {
+        Row: {
+          agreeableness_confidence: string | null
+          agreeableness_score: number | null
+          conscientiousness_confidence: string | null
+          conscientiousness_score: number | null
+          created_at: string | null
+          extraversion_confidence: string | null
+          extraversion_score: number | null
+          id: string
+          last_updated: string | null
+          neuroticism_confidence: string | null
+          neuroticism_score: number | null
+          onboarding_completed_at: string | null
+          openness_confidence: string | null
+          openness_score: number | null
+          recommended_subagent: string | null
+          user_id: string
+          user_summary: string | null
+        }
+        Insert: {
+          agreeableness_confidence?: string | null
+          agreeableness_score?: number | null
+          conscientiousness_confidence?: string | null
+          conscientiousness_score?: number | null
+          created_at?: string | null
+          extraversion_confidence?: string | null
+          extraversion_score?: number | null
+          id?: string
+          last_updated?: string | null
+          neuroticism_confidence?: string | null
+          neuroticism_score?: number | null
+          onboarding_completed_at?: string | null
+          openness_confidence?: string | null
+          openness_score?: number | null
+          recommended_subagent?: string | null
+          user_id: string
+          user_summary?: string | null
+        }
+        Update: {
+          agreeableness_confidence?: string | null
+          agreeableness_score?: number | null
+          conscientiousness_confidence?: string | null
+          conscientiousness_score?: number | null
+          created_at?: string | null
+          extraversion_confidence?: string | null
+          extraversion_score?: number | null
+          id?: string
+          last_updated?: string | null
+          neuroticism_confidence?: string | null
+          neuroticism_score?: number | null
+          onboarding_completed_at?: string | null
+          openness_confidence?: string | null
+          openness_score?: number | null
+          recommended_subagent?: string | null
+          user_id?: string
+          user_summary?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          assigned_at: string | null
+          assigned_by: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_terms_acceptance: {
+        Row: {
+          accepted_at: string | null
+          accepted_version: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_version?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_version?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      weekly_analysis: {
+        Row: {
+          created_at: string | null
+          emotional_progression: Json | null
+          id: string
+          key_patterns: Json | null
+          progress_metrics: Json | null
+          summary: string | null
+          updated_at: string | null
+          user_id: string
+          week_end: string
+          week_start: string
+        }
+        Insert: {
+          created_at?: string | null
+          emotional_progression?: Json | null
+          id?: string
+          key_patterns?: Json | null
+          progress_metrics?: Json | null
+          summary?: string | null
+          updated_at?: string | null
+          user_id: string
+          week_end: string
+          week_start: string
+        }
+        Update: {
+          created_at?: string | null
+          emotional_progression?: Json | null
+          id?: string
+          key_patterns?: Json | null
+          progress_metrics?: Json | null
+          summary?: string | null
           updated_at?: string | null
           user_id?: string
+          week_end?: string
+          week_start?: string
         }
         Relationships: []
       }
     }
     Views: {
-      [_ in never]: never
+      v_employee_risk_scores: {
+        Row: {
+          agreeableness_score: number | null
+          avg_wellbeing_7d: number | null
+          company_name: string | null
+          conscientiousness_score: number | null
+          department: string | null
+          email: string | null
+          extraversion_score: number | null
+          first_name: string | null
+          last_analysis_date: string | null
+          last_name: string | null
+          latest_wellbeing_score: number | null
+          location_city: string | null
+          location_state: string | null
+          neuroticism_score: number | null
+          openness_score: number | null
+          position: string | null
+          recommended_subagent: string | null
+          risk_level: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "colaborador"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -611,7 +842,12 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  public: {
+  graphql_public: {
     Enums: {},
+  },
+  public: {
+    Enums: {
+      app_role: ["admin", "colaborador"],
+    },
   },
 } as const

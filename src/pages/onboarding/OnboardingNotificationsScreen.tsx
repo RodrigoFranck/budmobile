@@ -148,7 +148,7 @@ export default function OnboardingNotificationsScreen() {
           }}
         />
         <View style={{ height: 12 }} />
-        <OnboardingPrimaryButton label="Continuar" onPress={() => navigation.navigate('OnboardingReady')} />
+        <OnboardingPrimaryButton label="Continuar" onPress={() => navigation.navigate('OnboardingVoice')} />
       </View>
     </LinearGradient>
   );

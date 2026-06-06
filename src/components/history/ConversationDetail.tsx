@@ -1,20 +1,37 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useMessages } from '@/hooks/useMessages';
-import { ChatMessage } from '@/components/chat/ChatMessage';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, MessageSquare } from 'lucide-react-native';
 
+import { InsightContextCard } from '@/components/chat/InsightContextCard';
+import type { InsightContextBackgroundType } from '@/components/chat/InsightContextCard';
+import { useMessages } from '@/hooks/useMessages';
 import { useOnboardingColors } from '@/constants/onboardingTheme';
 import { useConversationDetailStyles } from '@/components/history/ConversationDetail.styles';
+import {
+  buildTitleFromUserMessages,
+  needsConversationTitleRegeneration,
+} from '@/utils/generateConversationTitle';
 
 interface ConversationDetailProps {
   conversationId: string;
   conversationTitle: string;
   conversationDate: string;
   onBack: () => void;
+}
+
+function parseContextBackgroundType(value: unknown): InsightContextBackgroundType {
+  if (
+    value === 'yesterday' ||
+    value === 'inspired' ||
+    value === 'frequency' ||
+    value === 'habit'
+  ) {
+    return value;
+  }
+  return 'inspired';
 }
 
 export default function ConversationDetail({
@@ -28,6 +45,24 @@ export default function ConversationDetail({
   const onboardingColors = useOnboardingColors();
   const styles = useConversationDetailStyles();
 
+  const displayTitle = useMemo(() => {
+    if (!needsConversationTitleRegeneration(conversationTitle)) {
+      return conversationTitle;
+    }
+
+    const userMessagesNewestFirst = messages
+      .filter((message) => message.role === 'user')
+      .map((message) => message.content)
+      .reverse();
+
+    const generated = buildTitleFromUserMessages(userMessagesNewestFirst);
+    if (generated) {
+      return generated;
+    }
+
+    return format(new Date(conversationDate), "d 'de' MMMM", { locale: ptBR });
+  }, [conversationTitle, conversationDate, messages]);
+
   if (loading) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -38,8 +73,9 @@ export default function ConversationDetail({
     );
   }
 
-  const dateObj = new Date(conversationDate);
-  const formattedDate = format(dateObj, "d 'de' MMMM", { locale: ptBR });
+  const formattedDate = format(new Date(conversationDate), "EEEE, d 'de' MMMM", {
+    locale: ptBR,
+  });
 
   return (
     <View style={styles.screen}>
@@ -52,24 +88,22 @@ export default function ConversationDetail({
           style={styles.backButton}
         >
           <ChevronLeft size={18} color={onboardingColors.textTaupe} />
+          <Text style={styles.backLabel}>Voltar</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.titleBlock}>
-        <Text style={styles.title}>{conversationTitle}</Text>
+        <Text style={styles.title} accessibilityRole="header">
+          {displayTitle}
+        </Text>
         <Text style={styles.subtitle}>{formattedDate}</Text>
       </View>
 
-      {/* Área de Scroll Suave */}
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-      >
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         {messages.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>
-              Nenhuma mensagem encontrada nesta conversa.
-            </Text>
+            <MessageSquare size={48} color={onboardingColors.textSecondary} />
+            <Text style={styles.emptyText}>Nenhuma mensagem encontrada nesta conversa.</Text>
           </View>
         ) : (
           <View style={styles.messages}>
@@ -83,35 +117,45 @@ export default function ConversationDetail({
                     try {
                       const contextData = JSON.parse(message.content);
                       return (
-                        <View style={styles.contextCard}>
-                          <Text style={styles.contextBadge}>
-                            {contextData.badge}
-                          </Text>
-                          <Text style={styles.contextTitle}>
-                            {contextData.title}
-                          </Text>
-                          <Text style={styles.contextDescription}>
-                            {contextData.description}
-                          </Text>
-                        </View>
+                        <InsightContextCard
+                          badge={contextData.badge}
+                          title={contextData.title}
+                          description={contextData.description}
+                          backgroundType={parseContextBackgroundType(contextData.backgroundType)}
+                        />
                       );
                     } catch {
                       return (
                         <View style={styles.contextFallbackWrap}>
                           <View style={styles.contextFallbackCard}>
-                            <Text style={styles.contextFallbackText}>
-                              {message.content}
-                            </Text>
+                            <Text style={styles.contextFallbackText}>{message.content}</Text>
                           </View>
                         </View>
                       );
                     }
                   })()
-                ) : message.role === 'user' || message.role === 'assistant' ? (
-                  <ChatMessage
-                    role={message.role}
-                    content={message.content}
-                  />
+                ) : message.role === 'user' ? (
+                  <View style={styles.userWrap}>
+                    <View style={styles.userMeta}>
+                      <Text style={styles.roleLabel}>Você</Text>
+                      <Text style={styles.timeLabel}>
+                        {format(new Date(message.created_at), 'HH:mm', { locale: ptBR })}
+                      </Text>
+                    </View>
+                    <View style={styles.userBubble}>
+                      <Text style={styles.userBody}>{message.content}</Text>
+                    </View>
+                  </View>
+                ) : message.role === 'assistant' ? (
+                  <View style={styles.assistantWrap}>
+                    <View style={styles.assistantMeta}>
+                      <Text style={styles.roleLabel}>Bud.</Text>
+                      <Text style={styles.timeLabel}>
+                        {format(new Date(message.created_at), 'HH:mm', { locale: ptBR })}
+                      </Text>
+                    </View>
+                    <Text style={styles.assistantBody}>{message.content}</Text>
+                  </View>
                 ) : null}
               </View>
             ))}
@@ -121,8 +165,3 @@ export default function ConversationDetail({
     </View>
   );
 }
-
-// styles moved to ConversationDetail.styles.ts
-
-
-

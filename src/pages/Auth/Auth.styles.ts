@@ -13,21 +13,53 @@ export const authStyles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 80,
-    paddingBottom: 40,
   },
   content: {
     width: '100%',
+    justifyContent: 'space-between',
   },
   header: {
     alignItems: 'center',
     justifyContent: 'flex-start',
-    paddingTop: 20,
+    width: '100%',
   },
-  logo: {
-    width: 180,
-    height: 180,
-    marginBottom: 16,
+  mainSection: {
+    width: '100%',
+    paddingVertical: 24,
+  },
+  footerSection: {
+    width: '100%',
+  },
+  budWordmark: {
+    fontSize: 44,
+    fontWeight: '400',
+    fontFamily: 'InriaSerif-Regular',
+    color: '#1E3A5F',
+    lineHeight: 48,
+    textAlign: 'center',
+    marginBottom: 10,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
+  },
+  partnershipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 4,
+  },
+  supportedByText: {
+    fontSize: 12,
+    fontWeight: '500',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: 'rgba(74, 74, 74, 0.55)',
+    letterSpacing: 0.6,
+    lineHeight: 15,
+    textAlign: 'center',
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
+  },
+  elevenLabsBadge: {
+    width: 200,
+    height: 36,
   },
   title: {
     fontSize: 64,
@@ -38,13 +70,16 @@ export const authStyles = StyleSheet.create({
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '400',
-    fontFamily: 'InriaSerif-Regular',
-    color: '#4A4A4A',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: 'rgba(74, 74, 74, 0.75)',
     textAlign: 'center',
-    lineHeight: 22,
-    marginTop: 8,
+    lineHeight: 18,
+    marginTop: 10,
+  },
+  socialSection: {
+    gap: 12,
   },
   socialButton: {
     height: 52,
@@ -53,7 +88,12 @@ export const authStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    marginBottom: 12,
+  },
+  socialButtonPrimary: {
+    marginBottom: 0,
+  },
+  socialButtonPrimaryFirst: {
+    marginTop: 0,
   },
   socialButtonApple: {
     backgroundColor: '#000000',
@@ -88,12 +128,43 @@ export const authStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  emailSection: {
+    width: '100%',
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    marginBottom: 16,
+    paddingVertical: 4,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: '#1E3A5F',
+  },
+  emailAuthToggle: {
+    height: 52,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(30, 58, 95, 0.2)',
+  },
+  emailAuthToggleText: {
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: '#1E3A5F',
+  },
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: 12,
     padding: 4,
-    marginTop: 32,
     marginBottom: 24,
   },
   tab: {
@@ -186,7 +257,8 @@ export const authStyles = StyleSheet.create({
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 24,
+    marginTop: 20,
+    marginBottom: 16,
     gap: 12,
   },
   dividerLine: {
@@ -227,9 +299,9 @@ export const authStyles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
     color: '#666666',
     textAlign: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
     lineHeight: 20,
-    marginTop: 16,
+    marginTop: 12,
   },
   disclaimerText: {
     fontSize: 12,
@@ -237,9 +309,8 @@ export const authStyles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
     color: '#666666',
     textAlign: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
     lineHeight: 17,
-    marginTop: 24,
   },
   termsLink: {
     textDecorationLine: 'underline',

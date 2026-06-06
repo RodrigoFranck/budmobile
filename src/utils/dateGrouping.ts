@@ -1,6 +1,7 @@
 import { format, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { getNowInBrasilia, parseDateString } from "./dateUtils";
+import { resolveConversationDisplayTitle } from "./generateConversationTitle";
 
 export interface ConversationWithDate {
   id: string;
@@ -19,6 +20,37 @@ export interface GroupedConversation {
     dateLabel: string;
     date: Date;
   }>;
+}
+
+export interface MonthGroup {
+  monthKey: string;
+  monthLabel: string;
+  conversations: ConversationWithDate[];
+  count: number;
+}
+
+export function groupConversationsByMonth(conversations: ConversationWithDate[]): MonthGroup[] {
+  const groups = new Map<string, MonthGroup>();
+
+  conversations.forEach((conv) => {
+    const dateSource = conv.conversation_date || conv.created_at;
+    const convDate = dateSource.includes('T')
+      ? new Date(dateSource)
+      : parseDateString(dateSource);
+
+    const monthKey = format(convDate, 'yyyy-MM');
+    const rawLabel = format(convDate, 'MMMM yyyy', { locale: ptBR });
+    const monthLabel = rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1);
+
+    if (!groups.has(monthKey)) {
+      groups.set(monthKey, { monthKey, monthLabel, conversations: [], count: 0 });
+    }
+    const g = groups.get(monthKey)!;
+    g.conversations.push(conv);
+    g.count += 1;
+  });
+
+  return Array.from(groups.values()).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
 }
 
 export function groupConversationsByDate(conversations: ConversationWithDate[]): GroupedConversation[] {
@@ -72,7 +104,7 @@ export function groupConversationsByDate(conversations: ConversationWithDate[]):
     if (!group.conversations.some(c => c.id === conv.id)) {
       group.conversations.push({
         id: conv.id,
-        title: conv.title || `Conversa de ${dateLabel}`,
+        title: resolveConversationDisplayTitle(conv.title, "Conversa do dia"),
         dateLabel,
         date: convDate,
       });

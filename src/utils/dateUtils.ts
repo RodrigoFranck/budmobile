@@ -1,52 +1,75 @@
 /**
- * Utilitários de data para horário de Brasília (UTC-3)
- * 
+ * Utilitários de data para horário de Brasília (America/Sao_Paulo)
+ *
  * IMPORTANTE: Todas as operações de data do sistema devem usar estas funções
  * para garantir consistência entre frontend, backend e banco de dados.
  */
 
+const BRASILIA_TIME_ZONE = 'America/Sao_Paulo';
+const MS_IN_DAY = 24 * 60 * 60 * 1000;
+
+function getBrasiliaDateTimeParts(date: Date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BRASILIA_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false,
+  }).formatToParts(date);
+
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value ?? 0);
+
+  return {
+    year: read('year'),
+    month: read('month'),
+    day: read('day'),
+    hour: read('hour'),
+    minute: read('minute'),
+    second: read('second'),
+  };
+}
+
 /**
- * Retorna a data atual no fuso horário de Brasília (UTC-3)
+ * Retorna a data atual no fuso horário de Brasília
  * @returns string no formato YYYY-MM-DD
  */
 export function getTodayInBrasilia(): string {
-  const now = new Date();
-  // Brasília é UTC-3 (-180 minutos)
-  const brasiliaOffset = -3 * 60; // em minutos
-  const localOffset = now.getTimezoneOffset(); // em minutos (positivo para oeste do UTC)
-  const diff = brasiliaOffset + localOffset; // diferença entre Brasília e local
-  
-  const brasiliaTime = new Date(now.getTime() + diff * 60 * 1000);
-  return brasiliaTime.toISOString().split('T')[0];
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: BRASILIA_TIME_ZONE,
+  }).format(new Date());
 }
 
 /**
- * Retorna a data de ontem no fuso horário de Brasília (UTC-3)
+ * Retorna a data de ontem no fuso horário de Brasília
  * @returns string no formato YYYY-MM-DD
  */
 export function getYesterdayInBrasilia(): string {
-  const now = new Date();
-  const brasiliaOffset = -3 * 60;
-  const localOffset = now.getTimezoneOffset();
-  const diff = brasiliaOffset + localOffset;
-  
-  const brasiliaTime = new Date(now.getTime() + diff * 60 * 1000);
-  brasiliaTime.setDate(brasiliaTime.getDate() - 1);
-  return brasiliaTime.toISOString().split('T')[0];
+  const today = parseDateString(getTodayInBrasilia());
+  today.setDate(today.getDate() - 1);
+  return formatDateBrasilia(today);
 }
 
 /**
- * Retorna a data/hora atual como objeto Date ajustado para Brasília
+ * Retorna a data/hora atual como objeto Date com componentes de Brasília
  * Útil para cálculos de semana, dia da semana, etc.
  * @returns Date ajustado para Brasília
  */
 export function getNowInBrasilia(): Date {
-  const now = new Date();
-  const brasiliaOffset = -3 * 60;
-  const localOffset = now.getTimezoneOffset();
-  const diff = brasiliaOffset + localOffset;
-  
-  return new Date(now.getTime() + diff * 60 * 1000);
+  const { year, month, day, hour, minute, second } = getBrasiliaDateTimeParts();
+  return new Date(year, month - 1, day, hour, minute, second);
+}
+
+/**
+ * Milissegundos até a próxima meia-noite em Brasília (00:00 do dia seguinte)
+ */
+export function getMsUntilNextMidnightBrasilia(from: Date = new Date()): number {
+  const { hour, minute, second } = getBrasiliaDateTimeParts(from);
+  const msElapsedToday = ((hour * 60 + minute) * 60 + second) * 1000;
+  return MS_IN_DAY - msElapsedToday + 1000;
 }
 
 /**

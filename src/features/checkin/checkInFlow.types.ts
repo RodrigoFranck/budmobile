@@ -1,4 +1,4 @@
-export type CheckInInputType = 'chips' | 'chips_multi' | 'slider' | 'text';
+export type CheckInInputType = 'chips' | 'slider' | 'text';
 
 export type CheckInChipOption = string | { label: string; subtitle?: string };
 

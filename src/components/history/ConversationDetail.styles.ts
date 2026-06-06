@@ -23,14 +23,16 @@ export function useConversationDetailStyles() {
       paddingBottom: 14,
     },
     backButton: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
+      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: 'rgba(0,0,0,0.25)',
-      borderWidth: 1,
-      borderColor: 'rgba(95, 99, 104, 0.35)',
+      gap: 4,
+      paddingVertical: 8,
+      paddingRight: 12,
+    },
+    backLabel: {
+      fontFamily: frauncesFont,
+      fontSize: 16,
+      color: onboardingColors.textTaupe,
     },
     titleBlock: {
       paddingHorizontal: 20,
@@ -65,38 +67,60 @@ export function useConversationDetailStyles() {
       textAlign: 'center',
     },
     messages: {
-      gap: 14,
+      gap: 20,
     },
     messageRow: {
       width: '100%',
-      paddingVertical: 6,
+      paddingVertical: 8,
     },
-    contextCard: {
-      backgroundColor: 'rgba(255,255,255,0.06)',
-      borderRadius: 14,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.10)',
+    userWrap: {
+      alignItems: 'flex-end',
     },
-    contextBadge: {
+    userMeta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 6,
+    },
+    userBubble: {
+      maxWidth: '78%',
+      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+      borderRadius: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+    },
+    userBody: {
+      fontFamily: frauncesFont,
+      fontSize: 15,
+      color: onboardingColors.white,
+      lineHeight: 22,
+    },
+    assistantWrap: {
+      alignItems: 'flex-start',
+      maxWidth: '88%',
+    },
+    assistantMeta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 6,
+    },
+    roleLabel: {
       fontFamily: frauncesFont,
       fontSize: 12,
       color: onboardingColors.textTaupe,
-      marginBottom: 6,
-      opacity: 0.9,
     },
-    contextTitle: {
+    timeLabel: {
       fontFamily: frauncesFont,
-      fontSize: 16,
-      color: onboardingColors.white,
-      marginBottom: 4,
-    },
-    contextDescription: {
-      fontFamily: frauncesFont,
-      fontSize: 14,
+      fontSize: 12,
       color: onboardingColors.textSecondary,
-      lineHeight: 20,
+      opacity: 0.7,
+    },
+    assistantBody: {
+      fontFamily: frauncesFont,
+      fontSize: 15,
+      color: onboardingColors.white,
+      lineHeight: 22,
     },
     contextFallbackWrap: {
       justifyContent: 'center',

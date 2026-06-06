@@ -35,7 +35,7 @@ export default function OnboardingExpectationsScreen() {
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ backgroundColor: onboardingColors.backgroundAlt, paddingTop: insets.top }}
+        style={{ backgroundColor: onboardingColors.background, paddingTop: insets.top }}
       >
         <View style={{ paddingHorizontal: H_PAD, paddingTop: 8, paddingBottom: 8 }}>
           <OnboardingBackButton onPress={() => navigation.goBack()} />
@@ -72,8 +72,10 @@ export default function OnboardingExpectationsScreen() {
             textAlignVertical="top"
             style={{
               minHeight: 200,
-              backgroundColor: onboardingColors.optionBg,
+              backgroundColor: onboardingColors.inputSurface,
               borderRadius: 12,
+              borderWidth: 1,
+              borderColor: onboardingColors.borderDark,
               padding: 16,
               fontSize: 16,
               color: onboardingColors.white,

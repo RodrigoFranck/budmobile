@@ -1,6 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { ChatMemoryContext } from "@/utils/formatInternalProfile";
 
 type Message = { role: "user" | "assistant"; content: string };
+
+export type { ChatMemoryContext };
 
 export interface UserContext {
   name?: string | null;
@@ -12,6 +15,11 @@ export interface UserContext {
   relationship?: string | null;
   hobbies?: string[] | null;
   isFirstInteractionOfDay: boolean;
+}
+
+export interface ApproachContext {
+  strategy: string;
+  guidanceText: string;
 }
 
 export interface InsightContext {
@@ -33,6 +41,8 @@ export async function streamChat({
   messages,
   userContext,
   insightContext,
+  memoryContext,
+  approachContext,
   onDelta,
   onDone,
   onError,
@@ -40,6 +50,8 @@ export async function streamChat({
   messages: Message[];
   userContext?: UserContext;
   insightContext?: InsightContext;
+  memoryContext?: ChatMemoryContext;
+  approachContext?: ApproachContext;
   onDelta: (deltaText: string) => void;
   onDone: () => void;
   onError: (error: string) => void;
@@ -146,7 +158,16 @@ export async function streamChat({
     xhr.timeout = 120000;
 
     // Send the request
-    xhr.send(JSON.stringify({ messages, userContext, insightContext }));
+    xhr.send(
+      JSON.stringify({
+        messages,
+        userContext,
+        insightContext,
+        memoryContext,
+        approachContext,
+        internalProfile: memoryContext?.internalProfileText ?? null,
+      }),
+    );
 
   } catch (error) {
     console.error("Stream error:", error);

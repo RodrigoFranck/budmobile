@@ -3,40 +3,51 @@ import { View, KeyboardAvoidingView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Book, Settings } from 'lucide-react-native';
 import { useAuth } from '@/contexts/AuthContext';
-import { useConversations } from '@/hooks/useConversations';
-import { useMessages } from '@/hooks/useMessages';
-import { useUserProfile } from '@/hooks/useUserProfile';
-import { ChatContainer } from '@/components/chat/ChatContainer';
-import { MessageInputBar } from '@/components/chat/MessageInputBar';
+import {
+  useTabScreenContext,
+  useTabScreenLoading,
+} from '@/contexts/TabScreenContext';
+import { countUserTurns, matchApproach } from '@/utils/approachMatcher';
 import { streamChat, type InsightContext, type UserContext } from '@/utils/chatStream';
 import type { ChatInsightParam } from '@/types/chatInsight';
-import { takePendingChatInsight } from '@/utils/navigateToChat';
+import { takePendingChatInsight, clearPendingChatInsight } from '@/utils/navigateToChat';
 import type { StreamingMessage } from '@/types/messages';
 import { PlatformConstants } from '@/constants/layout';
-import {
-  VoiceInterfaceRef,
-} from '@/voice/VoiceInterface';
+import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
 import { VoiceMode } from '@/voice/VoiceMode';
 import { useAppColors } from '@/lib/colors';
 import type { MainTabNavigationProp, MainTabParamList, RootNavigationProp } from '@/types/navigation';
+import { TabScreenHeader } from '@/components/ui/TabScreenHeader';
 import { WeekCalendarHeader } from '@/components/ui/WeekCalendarHeader';
+import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
+import { ChatContainer } from '@/components/chat/ChatContainer';
+import { MessageInputBar } from '@/components/chat/MessageInputBar';
 import { Spacing } from '@/constants/styles';
 
 export default function ChatScreen() {
   const colors = useAppColors();
   const { user } = useAuth();
-  const { profile } = useUserProfile();
-  const { getOrCreateTodayConversation } = useConversations();
-  const insets = useSafeAreaInsets();
-  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const tabLoading = useTabScreenLoading('Chat');
+  const {
+    chatConversationId: currentConversationId,
+    chatHomeResetToken,
+    messages: dbMessages,
+    chatMessagesLoading: messagesLoading,
+    addMessage,
+    profile,
+    memoryContext,
+    internalProfileText,
+    internalProfile,
+    memoryLoading,
+  } = useTabScreenContext();
   const [streamingMessages, setStreamingMessages] = useState<StreamingMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const streamingIdRef = useRef<string | null>(null);
   const voiceInterfaceRef = useRef<VoiceInterfaceRef>(null);
   const [isVoiceModeActive, setIsVoiceModeActive] = useState(false);
+  const [isVoiceConnecting, setIsVoiceConnecting] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [isBudSpeaking, setIsBudSpeaking] = useState(false);
   const route = useRoute<RouteProp<MainTabParamList, 'Chat'>>();
@@ -50,22 +61,6 @@ export default function ChatScreen() {
   const [shouldAutoStartVoice, setShouldAutoStartVoice] = useState(false);
   const pendingChatInsightRef = useRef<ChatInsightParam | null>(null);
   const didAutoSendInsightRef = useRef(false);
-
-  const { messages: dbMessages, loading: messagesLoading, addMessage } =
-    useMessages(currentConversationId);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const initConversation = async () => {
-      const conversation = await getOrCreateTodayConversation();
-      if (conversation) {
-        setCurrentConversationId(conversation.id);
-      }
-    };
-    initConversation();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
 
   const voiceInsight = route.params?.voiceInsight;
 
@@ -93,6 +88,26 @@ export default function ChatScreen() {
     },
     [mapChatInsightToContext],
   );
+
+  useEffect(() => {
+    if (chatHomeResetToken === 0) return;
+
+    setStreamingMessages([]);
+    setIsStreaming(false);
+    streamingIdRef.current = null;
+    setIsVoiceModeActive(false);
+    setIsVoiceConnecting(false);
+    setVoiceTranscript('');
+    setIsBudSpeaking(false);
+    setInsightContext(null);
+    setRecentInsights([]);
+    setShouldAutoStartVoice(false);
+    pendingChatInsightRef.current = null;
+    didAutoSendInsightRef.current = false;
+    clearPendingChatInsight();
+    navigation.setParams({ voiceInsight: undefined, chatInsight: undefined });
+    void voiceInterfaceRef.current?.endConversation();
+  }, [chatHomeResetToken, navigation]);
 
   useEffect(() => {
     if (!voiceInsight) return;
@@ -124,6 +139,23 @@ export default function ChatScreen() {
 
     void start();
   }, [shouldAutoStartVoice, currentConversationId]);
+
+  useEffect(() => {
+    if (streamingMessages.length === 0) return;
+
+    const allStreamingInDb = streamingMessages.every((streamMsg) => {
+      if (streamMsg.isStreaming) return false;
+      if (!streamMsg.content.trim()) return false;
+
+      return dbMessages.some(
+        (dbMsg) => dbMsg.role === streamMsg.role && dbMsg.content === streamMsg.content,
+      );
+    });
+
+    if (allStreamingInDb) {
+      setStreamingMessages([]);
+    }
+  }, [dbMessages, streamingMessages]);
 
   const allMessages = useMemo(() => {
     const dbMessagesFormatted = dbMessages.map((msg) => ({
@@ -231,10 +263,21 @@ export default function ChatScreen() {
 
       let accumulatedContent = '';
 
+      const approachDecision = matchApproach(
+        message,
+        memoryLoading ? null : internalProfile,
+        countUserTurns(apiMessages),
+      );
+
       await streamChat({
         messages: apiMessages,
         userContext,
         insightContext: activeInsightContext ?? undefined,
+        memoryContext: memoryLoading ? undefined : memoryContext,
+        approachContext: {
+          strategy: approachDecision.strategy,
+          guidanceText: approachDecision.guidanceText,
+        },
         onDelta: (deltaText) => {
           accumulatedContent += deltaText;
           setStreamingMessages((prev) =>
@@ -258,9 +301,6 @@ export default function ChatScreen() {
 
           await userMessagePromise;
           await addMessage(accumulatedContent, 'assistant');
-
-          setStreamingMessages([]);
-
         },
         onError: (error) => {
           setIsStreaming(false);
@@ -278,6 +318,9 @@ export default function ChatScreen() {
       dbMessages,
       userContext,
       insightContext,
+      memoryContext,
+      memoryLoading,
+      internalProfile,
       addMessage,
     ],
   );
@@ -320,7 +363,8 @@ export default function ChatScreen() {
   }, [trySendPendingInsight]);
 
   return (
-    <View className="flex-1 bg-background">
+    <ScreenLoadingGate loading={tabLoading}>
+      <View className="flex-1 bg-background">
       <LinearGradient
         colors={[colors['chat-warm-bg'], colors['chat-gradient-end']]}
         locations={[0.35, 1]}
@@ -331,7 +375,7 @@ export default function ChatScreen() {
         className="flex-1"
         keyboardVerticalOffset={PlatformConstants.keyboardVerticalOffset}
       >
-        <View style={{ paddingTop: insets.top + Spacing.base, paddingHorizontal: Spacing.base + 4 }}>
+        <TabScreenHeader>
           <WeekCalendarHeader
             leftIcon={Book}
             onPressLeft={() => navigation.navigate('Explore')}
@@ -339,17 +383,20 @@ export default function ChatScreen() {
             rightIcon={Settings}
             onPressRight={() => rootNavigation.navigate('Settings')}
           />
-        </View>
+        </TabScreenHeader>
         <ChatContainer
           messages={allMessages}
           loading={isStreaming || messagesLoading}
           topPadding={Spacing.base}
+          scrollResetToken={chatHomeResetToken}
         />
         <MessageInputBar
           onSendMessage={handleSendMessage}
           disabled={isStreaming}
+          voiceAppearance="prominent"
           voiceInterfaceRef={voiceInterfaceRef}
           onVoiceModeChange={setIsVoiceModeActive}
+          onVoiceConnectingChange={setIsVoiceConnecting}
           onVoiceUserMessage={handleVoiceUserMessage}
           onVoiceAssistantMessage={handleVoiceAssistantMessage}
           onVoiceTranscript={setVoiceTranscript}
@@ -357,6 +404,7 @@ export default function ChatScreen() {
           userContext={userContext}
           messageHistory={messageHistory}
           recentInsights={recentInsights}
+          internalProfile={memoryLoading ? undefined : internalProfileText}
         />
       </KeyboardAvoidingView>
       <VoiceMode
@@ -365,7 +413,9 @@ export default function ChatScreen() {
         onEndVoice={handleEndVoiceSession}
         transcript={voiceTranscript}
         isBudSpeaking={isBudSpeaking}
+        isConnecting={isVoiceConnecting}
       />
-    </View>
+      </View>
+    </ScreenLoadingGate>
   );
 }

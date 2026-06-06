@@ -19,6 +19,10 @@ export function takePendingChatInsight(): ChatInsightParam | null {
   return insight;
 }
 
+export function clearPendingChatInsight() {
+  pendingChatInsight = null;
+}
+
 export function navigateToChatTab(
   navigation: NavigationProp<ParamListBase>,
   params: ChatTabParams,

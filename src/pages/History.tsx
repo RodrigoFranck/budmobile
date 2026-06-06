@@ -1,160 +1,158 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
+  ImageBackground,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { addDays, endOfDay, format, isWithinInterval, startOfDay } from 'date-fns';
-import { enUS, ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Lock, MessageSquare, Sparkles } from 'lucide-react-native';
 
-import { useConversations } from '@/hooks/useConversations';
-import type { ConversationWithDate } from '@/utils/dateGrouping';
 import ConversationDetail from '@/components/history/ConversationDetail';
+import { DeepInsightSheet } from '@/components/explore/DeepInsightSheet';
+import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
+import {
+  useTabScreenContext,
+  useTabScreenLoading,
+} from '@/contexts/TabScreenContext';
 import { LayoutSpacing } from '@/constants/layout';
-import { frauncesFont } from '@/constants/onboardingTheme';
 import { useAppColors } from '@/lib/colors';
-import { getWeekEndBrasilia, getWeekStartBrasilia, parseDateString } from '@/utils/dateUtils';
+import { supabase } from '@/integrations/supabase/client';
+import { groupConversationsByDate, groupConversationsByMonth } from '@/utils/dateGrouping';
+import {
+  buildTitleFromUserMessages,
+  needsConversationTitleRegeneration,
+  updateConversationTitleIfNeeded,
+} from '@/utils/generateConversationTitle';
+import { createHistoryStyles } from '@/pages/History.styles';
 
-interface ConversationToDelete {
-  id: string;
-  title: string;
-}
-
-type WeekDayConversation = {
-  dayKey: string; // yyyy-MM-dd
-  dayTitle: string; // Monday, etc (pt-BR)
-  daySubtitle: string; // 19 de janeiro
-  date: Date;
-  conversation: {
-    id: string;
-    title: string;
-    date: Date;
-  } | null;
-};
-
-function getConversationDate(conv: ConversationWithDate) {
-  const dateSource = conv.conversation_date || conv.created_at;
-  return dateSource.includes('T') ? new Date(dateSource) : parseDateString(dateSource);
-}
+const inspiredBg = require('@/assets/inspired-bg.png');
 
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const colors = useAppColors();
+  const styles = useMemo(() => createHistoryStyles(colors), [colors]);
+  const tabLoading = useTabScreenLoading('History');
+  const { conversations, refetchConversations: refetch, generalInsight, insightsLoading } =
+    useTabScreenContext();
 
-  const daysLimit = undefined;
+  const [resolvedTitles, setResolvedTitles] = useState<Record<string, string>>({});
 
-  const { conversations, loading: conversationsLoading, deleteConversation } = useConversations(daysLimit);
   const [selectedConversation, setSelectedConversation] = useState<{
     id: string;
     title: string;
     date: string;
   } | null>(null);
-  const [weekReferenceDate, setWeekReferenceDate] = useState<Date>(() => new Date());
-  const [conversationToDelete, setConversationToDelete] = useState<ConversationToDelete | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
+  const [deepInsightOpen, setDeepInsightOpen] = useState(false);
 
-  const isLoading = conversationsLoading;
-
-  const weekStart = useMemo(
-    () => getWeekStartBrasilia(weekReferenceDate),
-    [weekReferenceDate]
+  const conversationsForDisplay = useMemo(
+    () =>
+      conversations.map((conv) => {
+        const resolved = resolvedTitles[conv.id];
+        if (resolved) {
+          return { ...conv, title: resolved };
+        }
+        if (needsConversationTitleRegeneration(conv.title)) {
+          return { ...conv, title: null };
+        }
+        return conv;
+      }),
+    [conversations, resolvedTitles],
   );
-  const weekEnd = useMemo(() => getWeekEndBrasilia(weekStart), [weekStart]);
 
-  const weekTitle = useMemo(() => {
-    const startLabel = format(weekStart, 'd MMM', { locale: enUS });
-    const endLabel = format(weekEnd, 'd MMM', { locale: enUS });
-    return `${startLabel} - ${endLabel}`;
-  }, [weekEnd, weekStart]);
+  useEffect(() => {
+    if (tabLoading || conversations.length === 0) {
+      return;
+    }
 
-  const weekDays = useMemo<WeekDayConversation[]>(() => {
-    if (isLoading) return [];
+    let cancelled = false;
+    const conversationIds = conversations.map((conv) => conv.id);
 
-    const interval = { start: startOfDay(weekStart), end: endOfDay(weekEnd) };
+    const syncTitles = async () => {
+      const { data: messages, error } = await supabase
+        .from('messages')
+        .select('conversation_id, content, created_at')
+        .in('conversation_id', conversationIds)
+        .eq('role', 'user')
+        .order('created_at', { ascending: false });
 
-    const inWeek = conversations
-      .map((conv) => {
-        const date = getConversationDate(conv);
-        return {
-          id: conv.id,
-          title: conv.title ?? '',
-          date,
-        };
-      })
-      .filter((c) => isWithinInterval(c.date, interval))
-      .sort((a, b) => b.date.getTime() - a.date.getTime());
+      if (cancelled || error || !messages) {
+        return;
+      }
 
-    const byDayKey = new Map<string, typeof inWeek>();
-    inWeek.forEach((c) => {
-      const key = format(c.date, 'yyyy-MM-dd');
-      const list = byDayKey.get(key) ?? [];
-      list.push(c);
-      byDayKey.set(key, list);
-    });
-
-    const result: WeekDayConversation[] = [];
-    for (let i = 0; i < 7; i += 1) {
-      const date = addDays(weekStart, i);
-      const dayKey = format(date, 'yyyy-MM-dd');
-      const convs = byDayKey.get(dayKey) ?? [];
-      const mostRecent = convs[0] ?? null;
-
-      result.push({
-        dayKey,
-        date,
-        dayTitle: format(date, 'EEEE', { locale: ptBR }),
-        daySubtitle: format(date, "d 'de' MMMM", { locale: ptBR }),
-        conversation: mostRecent
-          ? {
-              id: mostRecent.id,
-              title: mostRecent.title || format(date, 'EEEE', { locale: ptBR }),
-              date: mostRecent.date,
-            }
-          : null,
+      const userMessagesByConversation = new Map<string, string[]>();
+      messages.forEach((message) => {
+        const existing = userMessagesByConversation.get(message.conversation_id) ?? [];
+        if (existing.length >= 8) {
+          return;
+        }
+        userMessagesByConversation.set(message.conversation_id, [...existing, message.content]);
       });
+
+      const nextTitles: Record<string, string> = {};
+      conversations.forEach((conv) => {
+        const userMessages = userMessagesByConversation.get(conv.id);
+        if (!userMessages) {
+          return;
+        }
+        const title = buildTitleFromUserMessages(userMessages);
+        if (title) {
+          nextTitles[conv.id] = title;
+        }
+      });
+
+      if (cancelled) {
+        return;
+      }
+
+      if (Object.keys(nextTitles).length > 0) {
+        setResolvedTitles(nextTitles);
+      }
+
+      await Promise.all(
+        conversationIds.map((id) =>
+          updateConversationTitleIfNeeded(id).catch((err) => {
+            console.error('Error updating conversation title:', err);
+          }),
+        ),
+      );
+
+      if (!cancelled) {
+        refetch({ silent: true });
+      }
+    };
+
+    syncTitles();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [conversations, tabLoading, refetch]);
+
+  const monthGroups = useMemo(
+    () => groupConversationsByMonth(conversationsForDisplay),
+    [conversationsForDisplay],
+  );
+
+  useEffect(() => {
+    if (selectedMonthIndex >= monthGroups.length && monthGroups.length > 0) {
+      setSelectedMonthIndex(0);
     }
+  }, [monthGroups.length, selectedMonthIndex]);
 
-    return result;
-  }, [conversations, isLoading, weekEnd, weekStart]);
+  const currentMonth = monthGroups[selectedMonthIndex];
+  const groupedByDate = useMemo(
+    () => (currentMonth ? groupConversationsByDate(currentMonth.conversations) : []),
+    [currentMonth],
+  );
 
-  const handleLongPress = (conversation: { id: string; title: string }) => {
-    setConversationToDelete(conversation);
-  };
+  const canGoNewer = selectedMonthIndex > 0;
+  const canGoOlder = selectedMonthIndex < monthGroups.length - 1;
 
-  const handleConfirmDelete = async () => {
-    if (!conversationToDelete) return;
-    
-    setIsDeleting(true);
-    try {
-      await deleteConversation(conversationToDelete.id);
-      setConversationToDelete(null);
-    } catch (error) {
-      console.error('Error deleting conversation:', error);
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const handleCancelDelete = () => {
-    setConversationToDelete(null);
-  };
-
-  if (isLoading) {
-    return (
-      <View style={[styles.screen(colors).screen, { paddingTop: insets.top }]}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" />
-        </View>
-      </View>
-    );
-  }
+  const canOpenDeepInsight = !insightsLoading && !generalInsight.locked;
 
   if (selectedConversation) {
     return (
@@ -168,312 +166,150 @@ export default function HistoryScreen() {
   }
 
   return (
-    <View style={styles.screen(colors).screen}>
+    <ScreenLoadingGate loading={tabLoading}>
+      <View style={styles.screen}>
       <ScrollView
-        style={styles.screen(colors).scroll}
-        contentContainerStyle={{
-          paddingTop: insets.top + LayoutSpacing.contentPadding.top,
-          paddingHorizontal: LayoutSpacing.contentPadding.horizontal,
-          paddingBottom: LayoutSpacing.contentPadding.bottom,
-        }}
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: insets.top + LayoutSpacing.contentPadding.top,
+            paddingHorizontal: LayoutSpacing.contentPadding.horizontal,
+            paddingBottom: LayoutSpacing.contentPadding.bottom + insets.bottom,
+          },
+        ]}
       >
-        <View style={styles.screen(colors).weekHeader}>
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Semana anterior"
-            activeOpacity={0.85}
-            onPress={() => setWeekReferenceDate((d) => addDays(d, -7))}
-            style={styles.screen(colors).weekNavButton}
-          >
-            <ChevronLeft size={18} color={colors['muted-foreground']} />
-          </TouchableOpacity>
+        <Text style={styles.pageTitle} accessibilityRole="header">
+          Histórico
+        </Text>
 
-          <Text style={styles.screen(colors).weekTitle} accessibilityLabel={`Semana ${weekTitle}`}>
-            {weekTitle}
-          </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            canOpenDeepInsight
+              ? 'Inspirado em você. Toque para ler o insight completo.'
+              : 'Inspirado em você. Continue conversando para desbloquear.'
+          }
+          onPress={() => {
+            if (canOpenDeepInsight) {
+              setDeepInsightOpen(true);
+            }
+          }}
+          disabled={!canOpenDeepInsight}
+          style={styles.inspiredCard}
+        >
+          <ImageBackground source={inspiredBg} style={{ flex: 1 }} resizeMode="cover">
+            <View style={styles.inspiredOverlay} />
+            <View style={styles.inspiredContent}>
+              <View style={styles.inspiredBadgeRow}>
+                <Sparkles size={16} color="rgba(255,255,255,0.8)" />
+                <Text style={styles.inspiredBadge}>Inspirado em você</Text>
+              </View>
 
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Próxima semana"
-            activeOpacity={0.85}
-            onPress={() => setWeekReferenceDate((d) => addDays(d, 7))}
-            style={styles.screen(colors).weekNavButton}
-          >
-            <ChevronRight size={18} color={colors['muted-foreground']} />
-          </TouchableOpacity>
-        </View>
+              {insightsLoading ? (
+                <ActivityIndicator color="#ffffff" style={{ alignSelf: 'flex-start' }} />
+              ) : canOpenDeepInsight ? (
+                <>
+                  <Text style={styles.inspiredTitle} numberOfLines={2}>
+                    {generalInsight.title}
+                  </Text>
+                  <Text style={styles.inspiredDescription} numberOfLines={2}>
+                    {generalInsight.description}
+                  </Text>
+                  <View style={styles.inspiredHintRow}>
+                    <Text style={styles.inspiredHint}>Toque para ler</Text>
+                    <ChevronRight size={14} color="rgba(255,255,255,0.5)" />
+                  </View>
+                </>
+              ) : (
+                <View style={styles.inspiredLockedRow}>
+                  <Lock size={20} color="rgba(255,255,255,0.6)" />
+                  <Text style={styles.inspiredLockedText}>
+                    Continue conversando com o Bud para desbloquear seu insight semanal.
+                  </Text>
+                </View>
+              )}
+            </View>
+          </ImageBackground>
+        </Pressable>
 
-        <Text style={styles.screen(colors).pageTitle}>Conversas da semana</Text>
-        
         {conversations.length === 0 ? (
-          <View style={styles.screen(colors).emptyCard}>
-            <Text style={styles.screen(colors).emptyEmoji}>💬</Text>
-            <Text style={styles.screen(colors).emptyText}>Você ainda não tem conversas salvas.</Text>
+          <View style={styles.emptyCard}>
+            <MessageSquare size={48} color={colors['muted-foreground']} />
+            <Text style={styles.emptyText}>Você ainda não tem conversas salvas.</Text>
           </View>
         ) : (
-          <View style={styles.screen(colors).list}>
-            {weekDays
-              .filter((d) => d.conversation)
-              .map((d) => (
-                <TouchableOpacity
-                  key={`week-day-${d.dayKey}`}
-                  activeOpacity={0.9}
-                  onPress={() =>
-                    d.conversation
-                      ? setSelectedConversation({
-                          id: d.conversation.id,
-                          title: d.dayTitle,
-                          date: d.conversation.date.toISOString(),
-                        })
-                      : undefined
-                  }
-                  onLongPress={() =>
-                    d.conversation
-                      ? handleLongPress({
-                          id: d.conversation.id,
-                          title: d.dayTitle,
-                        })
-                      : undefined
-                  }
-                  delayLongPress={500}
-                  style={styles.screen(colors).dayCard}
+          <>
+            {currentMonth ? (
+              <View style={styles.monthHeader}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Mês anterior"
+                  disabled={!canGoOlder}
+                  onPress={() => setSelectedMonthIndex((i) => i + 1)}
+                  style={[styles.monthNavButton, !canGoOlder && styles.monthNavButtonDisabled]}
                 >
-                  <Text style={styles.screen(colors).dayTitle}>{d.dayTitle}</Text>
-                  <Text style={styles.screen(colors).daySubtitle}>{d.daySubtitle}</Text>
-                </TouchableOpacity>
-              ))}
-          </View>
+                  <ChevronLeft size={22} color={colors.foreground} />
+                </Pressable>
+
+                <View>
+                  <Text style={styles.monthLabel}>{currentMonth.monthLabel}</Text>
+                  <Text style={styles.monthCount}>
+                    {currentMonth.count}{' '}
+                    {currentMonth.count === 1 ? 'conversa' : 'conversas'}
+                  </Text>
+                </View>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Próximo mês"
+                  disabled={!canGoNewer}
+                  onPress={() => setSelectedMonthIndex((i) => i - 1)}
+                  style={[styles.monthNavButton, !canGoNewer && styles.monthNavButtonDisabled]}
+                >
+                  <ChevronRight size={22} color={colors.foreground} />
+                </Pressable>
+              </View>
+            ) : null}
+
+            {groupedByDate.length === 0 ? (
+              <View style={styles.emptyMonth}>
+                <Text style={styles.emptyMonthText}>Nenhuma conversa neste mês.</Text>
+              </View>
+            ) : (
+              groupedByDate.map((group) => (
+                <View key={group.groupKey} style={styles.dateGroup}>
+                  <Text style={styles.dateGroupTitle}>{group.groupTitle}</Text>
+
+                  {group.conversations.map((conversation) => (
+                    <Pressable
+                      key={conversation.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Conversa: ${conversation.title}`}
+                      onPress={() =>
+                        setSelectedConversation({
+                          id: conversation.id,
+                          title: conversation.title,
+                          date: conversation.date.toISOString(),
+                        })
+                      }
+                      style={styles.conversationRow}
+                    >
+                      <Text style={styles.conversationTitle} numberOfLines={1}>
+                        {conversation.title}
+                      </Text>
+                      <ChevronRight size={20} color={colors['muted-foreground']} />
+                    </Pressable>
+                  ))}
+                </View>
+              ))
+            )}
+          </>
         )}
       </ScrollView>
 
-      {/* Delete Confirmation Modal */}
-      <Modal
-        visible={conversationToDelete !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={handleCancelDelete}
-      >
-        <Pressable 
-          style={styles.screen(colors).modalOverlay}
-          onPress={handleCancelDelete}
-        >
-          <Pressable 
-            style={styles.screen(colors).modalCard}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View style={styles.screen(colors).modalHeader}>
-              <View style={styles.screen(colors).modalIconCircle}>
-                <Text style={styles.screen(colors).modalIcon}>🗑️</Text>
-              </View>
-              <Text style={styles.screen(colors).modalTitle}>Excluir conversa?</Text>
-            </View>
-
-            <View style={styles.screen(colors).modalBody}>
-              <Text style={styles.screen(colors).modalText}>
-                A conversa <Text style={styles.screen(colors).modalTextStrong}>"{conversationToDelete?.title}"</Text> será excluída
-                permanentemente. Esta ação não pode ser desfeita.
-              </Text>
-            </View>
-
-            <View style={styles.screen(colors).modalSeparator} />
-
-            <View style={styles.screen(colors).modalActionsRow}>
-              <TouchableOpacity
-                style={styles.screen(colors).modalAction}
-                onPress={handleCancelDelete}
-                disabled={isDeleting}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.screen(colors).modalActionCancel}>Cancelar</Text>
-              </TouchableOpacity>
-
-              <View style={styles.screen(colors).modalDivider} />
-
-              <TouchableOpacity
-                style={styles.screen(colors).modalAction}
-                onPress={handleConfirmDelete}
-                disabled={isDeleting}
-                activeOpacity={0.85}
-              >
-                {isDeleting ? (
-                  <ActivityIndicator size="small" color="#ef4444" />
-                ) : (
-                  <Text style={styles.screen(colors).modalActionDelete}>Excluir</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-    </View>
+      <DeepInsightSheet visible={deepInsightOpen} onClose={() => setDeepInsightOpen(false)} />
+      </View>
+    </ScreenLoadingGate>
   );
 }
-
-const styles = {
-  center: StyleSheet.create({
-    center: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-  }).center,
-  screen: (colors: { background: string; card: string; foreground: string; border: string; 'muted-foreground': string }) =>
-    StyleSheet.create({
-      screen: {
-        flex: 1,
-        backgroundColor: colors.background,
-      },
-      scroll: {
-        flex: 1,
-      },
-  weekHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 28,
-  },
-  weekNavButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.10)',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  weekTitle: {
-    fontFamily: frauncesFont,
-    fontSize: 20,
-    color: colors.foreground,
-    letterSpacing: 0.2,
-  },
-  pageTitle: {
-    fontFamily: frauncesFont,
-    fontSize: 28,
-    color: colors.foreground,
-    marginBottom: 18,
-  },
-  list: {
-    gap: 16,
-    paddingBottom: 16,
-  },
-  dayCard: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dayTitle: {
-    fontFamily: frauncesFont,
-    fontSize: 26,
-    color: colors.foreground,
-    marginBottom: 6,
-  },
-  daySubtitle: {
-    fontFamily: frauncesFont,
-    fontSize: 14,
-    color: colors['muted-foreground'],
-  },
-  emptyCard: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    paddingVertical: 28,
-    paddingHorizontal: 18,
-    alignItems: 'center',
-  },
-  emptyEmoji: {
-    fontSize: 44,
-    marginBottom: 12,
-  },
-  emptyText: {
-    fontFamily: frauncesFont,
-    fontSize: 16,
-    color: colors['muted-foreground'],
-    textAlign: 'center',
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 24,
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: 420,
-    backgroundColor: colors.card,
-    borderRadius: 18,
-    overflow: 'hidden',
-  },
-  modalHeader: {
-    paddingTop: 22,
-    paddingBottom: 14,
-    paddingHorizontal: 18,
-    alignItems: 'center',
-  },
-  modalIconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(239, 68, 68, 0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  modalIcon: {
-    fontSize: 28,
-  },
-  modalTitle: {
-    fontFamily: frauncesFont,
-    fontSize: 20,
-    color: colors.foreground,
-    textAlign: 'center',
-  },
-  modalBody: {
-    paddingHorizontal: 18,
-    paddingBottom: 18,
-  },
-  modalText: {
-    fontFamily: frauncesFont,
-    fontSize: 15,
-    color: colors['muted-foreground'],
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  modalTextStrong: {
-    color: colors.foreground,
-  },
-  modalSeparator: {
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  modalActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  modalAction: {
-    flex: 1,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalDivider: {
-    width: 1,
-    alignSelf: 'stretch',
-    backgroundColor: colors.border,
-  },
-  modalActionCancel: {
-    fontFamily: frauncesFont,
-    fontSize: 16,
-    color: colors['muted-foreground'],
-  },
-  modalActionDelete: {
-    fontFamily: frauncesFont,
-    fontSize: 16,
-    color: '#ef4444',
-  },
-    }),
-};

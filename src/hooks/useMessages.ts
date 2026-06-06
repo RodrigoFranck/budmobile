@@ -11,6 +11,7 @@ export function useMessages(conversationId: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const previousConversationIdRef = useRef<string | null>(null);
+  const fetchGenerationRef = useRef(0);
 
   useEffect(() => {
     if (!conversationId || !user) {
@@ -28,6 +29,8 @@ export function useMessages(conversationId: string | null) {
       previousConversationIdRef.current = conversationId;
     }
 
+    const fetchGeneration = ++fetchGenerationRef.current;
+
     // Função para buscar mensagens
     const fetchMessages = async () => {
       if (!conversationId) return;
@@ -39,6 +42,10 @@ export function useMessages(conversationId: string | null) {
           .select("*")
           .eq("conversation_id", conversationId)
           .order("created_at", { ascending: true });
+
+        if (fetchGeneration !== fetchGenerationRef.current) {
+          return;
+        }
 
         if (error) {
           console.error("Error fetching messages:", error);
@@ -56,9 +63,13 @@ export function useMessages(conversationId: string | null) {
         }
       } catch (error) {
         console.error("useMessages: Error fetching messages:", error);
-        setMessages([]);
+        if (fetchGeneration === fetchGenerationRef.current) {
+          setMessages([]);
+        }
       } finally {
-        setLoading(false);
+        if (fetchGeneration === fetchGenerationRef.current) {
+          setLoading(false);
+        }
       }
     };
 
@@ -91,6 +102,7 @@ export function useMessages(conversationId: string | null) {
       .subscribe();
 
     return () => {
+      fetchGenerationRef.current += 1;
       supabase.removeChannel(channel);
     };
   }, [conversationId, user]);
@@ -111,6 +123,15 @@ export function useMessages(conversationId: string | null) {
 
       if (error) throw error;
 
+      if (data) {
+        setMessages((current) => {
+          if (current.some((m) => m.id === data.id)) {
+            return current;
+          }
+          return [...current, data];
+        });
+      }
+
       // Se é a primeira mensagem do usuário, gerar título da conversa
       if (role === "user" && data) {
         // Atualizar título em background (não bloquear)
@@ -128,7 +149,9 @@ export function useMessages(conversationId: string | null) {
 
   const refetch = useCallback(async () => {
     if (!conversationId || !user) return;
-    
+
+    const fetchGeneration = ++fetchGenerationRef.current;
+
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -137,13 +160,21 @@ export function useMessages(conversationId: string | null) {
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: true });
 
+      if (fetchGeneration !== fetchGenerationRef.current) {
+        return;
+      }
+
       if (error) throw error;
       setMessages(data || []);
     } catch (error) {
       console.error("Error refetching messages:", error);
-      setMessages([]);
+      if (fetchGeneration === fetchGenerationRef.current) {
+        setMessages([]);
+      }
     } finally {
-      setLoading(false);
+      if (fetchGeneration === fetchGenerationRef.current) {
+        setLoading(false);
+      }
     }
   }, [conversationId, user]);
 

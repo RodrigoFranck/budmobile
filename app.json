@@ -3,10 +3,10 @@
     "name": "Bud.",
     "slug": "budmobile",
     "scheme": "com.bud.app",
-    "version": "1.0.5",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -17,7 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.bud.app",
       "usesAppleSignIn": true,
-      "buildNumber": "6",
+      "buildNumber": "8",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Bud precisa acessar o microfone para conversas de voz.",
         "NSCameraUsageDescription": "Bud precisa acessar a câmera para tirar fotos e anexar imagens em conversas e solicitações.",

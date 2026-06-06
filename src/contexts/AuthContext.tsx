@@ -62,12 +62,25 @@ function ensureStrictBoolean(value: unknown): boolean {
   return false;
 }
 
+function getAppleAuthErrorCode(error: unknown): string | undefined {
+  if (error instanceof CodedError) {
+    return error.code;
+  }
+  if (error instanceof Error && 'code' in error && typeof error.code === 'string') {
+    return error.code;
+  }
+  return undefined;
+}
+
 function isAppleAuthCanceled(error: unknown): boolean {
-  if (error instanceof CodedError && error.code === 'ERR_REQUEST_CANCELED') {
+  const code = getAppleAuthErrorCode(error);
+  if (code === 'ERR_REQUEST_CANCELED' || code === 'ERR_REQUEST_UNKNOWN') {
     return true;
   }
-  if (error instanceof Error && error.message.includes('ERR_REQUEST_CANCELED')) {
-    return true;
+  if (error instanceof Error) {
+    if (error.message.includes('user canceled the authorization attempt')) {
+      return true;
+    }
   }
   return false;
 }
@@ -106,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data } = await supabase
       .from("profiles")
       .select("onboarding_completed")
-      .eq("id", user.id)
+      .eq("user_id", user.id)
       .maybeSingle();
     
     // Ensure strict boolean conversion (Supabase may return as string in some cases)
@@ -129,7 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data } = await supabase
         .from("profiles")
         .select("onboarding_completed")
-        .eq("id", user.id)
+        .eq("user_id", user.id)
         .maybeSingle();
 
       if (cancelled) {
@@ -362,7 +375,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (fullName) {
           const { error: profileError } = await supabase
             .from('profiles')
-            .upsert({ id: signInData.user.id, name: fullName }, { onConflict: 'id' });
+            .upsert({ user_id: signInData.user.id, name: fullName }, { onConflict: 'user_id' });
 
           if (profileError) {
             console.warn('Apple sign-in profile upsert failed:', profileError.message);
