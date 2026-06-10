@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, useMemo } from 'react';
-import { FlatList, View, Text } from 'react-native';
+import { FlatList, Keyboard, View, Text } from 'react-native';
 import { format, isSameDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChatMessage } from './ChatMessage';
@@ -94,6 +94,8 @@ function DateDivider({ label }: { label: string }) {
 export function ChatContainer({ messages, loading, topPadding, scrollResetToken }: ChatContainerProps) {
   const colors = useAppColors();
   const flatListRef = useRef<FlatList>(null);
+  const isNearBottomRef = useRef(true);
+  const previousListLengthRef = useRef(0);
   const styles = useMemo(
     () =>
       createChatContainerStyles({
@@ -104,6 +106,11 @@ export function ChatContainer({ messages, loading, topPadding, scrollResetToken 
   );
 
   const listItems = useMemo(() => buildListItems(messages), [messages]);
+  const isInverted = listItems.length > 0;
+  const displayItems = useMemo(
+    () => (isInverted ? [...listItems].reverse() : listItems),
+    [isInverted, listItems],
+  );
 
   const showTypingFooter = useMemo(() => {
     if (!loading || messages.length === 0) {
@@ -118,21 +125,61 @@ export function ChatContainer({ messages, loading, topPadding, scrollResetToken 
     return !hasStreamingAssistantContent;
   }, [loading, messages]);
 
+  const scrollToLatest = useCallback((animated = false) => {
+    requestAnimationFrame(() => {
+      if (isInverted) {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated });
+        return;
+      }
+      flatListRef.current?.scrollToEnd({ animated });
+    });
+  }, [isInverted]);
+
+  const handleScroll = useCallback(
+    (event: { nativeEvent: { contentOffset: { y: number }; contentSize: { height: number }; layoutMeasurement: { height: number } } }) => {
+      const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+
+      if (isInverted) {
+        isNearBottomRef.current = contentOffset.y < 80;
+        return;
+      }
+
+      const distanceFromBottom =
+        contentSize.height - layoutMeasurement.height - contentOffset.y;
+      isNearBottomRef.current = distanceFromBottom < 80;
+    },
+    [isInverted],
+  );
+
+  const handleContentSizeChange = useCallback(() => {
+    if (!isNearBottomRef.current) return;
+    scrollToLatest(false);
+  }, [scrollToLatest]);
+
   useEffect(() => {
-    if (listItems.length > 0) {
-      requestAnimationFrame(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      });
+    if (listItems.length > 0 && previousListLengthRef.current === 0) {
+      isNearBottomRef.current = true;
+      scrollToLatest(false);
     }
-  }, [listItems.length]);
+    previousListLengthRef.current = listItems.length;
+  }, [listItems.length, scrollToLatest]);
 
   useEffect(() => {
     if (!scrollResetToken) return;
 
-    requestAnimationFrame(() => {
-      flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+    isNearBottomRef.current = true;
+    scrollToLatest(false);
+  }, [scrollResetToken, scrollToLatest]);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+      scrollToLatest(true);
     });
-  }, [scrollResetToken]);
+
+    return () => {
+      showSubscription.remove();
+    };
+  }, [scrollToLatest]);
 
   const renderItem = useCallback(
     ({ item }: { item: ListItem }) => {
@@ -159,7 +206,7 @@ export function ChatContainer({ messages, loading, topPadding, scrollResetToken 
 
   const showEmpty = messages.length === 0 && !loading;
 
-  const listFooter = useMemo(() => (
+  const typingIndicator = useMemo(() => (
     showTypingFooter ? (
       <View style={styles.footerWrap}>
         <Text style={styles.footerText}>Bud está digitando...</Text>
@@ -170,18 +217,26 @@ export function ChatContainer({ messages, loading, topPadding, scrollResetToken 
   return (
     <FlatList
       ref={flatListRef}
-      data={listItems}
+      data={displayItems}
+      inverted={isInverted}
       renderItem={renderItem}
       keyExtractor={keyExtractor}
       style={styles.list}
-      contentContainerStyle={styles.contentContainer}
-      onContentSizeChange={() => {
-        requestAnimationFrame(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        });
-      }}
+      contentContainerStyle={[
+        styles.contentContainer,
+        !isInverted && styles.contentContainerAnchored,
+      ]}
+      onScroll={handleScroll}
+      scrollEventThrottle={16}
+      onContentSizeChange={handleContentSizeChange}
+      maintainVisibleContentPosition={
+        isInverted
+          ? { minIndexForVisible: 0, autoscrollToTopThreshold: 20 }
+          : undefined
+      }
       ListEmptyComponent={showEmpty ? <ChatEmptyPrompt /> : null}
-      ListFooterComponent={listFooter}
+      ListHeaderComponent={isInverted ? typingIndicator : null}
+      ListFooterComponent={isInverted ? null : typingIndicator}
     />
   );
 }

@@ -528,7 +528,6 @@ function VoiceInterfaceNativeInner(
           serverProfile,
         ),
         {
-          approachGuidance: data?.approach_guidance as string | undefined,
           clinicalContext: data?.clinical_context as string | undefined,
         },
       );
@@ -681,7 +680,6 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
             serverProfile,
           ),
           {
-            approachGuidance: data?.approach_guidance as string | undefined,
             clinicalContext: data?.clinical_context as string | undefined,
           },
         );

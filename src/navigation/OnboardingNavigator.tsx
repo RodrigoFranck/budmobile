@@ -6,8 +6,8 @@ import OnboardingNameScreen from '@/pages/onboarding/OnboardingNameScreen';
 import OnboardingAgeScreen from '@/pages/onboarding/OnboardingAgeScreen';
 import OnboardingThoughtsScreen from '@/pages/onboarding/OnboardingThoughtsScreen';
 import OnboardingExpectationsScreen from '@/pages/onboarding/OnboardingExpectationsScreen';
-import OnboardingCommitmentScreen from '@/pages/onboarding/OnboardingCommitmentScreen';
-import OnboardingNotificationsScreen from '@/pages/onboarding/OnboardingNotificationsScreen';
+// import OnboardingCommitmentScreen from '@/pages/onboarding/OnboardingCommitmentScreen';
+// import OnboardingNotificationsScreen from '@/pages/onboarding/OnboardingNotificationsScreen';
 import OnboardingVoiceScreen from '@/pages/onboarding/OnboardingVoiceScreen';
 import OnboardingReadyScreen from '@/pages/onboarding/OnboardingReadyScreen';
 
@@ -28,8 +28,8 @@ export default function OnboardingNavigator() {
         <Stack.Screen name="OnboardingAge" component={OnboardingAgeScreen} />
         <Stack.Screen name="OnboardingThoughts" component={OnboardingThoughtsScreen} />
         <Stack.Screen name="OnboardingExpectations" component={OnboardingExpectationsScreen} />
-        <Stack.Screen name="OnboardingCommitment" component={OnboardingCommitmentScreen} />
-        <Stack.Screen name="OnboardingNotifications" component={OnboardingNotificationsScreen} />
+        {/* <Stack.Screen name="OnboardingCommitment" component={OnboardingCommitmentScreen} /> */}
+        {/* <Stack.Screen name="OnboardingNotifications" component={OnboardingNotificationsScreen} /> */}
         <Stack.Screen name="OnboardingVoice" component={OnboardingVoiceScreen} />
         <Stack.Screen name="OnboardingReady" component={OnboardingReadyScreen} />
       </Stack.Navigator>

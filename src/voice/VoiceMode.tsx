@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  ScrollView,
   Text,
   TouchableOpacity,
   View,
@@ -94,6 +95,7 @@ export function VoiceMode({
     [colors, insets.bottom, insets.top],
   );
   const [displayedText, setDisplayedText] = useState('');
+  const scrollRef = useRef<ScrollView>(null);
 
   const handleClose = () => {
     onEndVoice?.();
@@ -118,6 +120,11 @@ export function VoiceMode({
     }, 150);
     return () => clearInterval(interval);
   }, [transcript]);
+
+  useEffect(() => {
+    if (!displayedText) return;
+    scrollRef.current?.scrollToEnd({ animated: true });
+  }, [displayedText]);
 
   const statusLabel = isConnecting
     ? 'Bud está conectando...'
@@ -147,11 +154,17 @@ export function VoiceMode({
           <ChevronLeft size={20} color={colors.foreground} strokeWidth={2} />
         </TouchableOpacity>
 
-        <View style={styles.main}>
+        <ScrollView
+          ref={scrollRef}
+          style={styles.main}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.transcript}>
             {displayedText || transcriptPlaceholder}
           </Text>
-        </View>
+        </ScrollView>
 
         <View style={styles.bottom}>
           <Text style={styles.status}>{statusLabel}</Text>

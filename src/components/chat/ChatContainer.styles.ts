@@ -15,10 +15,12 @@ export function createChatContainerStyles(params: {
     },
     contentContainer: {
       flexGrow: 1,
-      justifyContent: 'flex-end',
       paddingHorizontal: Spacing.base + 4,
       paddingTop: topPadding,
       paddingBottom: Spacing.sm,
+    },
+    contentContainerAnchored: {
+      justifyContent: 'flex-end',
     },
     emptyPrompt: {
       paddingVertical: Spacing['3xl'],

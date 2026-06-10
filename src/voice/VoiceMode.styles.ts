@@ -29,9 +29,12 @@ export function createVoiceModeStyles(params: {
     },
     main: {
       flex: 1,
-      justifyContent: 'center',
       paddingHorizontal: 47,
       paddingTop: topInset + 90,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      justifyContent: 'center',
     },
     transcript: {
       fontFamily: 'Fraunces_400Regular',

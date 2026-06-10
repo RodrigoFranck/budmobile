@@ -5,8 +5,8 @@ export type OnboardingStackParamList = {
   OnboardingAge: undefined;
   OnboardingThoughts: undefined;
   OnboardingExpectations: undefined;
-  OnboardingCommitment: undefined;
-  OnboardingNotifications: undefined;
+  // OnboardingCommitment: undefined;
+  // OnboardingNotifications: undefined;
   OnboardingVoice: undefined;
   OnboardingReady: undefined;
 };
