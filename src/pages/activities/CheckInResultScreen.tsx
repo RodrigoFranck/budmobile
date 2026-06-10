@@ -73,7 +73,7 @@ export default function CheckInResultScreen() {
       setLoading(true);
       setGenerateFailed(false);
       try {
-        const { data, error } = await supabase.functions.invoke('generate-checkin-report', {
+        const { data, error, response } = await supabase.functions.invoke('generate-checkin-report', {
           body: {
             checkin_type: type,
             responses,
@@ -82,6 +82,12 @@ export default function CheckInResultScreen() {
         });
 
         if (error || !data?.report) {
+          const responseBody = response ? await response.text().catch(() => null) : null;
+          console.error('generate-checkin-report failed', {
+            status: response?.status,
+            body: responseBody,
+            error: error?.message,
+          });
           throw new Error(error?.message ?? 'Falha ao gerar relatório');
         }
 

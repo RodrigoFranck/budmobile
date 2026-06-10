@@ -126,6 +126,8 @@ Secrets usados pelas functions (nomes apenas — **nunca** colar valores no chat
 
 - `OPENAI_API_KEY`
 - `ELEVENLABS_API_KEY`
+- `ELEVENLABS_AGENT_ID` (opcional; default: `agent_0301kpp8108ffwsvd9xxwmsa6eta` — Bud. Oficial)
+- `ELEVENLABS_AGENT_BRANCH_ID` (opcional; default: `agtbrch_6801kpp8125nf8w9wxcm5b6mrdxg`)
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 
 Atualizar secret:

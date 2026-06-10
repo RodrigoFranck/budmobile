@@ -481,7 +481,15 @@ export async function generateConversationTitle(conversationId: string): Promise
   }
 }
 
+const titleUpdateInFlight = new Set<string>();
+
 export async function updateConversationTitleIfNeeded(conversationId: string): Promise<void> {
+  if (titleUpdateInFlight.has(conversationId)) {
+    return;
+  }
+
+  titleUpdateInFlight.add(conversationId);
+
   try {
     const { data: conversation, error: convError } = await supabase
       .from("conversations")
@@ -520,5 +528,7 @@ export async function updateConversationTitleIfNeeded(conversationId: string): P
     }
   } catch (error) {
     console.error("Error in updateConversationTitleIfNeeded:", error);
+  } finally {
+    titleUpdateInFlight.delete(conversationId);
   }
 }

@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { KeyboardAvoidingView, Pressable, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -43,6 +44,14 @@ export default function TextChatScreen() {
     handleEndVoiceSession,
   } = useChatSession();
 
+  const handleBack = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.navigate('ChatHome');
+  }, [navigation]);
+
   return (
     <ScreenLoadingGate loading={tabLoading}>
       <View className="flex-1 bg-background">
@@ -60,7 +69,7 @@ export default function TextChatScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Voltar para início do chat"
-              onPress={() => navigation.goBack()}
+              onPress={handleBack}
               hitSlop={12}
               style={{ alignSelf: 'flex-start', paddingVertical: 4 }}
             >

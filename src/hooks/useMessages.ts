@@ -12,6 +12,7 @@ export function useMessages(conversationId: string | null) {
   const [loading, setLoading] = useState(true);
   const previousConversationIdRef = useRef<string | null>(null);
   const fetchGenerationRef = useRef(0);
+  const titleCheckedForConversationRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!conversationId || !user) {
@@ -27,6 +28,7 @@ export function useMessages(conversationId: string | null) {
       setMessages([]);
       setLoading(true);
       previousConversationIdRef.current = conversationId;
+      titleCheckedForConversationRef.current = null;
     }
 
     const fetchGeneration = ++fetchGenerationRef.current;
@@ -54,10 +56,13 @@ export function useMessages(conversationId: string | null) {
         
         setMessages(data || []);
 
-        // Se há mensagens e a conversa pode não ter título, verificar e gerar se necessário
-        if (data && data.length > 0) {
-          // Verificar se precisa gerar título (em background, não bloquear)
-          updateConversationTitleIfNeeded(conversationId).catch(err => {
+        if (
+          data &&
+          data.length > 0 &&
+          titleCheckedForConversationRef.current !== conversationId
+        ) {
+          titleCheckedForConversationRef.current = conversationId;
+          updateConversationTitleIfNeeded(conversationId).catch((err) => {
             console.error("Error updating conversation title on fetch:", err);
           });
         }

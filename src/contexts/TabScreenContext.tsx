@@ -109,9 +109,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-    // getOrCreateTodayConversation is stable enough for user-scoped init
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, getOrCreateTodayConversation]);
 
   const { messages, loading: chatMessagesLoading, addMessage } =
     useMessages(chatConversationId);
