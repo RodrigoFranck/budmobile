@@ -88,6 +88,20 @@ APP_BASE_NAME=${0##*/}
 # Discard cd standard output in case $CDPATH is set (https://github.com/gradle/gradle/issues/25036)
 APP_HOME=$( cd -P "${APP_HOME:-./}" > /dev/null && printf '%s\n' "$PWD" ) || exit
 
+# Ensure Node.js is on PATH for Expo/React Native Gradle plugins (IDE often lacks nvm).
+if [ -d "$APP_HOME/bin" ]; then
+  PATH="$APP_HOME/bin:$PATH"
+fi
+if [ -f "$APP_HOME/local.properties" ]; then
+  NODE_EXECUTABLE=$(grep '^node\.executable=' "$APP_HOME/local.properties" | cut -d= -f2- | tr -d '\r')
+  if [ -n "$NODE_EXECUTABLE" ] && [ -x "$NODE_EXECUTABLE" ]; then
+    NODE_BINARY="$NODE_EXECUTABLE"
+    PATH="$(dirname "$NODE_EXECUTABLE"):$PATH"
+    export NODE_BINARY
+  fi
+fi
+export PATH
+
 # Use the maximum available, or set MAX_FD != -1 to use that value.
 MAX_FD=maximum
 

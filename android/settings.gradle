@@ -1,11 +1,7 @@
 pluginManagement {
   apply from: new File(settingsDir, "nodeExecutable.gradle")
-  configureNodeForGradle(settingsDir)
 
-  def nodeShim = new File(settingsDir, "bin/node")
-  def nodeCommand = nodeShim.exists()
-    ? ["sh", nodeShim.absolutePath]
-    : [resolveNodeExecutable(settingsDir)]
+  def nodeCommand = nodeCommandForGradle(settingsDir)
 
   def reactNativeGradlePlugin = new File(
     providers.exec {
