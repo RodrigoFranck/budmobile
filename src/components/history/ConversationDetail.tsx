@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
@@ -11,7 +11,7 @@ import { useMessages } from '@/hooks/useMessages';
 import { useOnboardingColors } from '@/constants/onboardingTheme';
 import { useConversationDetailStyles } from '@/components/history/ConversationDetail.styles';
 import {
-  buildTitleFromUserMessages,
+  generateConversationTitle,
   needsConversationTitleRegeneration,
 } from '@/utils/generateConversationTitle';
 
@@ -44,24 +44,42 @@ export default function ConversationDetail({
   const insets = useSafeAreaInsets();
   const onboardingColors = useOnboardingColors();
   const styles = useConversationDetailStyles();
+  const [generatedTitle, setGeneratedTitle] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!needsConversationTitleRegeneration(conversationTitle)) {
+      setGeneratedTitle(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    generateConversationTitle(conversationId)
+      .then((title) => {
+        if (!cancelled && title) {
+          setGeneratedTitle(title);
+        }
+      })
+      .catch(() => {
+        // Mantém fallback de data enquanto a IA não responde.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, conversationTitle]);
 
   const displayTitle = useMemo(() => {
     if (!needsConversationTitleRegeneration(conversationTitle)) {
       return conversationTitle;
     }
 
-    const userMessagesNewestFirst = messages
-      .filter((message) => message.role === 'user')
-      .map((message) => message.content)
-      .reverse();
-
-    const generated = buildTitleFromUserMessages(userMessagesNewestFirst);
-    if (generated) {
-      return generated;
+    if (generatedTitle) {
+      return generatedTitle;
     }
 
     return format(new Date(conversationDate), "d 'de' MMMM", { locale: ptBR });
-  }, [conversationTitle, conversationDate, messages]);
+  }, [conversationTitle, conversationDate, generatedTitle]);
 
   if (loading) {
     return (

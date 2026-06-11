@@ -19,13 +19,7 @@ import {
 } from '@/contexts/TabScreenContext';
 import { LayoutSpacing } from '@/constants/layout';
 import { useAppColors } from '@/lib/colors';
-import { supabase } from '@/integrations/supabase/client';
 import { groupConversationsByDate, groupConversationsByMonth } from '@/utils/dateGrouping';
-import {
-  buildTitleFromUserMessages,
-  needsConversationTitleRegeneration,
-  updateConversationTitleIfNeeded,
-} from '@/utils/generateConversationTitle';
 import { createHistoryStyles } from '@/pages/History.styles';
 
 const inspiredBg = require('@/assets/inspired-bg.png');
@@ -38,8 +32,6 @@ export default function HistoryScreen() {
   const { conversations, generalInsight, insightsLoading } =
     useTabScreenContext();
 
-  const [resolvedTitles, setResolvedTitles] = useState<Record<string, string>>({});
-
   const [selectedConversation, setSelectedConversation] = useState<{
     id: string;
     title: string;
@@ -48,97 +40,9 @@ export default function HistoryScreen() {
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
   const [deepInsightOpen, setDeepInsightOpen] = useState(false);
 
-  const conversationsForDisplay = useMemo(
-    () =>
-      conversations.map((conv) => {
-        const resolved = resolvedTitles[conv.id];
-        if (resolved) {
-          return { ...conv, title: resolved };
-        }
-        if (needsConversationTitleRegeneration(conv.title)) {
-          return { ...conv, title: null };
-        }
-        return conv;
-      }),
-    [conversations, resolvedTitles],
-  );
-
-  useEffect(() => {
-    if (tabLoading || conversations.length === 0) {
-      return;
-    }
-
-    const conversationsNeedingTitle = conversations.filter((conv) =>
-      needsConversationTitleRegeneration(conv.title),
-    );
-
-    if (conversationsNeedingTitle.length === 0) {
-      return;
-    }
-
-    let cancelled = false;
-    const conversationIds = conversationsNeedingTitle.map((conv) => conv.id);
-
-    const syncTitles = async () => {
-      const { data: messages, error } = await supabase
-        .from('messages')
-        .select('conversation_id, content, created_at')
-        .in('conversation_id', conversationIds)
-        .eq('role', 'user')
-        .order('created_at', { ascending: false });
-
-      if (cancelled || error || !messages) {
-        return;
-      }
-
-      const userMessagesByConversation = new Map<string, string[]>();
-      messages.forEach((message) => {
-        const existing = userMessagesByConversation.get(message.conversation_id) ?? [];
-        if (existing.length >= 8) {
-          return;
-        }
-        userMessagesByConversation.set(message.conversation_id, [...existing, message.content]);
-      });
-
-      const nextTitles: Record<string, string> = {};
-      conversationsNeedingTitle.forEach((conv) => {
-        const userMessages = userMessagesByConversation.get(conv.id);
-        if (!userMessages) {
-          return;
-        }
-        const title = buildTitleFromUserMessages(userMessages);
-        if (title) {
-          nextTitles[conv.id] = title;
-        }
-      });
-
-      if (cancelled) {
-        return;
-      }
-
-      if (Object.keys(nextTitles).length > 0) {
-        setResolvedTitles((prev) => ({ ...prev, ...nextTitles }));
-      }
-
-      await Promise.all(
-        conversationIds.map((id) =>
-          updateConversationTitleIfNeeded(id).catch((err) => {
-            console.error('Error updating conversation title:', err);
-          }),
-        ),
-      );
-    };
-
-    syncTitles();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [conversations, tabLoading]);
-
   const monthGroups = useMemo(
-    () => groupConversationsByMonth(conversationsForDisplay),
-    [conversationsForDisplay],
+    () => groupConversationsByMonth(conversations),
+    [conversations],
   );
 
   useEffect(() => {

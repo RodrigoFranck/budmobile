@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { isDeveloperEmail } from "@/constants/developerAccess";
 
 export interface Insight {
   title: string;
@@ -16,8 +17,20 @@ export interface Insight {
   cycleRequired?: number; // Conversas necessárias para próximo ciclo
 }
 
+function applyDeveloperAccess(insight: Insight, cycleRequired?: number): Insight {
+  return {
+    ...insight,
+    locked: false,
+    remaining: 0,
+    ...(cycleRequired
+      ? { cycleProgress: cycleRequired, cycleRequired }
+      : {}),
+  };
+}
+
 export function useExploreInsights() {
   const { user } = useAuth();
+  const isDeveloper = isDeveloperEmail(user?.email);
   const [yesterdayInsight, setYesterdayInsight] = useState<Insight>({ 
     title: '', 
     description: '', 
@@ -55,7 +68,16 @@ export function useExploreInsights() {
     }
 
     const fetchInsights = async () => {
-      
+      if (isDeveloper) {
+        try {
+          await supabase.functions.invoke("generate-insights", {
+            body: {},
+          });
+        } catch (error) {
+          console.warn("Developer insight regeneration failed:", error);
+        }
+      }
+
       
 
       // Contar TODAS as conversas (histórico total) para cálculo de ciclo
@@ -138,10 +160,33 @@ export function useExploreInsights() {
       };
 
       if (!insights || insights.length === 0) {
-        setYesterdayInsight({ ...fallbackMessages.yesterday_journey.noInsights, loading: false });
-        setGeneralInsight({ ...fallbackMessages.general_insight.noInsights, loading: false, remaining: Math.max(0, 5 - totalConversationCount), cycleProgress: Math.min(totalConversationCount, 5), cycleRequired: 5 });
-        setFrequencyInsight({ ...fallbackMessages.frequency.noInsights, loading: false, remaining: Math.max(0, 3 - totalConversationCount), cycleProgress: Math.min(totalConversationCount, 3), cycleRequired: 3 });
-        setHabitInsight({ ...fallbackMessages.habit.noInsights, loading: false, remaining: Math.max(0, 3 - totalConversationCount), cycleProgress: Math.min(totalConversationCount, 3), cycleRequired: 3 });
+        const emptyYesterday = { ...fallbackMessages.yesterday_journey.noInsights, loading: false };
+        const emptyGeneral = {
+          ...fallbackMessages.general_insight.noInsights,
+          loading: false,
+          remaining: Math.max(0, 5 - totalConversationCount),
+          cycleProgress: Math.min(totalConversationCount, 5),
+          cycleRequired: 5,
+        };
+        const emptyFrequency = {
+          ...fallbackMessages.frequency.noInsights,
+          loading: false,
+          remaining: Math.max(0, 3 - totalConversationCount),
+          cycleProgress: Math.min(totalConversationCount, 3),
+          cycleRequired: 3,
+        };
+        const emptyHabit = {
+          ...fallbackMessages.habit.noInsights,
+          loading: false,
+          remaining: Math.max(0, 3 - totalConversationCount),
+          cycleProgress: Math.min(totalConversationCount, 3),
+          cycleRequired: 3,
+        };
+
+        setYesterdayInsight(isDeveloper ? applyDeveloperAccess(emptyYesterday) : emptyYesterday);
+        setGeneralInsight(isDeveloper ? applyDeveloperAccess(emptyGeneral, 5) : emptyGeneral);
+        setFrequencyInsight(isDeveloper ? applyDeveloperAccess(emptyFrequency, 3) : emptyFrequency);
+        setHabitInsight(isDeveloper ? applyDeveloperAccess(emptyHabit, 3) : emptyHabit);
         return;
       }
 
@@ -173,53 +218,105 @@ export function useExploreInsights() {
       const frequencyProgress = getProgressFromDB(frequency, 3);
       const habitProgress = getProgressFromDB(habit, 3);
 
-      setYesterdayInsight({
-        title: yesterday?.title || fallbackMessages.yesterday_journey.missingInsight.title,
-        description: yesterday?.description || fallbackMessages.yesterday_journey.missingInsight.description,
-        locked: yesterday?.locked ?? fallbackMessages.yesterday_journey.missingInsight.locked,
-        contextSummary: yesterday?.context_summary || undefined,
-        internalContext: yesterday?.internal_context || undefined,
-        conversationId: yesterday?.conversation_id || undefined,
-        loading: false,
-      });
+      setYesterdayInsight(
+        isDeveloper
+          ? applyDeveloperAccess({
+              title: yesterday?.title || fallbackMessages.yesterday_journey.missingInsight.title,
+              description: yesterday?.description || fallbackMessages.yesterday_journey.missingInsight.description,
+              locked: yesterday?.locked ?? fallbackMessages.yesterday_journey.missingInsight.locked,
+              contextSummary: yesterday?.context_summary || undefined,
+              internalContext: yesterday?.internal_context || undefined,
+              conversationId: yesterday?.conversation_id || undefined,
+              loading: false,
+            })
+          : {
+              title: yesterday?.title || fallbackMessages.yesterday_journey.missingInsight.title,
+              description: yesterday?.description || fallbackMessages.yesterday_journey.missingInsight.description,
+              locked: yesterday?.locked ?? fallbackMessages.yesterday_journey.missingInsight.locked,
+              contextSummary: yesterday?.context_summary || undefined,
+              internalContext: yesterday?.internal_context || undefined,
+              conversationId: yesterday?.conversation_id || undefined,
+              loading: false,
+            },
+      );
 
-      setGeneralInsight({
-        title: general?.title || fallbackMessages.general_insight.missingInsight.title,
-        description: general?.description || fallbackMessages.general_insight.missingInsight.description,
-        locked: general?.locked ?? fallbackMessages.general_insight.missingInsight.locked,
-        remaining: generalProgress.remaining,
-        cycleProgress: generalProgress.progress,
-        cycleRequired: 5,
-        contextSummary: general?.context_summary || undefined,
-        internalContext: general?.internal_context || undefined,
-        loading: false,
-      });
+      setGeneralInsight(
+        isDeveloper
+          ? applyDeveloperAccess({
+              title: general?.title || fallbackMessages.general_insight.missingInsight.title,
+              description: general?.description || fallbackMessages.general_insight.missingInsight.description,
+              locked: general?.locked ?? fallbackMessages.general_insight.missingInsight.locked,
+              remaining: generalProgress.remaining,
+              cycleProgress: generalProgress.progress,
+              cycleRequired: 5,
+              contextSummary: general?.context_summary || undefined,
+              internalContext: general?.internal_context || undefined,
+              loading: false,
+            }, 5)
+          : {
+              title: general?.title || fallbackMessages.general_insight.missingInsight.title,
+              description: general?.description || fallbackMessages.general_insight.missingInsight.description,
+              locked: general?.locked ?? fallbackMessages.general_insight.missingInsight.locked,
+              remaining: generalProgress.remaining,
+              cycleProgress: generalProgress.progress,
+              cycleRequired: 5,
+              contextSummary: general?.context_summary || undefined,
+              internalContext: general?.internal_context || undefined,
+              loading: false,
+            },
+      );
 
-      setFrequencyInsight({
-        title: frequency?.title || fallbackMessages.frequency.missingInsight.title,
-        description: frequency?.description || fallbackMessages.frequency.missingInsight.description,
-        locked: frequency?.locked ?? fallbackMessages.frequency.missingInsight.locked,
-        remaining: frequencyProgress.remaining,
-        cycleProgress: frequencyProgress.progress,
-        cycleRequired: 3,
-        loading: false,
-      });
+      setFrequencyInsight(
+        isDeveloper
+          ? applyDeveloperAccess({
+              title: frequency?.title || fallbackMessages.frequency.missingInsight.title,
+              description: frequency?.description || fallbackMessages.frequency.missingInsight.description,
+              locked: frequency?.locked ?? fallbackMessages.frequency.missingInsight.locked,
+              remaining: frequencyProgress.remaining,
+              cycleProgress: frequencyProgress.progress,
+              cycleRequired: 3,
+              loading: false,
+            }, 3)
+          : {
+              title: frequency?.title || fallbackMessages.frequency.missingInsight.title,
+              description: frequency?.description || fallbackMessages.frequency.missingInsight.description,
+              locked: frequency?.locked ?? fallbackMessages.frequency.missingInsight.locked,
+              remaining: frequencyProgress.remaining,
+              cycleProgress: frequencyProgress.progress,
+              cycleRequired: 3,
+              loading: false,
+            },
+      );
 
-      setHabitInsight({
-        title: habit?.title || fallbackMessages.habit.missingInsight.title,
-        description: habit?.description || fallbackMessages.habit.missingInsight.description,
-        locked: habit?.locked ?? fallbackMessages.habit.missingInsight.locked,
-        remaining: habitProgress.remaining,
-        cycleProgress: habitProgress.progress,
-        cycleRequired: 3,
-        contextSummary: habit?.context_summary || undefined,
-        internalContext: habit?.internal_context || undefined,
-        loading: false,
-      });
+      setHabitInsight(
+        isDeveloper
+          ? applyDeveloperAccess({
+              title: habit?.title || fallbackMessages.habit.missingInsight.title,
+              description: habit?.description || fallbackMessages.habit.missingInsight.description,
+              locked: habit?.locked ?? fallbackMessages.habit.missingInsight.locked,
+              remaining: habitProgress.remaining,
+              cycleProgress: habitProgress.progress,
+              cycleRequired: 3,
+              contextSummary: habit?.context_summary || undefined,
+              internalContext: habit?.internal_context || undefined,
+              loading: false,
+            }, 3)
+          : {
+              title: habit?.title || fallbackMessages.habit.missingInsight.title,
+              description: habit?.description || fallbackMessages.habit.missingInsight.description,
+              locked: habit?.locked ?? fallbackMessages.habit.missingInsight.locked,
+              remaining: habitProgress.remaining,
+              cycleProgress: habitProgress.progress,
+              cycleRequired: 3,
+              contextSummary: habit?.context_summary || undefined,
+              internalContext: habit?.internal_context || undefined,
+              loading: false,
+            },
+      );
     };
 
     fetchInsights();
-  }, [user]);
+  }, [user, isDeveloper]);
 
   return {
     yesterdayInsight,

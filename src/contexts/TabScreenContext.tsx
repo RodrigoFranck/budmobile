@@ -16,7 +16,11 @@ import { useExploreInsights } from '@/hooks/useExploreInsights';
 import { useMessages } from '@/hooks/useMessages';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { clearPendingChatInsight } from '@/utils/navigateToChat';
+import { prepareHistoryConversationTitles } from '@/utils/generateConversationTitle';
 import type { MainTabParamList } from '@/types/navigation';
+import type { Tables } from '@/integrations/supabase/types';
+
+type Conversation = Tables<'conversations'>;
 
 export type TabScreenName = keyof MainTabParamList;
 
@@ -32,7 +36,7 @@ interface TabScreenContextValue {
   insightsLoading: boolean;
   themeLoaded: boolean;
   chatConversationReady: boolean;
-  conversations: ReturnType<typeof useConversations>['conversations'];
+  conversations: Conversation[];
   refetchConversations: ReturnType<typeof useConversations>['refetch'];
   getOrCreateTodayConversation: ReturnType<
     typeof useConversations
@@ -72,12 +76,14 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
     generalInsight,
     frequencyInsight,
     habitInsight,
-    isLoading: insightsLoading,
+    isLoading: insightsLoading = false,
   } = useExploreInsights();
 
   const [chatConversationId, setChatConversationId] = useState<string | null>(null);
   const [chatConversationReady, setChatConversationReady] = useState(false);
   const [chatHomeResetToken, setChatHomeResetToken] = useState(0);
+  const [historyConversations, setHistoryConversations] = useState<Conversation[]>([]);
+  const [historyTitlesLoading, setHistoryTitlesLoading] = useState(true);
 
   const resetChatToHome = useCallback(() => {
     clearPendingChatInsight();
@@ -114,6 +120,34 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
   const { messages, loading: chatMessagesLoading, addMessage } =
     useMessages(chatConversationId);
 
+  useEffect(() => {
+    if (!user) {
+      setHistoryConversations([]);
+      setHistoryTitlesLoading(false);
+      return;
+    }
+
+    if (conversationsLoading) {
+      setHistoryTitlesLoading(true);
+      return;
+    }
+
+    let cancelled = false;
+    setHistoryTitlesLoading(true);
+
+    void prepareHistoryConversationTitles(conversations).then((prepared) => {
+      if (cancelled) {
+        return;
+      }
+      setHistoryConversations(prepared);
+      setHistoryTitlesLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, conversations, conversationsLoading]);
+
   const chatReady =
     chatConversationReady &&
     !chatMessagesLoading &&
@@ -121,7 +155,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
     !memoryLoading;
 
   const exploreReady = !insightsLoading && themeLoaded;
-  const historyReady = !conversationsLoading && themeLoaded;
+  const historyReady = !conversationsLoading && !historyTitlesLoading && themeLoaded;
   const activitiesReady = themeLoaded;
 
   const [latchedReady, setLatchedReady] = useState<Record<TabScreenName, boolean>>({
@@ -178,7 +212,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
       conversationsLoading,
       insightsLoading,
       themeLoaded,
-      conversations,
+      conversations: historyConversations,
       refetchConversations,
       getOrCreateTodayConversation,
       messages,
@@ -204,7 +238,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
       conversationsLoading,
       insightsLoading,
       themeLoaded,
-      conversations,
+      historyConversations,
       refetchConversations,
       getOrCreateTodayConversation,
       messages,

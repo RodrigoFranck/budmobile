@@ -59,6 +59,28 @@ async function resolveVoiceFunctionError(
   return 'Erro ao obter token de voz';
 }
 
+type VoiceSessionPhase = 'idle' | 'connecting' | 'connected' | 'disconnecting';
+
+async function releaseVoiceAudioSession() {
+  if (Platform.OS === 'web') return;
+  try {
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    });
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: true,
+      playsInSilentModeIOS: true,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    });
+  } catch {
+    // ignore audio mode reset failures
+  }
+}
+
 interface ElevenLabsMessage {
   source: 'user' | 'ai';
   message?: string;
@@ -80,6 +102,7 @@ export interface VoiceInterfaceProps {
   onTranscript?: (text: string) => void;
   onVoiceModeChange?: (active: boolean) => void;
   onConnectingChange?: (connecting: boolean) => void;
+  onSessionBusyChange?: (busy: boolean) => void;
   onUserMessage?: (text: string) => void;
   onAssistantMessage?: (text: string) => void;
   onAssistantTranscript?: (text: string) => void;
@@ -165,6 +188,7 @@ function VoiceInterfaceNativeInner(
     onTranscript,
     onVoiceModeChange,
     onConnectingChange,
+    onSessionBusyChange,
     onUserMessage,
     onAssistantMessage,
     onAssistantTranscript,
@@ -177,6 +201,8 @@ function VoiceInterfaceNativeInner(
   }: VoiceInterfaceProps,
   ref: React.Ref<VoiceInterfaceRef>,
 ) {
+  const [sessionPhase, setSessionPhase] = useState<VoiceSessionPhase>('idle');
+  const startSessionPromiseRef = useRef<Promise<unknown> | null>(null);
   const processedRef = useRef<Set<string>>(new Set());
   const noResponseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastUserMsgAtRef = useRef<number | null>(null);
@@ -202,22 +228,27 @@ function VoiceInterfaceNativeInner(
   });
   const voiceSessionActiveRef = useRef(false);
   const startGenerationRef = useRef(0);
+  const isSessionLocked =
+    sessionPhase === 'connecting' || sessionPhase === 'disconnecting';
+
+  useEffect(() => {
+    onSessionBusyChange?.(isSessionLocked);
+  }, [isSessionLocked, onSessionBusyChange]);
 
   const conversation = useConversation({
     onStatusChange: (event: { status: string }) => {
       statusRef.current = event.status;
     },
     onConnect: () => {
+      // Ignore connects for instances that did not start this session. Another
+      // mounted VoiceInterface must not tear down a live room (see Chat stack).
       if (!voiceSessionActiveRef.current) {
-        try {
-          void conversation.endSession();
-        } catch {
-          // session may already be ended
-        }
         return;
       }
 
       onConnectingChange?.(false);
+      setSessionPhase('connected');
+      setIsLoading(false);
       restartGuardRef.current = { inFlight: false, lastAt: 0, attempts: 0 };
 
       if (micArmTimerRef.current) {
@@ -254,8 +285,12 @@ function VoiceInterfaceNativeInner(
     },
     onDisconnect: () => {
       voiceSessionActiveRef.current = false;
+      startSessionPromiseRef.current = null;
       onConnectingChange?.(false);
+      setSessionPhase('idle');
+      setIsLoading(false);
       onVoiceModeChange?.(false);
+      void releaseVoiceAudioSession();
       if (noResponseTimerRef.current) {
         clearTimeout(noResponseTimerRef.current);
         noResponseTimerRef.current = null;
@@ -343,8 +378,9 @@ function VoiceInterfaceNativeInner(
         }
         if (isSafetyResponse(text)) {
           onAssistantMessage?.(text);
-          conversation.endSession();
-          onVoiceModeChange?.(false);
+          voiceSessionActiveRef.current = false;
+          setSessionPhase('disconnecting');
+          void conversation.endSession();
           onTranscript?.('');
           processedRef.current.clear();
           onSafetyTriggered?.();
@@ -391,9 +427,13 @@ function VoiceInterfaceNativeInner(
     },
     onError: (message: string) => {
       voiceSessionActiveRef.current = false;
+      startSessionPromiseRef.current = null;
       onConnectingChange?.(false);
+      setSessionPhase('idle');
+      setIsLoading(false);
       Alert.alert('Erro', message || 'Erro na conexão de voz');
       onVoiceModeChange?.(false);
+      void releaseVoiceAudioSession();
     },
   });
 
@@ -406,17 +446,49 @@ function VoiceInterfaceNativeInner(
     };
   }, []);
 
-  const endConversation = useCallback(async () => {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const endConversation = useCallback(async (options?: { force?: boolean }) => {
+    const force = options?.force ?? false;
+    if (!force && (sessionPhase === 'connecting' || sessionPhase === 'disconnecting')) {
+      return;
+    }
+    if (!force && sessionPhase !== 'connected') {
+      return;
+    }
+
     startGenerationRef.current += 1;
     voiceSessionActiveRef.current = false;
-    onConnectingChange?.(false);
-    await conversation.endSession();
-    onVoiceModeChange?.(false);
+    setSessionPhase('disconnecting');
+
+    try {
+      await conversation.endSession();
+    } catch {
+      // endSession may throw if already disconnected
+    }
+
+    const pendingStart = startSessionPromiseRef.current;
+    if (pendingStart) {
+      try {
+        await pendingStart;
+      } catch {
+        // start may fail if session was cancelled
+      }
+    }
+
+    if (force) {
+      voiceSessionActiveRef.current = false;
+      startSessionPromiseRef.current = null;
+      setSessionPhase('idle');
+      setIsLoading(false);
+      onConnectingChange?.(false);
+      onVoiceModeChange?.(false);
+      void releaseVoiceAudioSession();
+    }
+
     onTranscript?.('');
     processedRef.current.clear();
-  }, [conversation, onConnectingChange, onVoiceModeChange, onTranscript]);
-
-  const [isLoading, setIsLoading] = useState(false);
+  }, [conversation, onConnectingChange, onTranscript, onVoiceModeChange, sessionPhase]);
 
   const ensureMicrophonePermission = useCallback(async () => {
     if (Platform.OS === 'android') {
@@ -465,8 +537,13 @@ function VoiceInterfaceNativeInner(
   }, []);
 
   const startConversation = useCallback(async () => {
+    if (sessionPhase !== 'idle') {
+      return;
+    }
+
     const generation = ++startGenerationRef.current;
     voiceSessionActiveRef.current = true;
+    setSessionPhase('connecting');
     onVoiceModeChange?.(true);
     onConnectingChange?.(true);
     setIsLoading(true);
@@ -477,6 +554,7 @@ function VoiceInterfaceNativeInner(
         return;
       }
       voiceSessionActiveRef.current = false;
+      setSessionPhase('idle');
       onConnectingChange?.(false);
       onVoiceModeChange?.(false);
       setIsLoading(false);
@@ -496,6 +574,11 @@ function VoiceInterfaceNativeInner(
       });
 
       if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
+        voiceSessionActiveRef.current = false;
+        setSessionPhase('idle');
+        onConnectingChange?.(false);
+        onVoiceModeChange?.(false);
+        setIsLoading(false);
         return;
       }
 
@@ -510,6 +593,11 @@ function VoiceInterfaceNativeInner(
       }
 
       if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
+        voiceSessionActiveRef.current = false;
+        setSessionPhase('idle');
+        onConnectingChange?.(false);
+        onVoiceModeChange?.(false);
+        setIsLoading(false);
         return;
       }
 
@@ -538,20 +626,23 @@ function VoiceInterfaceNativeInner(
         userContext,
       });
       lastSessionConfigRef.current = sessionOptions;
-      await conversation.startSession(sessionOptions);
+      const startPromise = Promise.resolve(conversation.startSession(sessionOptions));
+      startSessionPromiseRef.current = startPromise;
+      await startPromise;
+      startSessionPromiseRef.current = null;
     } catch (e) {
+      startSessionPromiseRef.current = null;
       if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
         return;
       }
       voiceSessionActiveRef.current = false;
+      setSessionPhase('idle');
       onConnectingChange?.(false);
       onVoiceModeChange?.(false);
+      setIsLoading(false);
       const msg = e instanceof Error ? e.message : 'Falha ao iniciar conversa';
       Alert.alert('Erro', msg);
-    } finally {
-      if (generation === startGenerationRef.current) {
-        setIsLoading(false);
-      }
+      void releaseVoiceAudioSession();
     }
   }, [
     conversation,
@@ -561,6 +652,7 @@ function VoiceInterfaceNativeInner(
     onConnectingChange,
     onVoiceModeChange,
     recentInsights,
+    sessionPhase,
     userContext,
   ]);
 
@@ -570,17 +662,17 @@ function VoiceInterfaceNativeInner(
     [startConversation, endConversation],
   );
 
-  const isConnected = conversation.status === 'connected';
-  useVoiceSessionKeepAwake(isConnected || isLoading);
+  const isConnected = sessionPhase === 'connected';
+  useVoiceSessionKeepAwake(isConnected || isSessionLocked);
 
   return (
     <VoiceButtonVisual
       appearance={appearance}
       prominentSize={prominentSize}
       isConnected={isConnected}
-      isLoading={isLoading}
+      isLoading={isLoading || sessionPhase === 'disconnecting'}
       onPress={isConnected ? endConversation : startConversation}
-      disabled={isLoading}
+      disabled={isSessionLocked}
     />
   );
 }
@@ -609,6 +701,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
       onTranscript,
       onVoiceModeChange,
       onConnectingChange,
+      onSessionBusyChange,
       onUserMessage,
       onAssistantMessage,
       onAssistantTranscript,
@@ -621,32 +714,61 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
     },
     ref,
   ) {
-    const [isConnected, setIsConnected] = useState(false);
+    const [sessionPhase, setSessionPhase] = useState<VoiceSessionPhase>('idle');
     const [isLoading, setIsLoading] = useState(false);
     const conversationRef = useRef<ElevenLabsConversation | null>(null);
     const lastSessionConfigRef = useRef<VoiceSessionStartOptions | null>(null);
     const processedMessagesRef = useRef<Set<string>>(new Set());
     const voiceSessionActiveRef = useRef(false);
     const startGenerationRef = useRef(0);
+    const isSessionLocked =
+      sessionPhase === 'connecting' || sessionPhase === 'disconnecting';
 
-    const endConversation = useCallback(async () => {
+    useEffect(() => {
+      onSessionBusyChange?.(isSessionLocked);
+    }, [isSessionLocked, onSessionBusyChange]);
+
+    const endConversation = useCallback(async (options?: { force?: boolean }) => {
+      const force = options?.force ?? false;
+      if (!force && (sessionPhase === 'connecting' || sessionPhase === 'disconnecting')) {
+        return;
+      }
+      if (!force && sessionPhase !== 'connected') {
+        return;
+      }
+
       startGenerationRef.current += 1;
       voiceSessionActiveRef.current = false;
-      onConnectingChange?.(false);
+      setSessionPhase('disconnecting');
+
       if (conversationRef.current) {
-        await conversationRef.current.endSession();
+        try {
+          await conversationRef.current.endSession();
+        } catch {
+          // session may already be ended
+        }
         conversationRef.current = null;
       }
-      setIsConnected(false);
-      setIsLoading(false);
-      onVoiceModeChange?.(false);
+
+      if (force) {
+        setSessionPhase('idle');
+        setIsLoading(false);
+        onConnectingChange?.(false);
+        onVoiceModeChange?.(false);
+      }
+
       onTranscript?.('');
       processedMessagesRef.current.clear();
-    }, [onConnectingChange, onVoiceModeChange, onTranscript]);
+    }, [onConnectingChange, onVoiceModeChange, onTranscript, sessionPhase]);
 
     const startConversation = useCallback(async () => {
+      if (sessionPhase !== 'idle') {
+        return;
+      }
+
       const generation = ++startGenerationRef.current;
       voiceSessionActiveRef.current = true;
+      setSessionPhase('connecting');
       onVoiceModeChange?.(true);
       onConnectingChange?.(true);
       setIsLoading(true);
@@ -662,6 +784,11 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
         }
 
         if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
+          voiceSessionActiveRef.current = false;
+          setSessionPhase('idle');
+          onConnectingChange?.(false);
+          onVoiceModeChange?.(false);
+          setIsLoading(false);
           return;
         }
 
@@ -695,16 +822,16 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
           ...sessionOptions,
           onConnect: () => {
             if (!voiceSessionActiveRef.current) {
-              void conversationRef.current?.endSession();
               return;
             }
-            setIsConnected(true);
+            setSessionPhase('connected');
             setIsLoading(false);
             onConnectingChange?.(false);
           },
           onDisconnect: () => {
             voiceSessionActiveRef.current = false;
-            setIsConnected(false);
+            setSessionPhase('idle');
+            setIsLoading(false);
             onConnectingChange?.(false);
             onVoiceModeChange?.(false);
           },
@@ -726,14 +853,14 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
             if (source === 'ai') {
               if (isSafetyResponse(text)) {
                 onAssistantMessage?.(text);
+                voiceSessionActiveRef.current = false;
+                setSessionPhase('disconnecting');
                 if (conversationRef.current) {
-                  conversationRef.current.endSession();
+                  void conversationRef.current.endSession();
                   conversationRef.current = null;
-                  setIsConnected(false);
-                  onVoiceModeChange?.(false);
-                  onTranscript?.('');
-                  processedMessagesRef.current.clear();
                 }
+                onTranscript?.('');
+                processedMessagesRef.current.clear();
                 onSafetyTriggered?.();
                 Alert.alert(
                   'Apoio disponível',
@@ -752,9 +879,9 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
           },
           onError: () => {
             voiceSessionActiveRef.current = false;
+            setSessionPhase('idle');
             onConnectingChange?.(false);
             Alert.alert('Erro', 'Erro na conexão de voz');
-            setIsConnected(false);
             setIsLoading(false);
             onVoiceModeChange?.(false);
           },
@@ -764,6 +891,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
           return;
         }
         voiceSessionActiveRef.current = false;
+        setSessionPhase('idle');
         onConnectingChange?.(false);
         onVoiceModeChange?.(false);
         const msg =
@@ -784,6 +912,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
       onAssistantTranscript,
       onSpeakingChange,
       onSafetyTriggered,
+      sessionPhase,
     ]);
 
     useImperativeHandle(
@@ -794,20 +923,21 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
 
     useEffect(() => {
       return () => {
-        conversationRef.current?.endSession();
+        void conversationRef.current?.endSession();
       };
     }, []);
 
-    useVoiceSessionKeepAwake(isConnected || isLoading);
+    const isConnected = sessionPhase === 'connected';
+    useVoiceSessionKeepAwake(isConnected || isSessionLocked);
 
     return (
       <VoiceButtonVisual
         appearance={appearance}
         prominentSize={prominentSize}
         isConnected={isConnected}
-        isLoading={isLoading}
+        isLoading={isLoading || sessionPhase === 'disconnecting'}
         onPress={isConnected ? endConversation : startConversation}
-        disabled={isLoading}
+        disabled={isSessionLocked}
       />
     );
   },

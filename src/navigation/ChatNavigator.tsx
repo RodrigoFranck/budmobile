@@ -84,7 +84,9 @@ function ChatStackNavigator() {
       <ChatInsightHandler />
       <ChatVoiceInsightHandler />
       <ChatStackResetHandler />
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator
+        screenOptions={{ headerShown: false, detachInactiveScreens: true }}
+      >
         <Stack.Screen name="ChatHome" component={ChatHome} />
         <Stack.Screen
           name="TextChat"

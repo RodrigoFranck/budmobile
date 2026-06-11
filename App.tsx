@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { ConversationProvider } from '@elevenlabs/react-native';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { BudConfirmDialogProvider } from '@/contexts/BudConfirmDialogContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import AppNavigator from '@/navigation/AppNavigator';
 
@@ -41,8 +42,10 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <ThemeProvider>
-          <AppNavigator />
-          <StatusBar style="auto" />
+          <BudConfirmDialogProvider>
+            <AppNavigator />
+            <StatusBar style="auto" />
+          </BudConfirmDialogProvider>
         </ThemeProvider>
       </AuthProvider>
     </SafeAreaProvider>

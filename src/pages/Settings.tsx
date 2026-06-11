@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 import { ArrowLeft, ExternalLink, Link2 } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBudConfirmDialog } from "@/contexts/BudConfirmDialogContext";
 import type { NavigationProp } from "@/types/navigation";
 import { Spacing } from "@/constants/styles";
 import { BUDMIND_HELP_URL, BUD_NATIVE_LINK_URL } from "@/constants/preferences";
@@ -133,6 +134,7 @@ export default function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
   const { user, signOut, deleteAccount, refreshOnboardingStatus } = useAuth();
+  const { confirm } = useBudConfirmDialog();
   const { mode, loaded: themeLoaded, setMode, setPreference } = useTheme();
   const darkMode = mode === "dark";
   const darkModeLoading = !themeLoaded;
@@ -194,36 +196,35 @@ export default function SettingsScreen() {
   }, []);
 
   const handleDeleteAccount = useCallback(() => {
-    Alert.alert(
-      "Excluir conta",
-      "Esta ação é permanente. Todos os seus dados, conversas e preferências serão removidos e não poderão ser recuperados.",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Excluir conta",
-          style: "destructive",
-          onPress: async () => {
-            setDeletingAccount(true);
-            try {
-              const { error } = await deleteAccount();
-              if (error) {
-                Alert.alert("Erro", error.message);
-              }
-            } finally {
-              setDeletingAccount(false);
-            }
-          },
-        },
-      ],
-    );
-  }, [deleteAccount]);
+    confirm({
+      title: "Excluir conta",
+      message:
+        "Esta ação é permanente. Todos os seus dados, conversas e preferências serão removidos e não poderão ser recuperados.",
+      confirmLabel: "Excluir conta",
+      destructive: true,
+      onConfirm: async () => {
+        setDeletingAccount(true);
+        try {
+          const { error } = await deleteAccount();
+          if (error) {
+            Alert.alert("Erro", error.message);
+          }
+        } finally {
+          setDeletingAccount(false);
+        }
+      },
+    });
+  }, [confirm, deleteAccount]);
 
   const handleSignOut = useCallback(() => {
-    Alert.alert("Sair", "Deseja sair da sua conta?", [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Sair", style: "destructive", onPress: () => signOut() },
-    ]);
-  }, [signOut]);
+    confirm({
+      title: "Sair",
+      message: "Deseja sair da sua conta?",
+      confirmLabel: "Sair",
+      destructive: true,
+      onConfirm: () => signOut(),
+    });
+  }, [confirm, signOut]);
 
   const handleResetOnboarding = useCallback(() => {
     if (!user?.id) {
@@ -231,35 +232,33 @@ export default function SettingsScreen() {
       return;
     }
 
-    Alert.alert("Rever onboarding", "Isso vai reabrir o onboarding ao finalizar. Continuar?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Continuar",
-        style: "default",
-        onPress: async () => {
-          setResettingOnboarding(true);
-          try {
-            const { error } = await supabase
-              .from("profiles")
-              .update({ onboarding_completed: false })
-              .eq("user_id", user.id);
+    confirm({
+      title: "Rever onboarding",
+      message: "Isso vai reabrir o onboarding ao finalizar. Continuar?",
+      confirmLabel: "Continuar",
+      onConfirm: async () => {
+        setResettingOnboarding(true);
+        try {
+          const { error } = await supabase
+            .from("profiles")
+            .update({ onboarding_completed: false })
+            .eq("user_id", user.id);
 
-            if (error) {
-              Alert.alert("Erro", error.message);
-              return;
-            }
-
-            await refreshOnboardingStatus();
-          } catch (e: unknown) {
-            const message = e instanceof Error ? e.message : "Erro desconhecido";
-            Alert.alert("Erro", message);
-          } finally {
-            setResettingOnboarding(false);
+          if (error) {
+            Alert.alert("Erro", error.message);
+            return;
           }
-        },
+
+          await refreshOnboardingStatus();
+        } catch (e: unknown) {
+          const message = e instanceof Error ? e.message : "Erro desconhecido";
+          Alert.alert("Erro", message);
+        } finally {
+          setResettingOnboarding(false);
+        }
       },
-    ]);
-  }, [refreshOnboardingStatus, user?.id]);
+    });
+  }, [confirm, refreshOnboardingStatus, user?.id]);
 
   const goBack = useCallback(() => {
     if (navigation.canGoBack()) {

@@ -31,6 +31,8 @@ export default function TextChatScreen() {
     setIsVoiceModeActive,
     isVoiceConnecting,
     setIsVoiceConnecting,
+    isVoiceSessionBusy,
+    setIsVoiceSessionBusy,
     voiceTranscript,
     setVoiceTranscript,
     isBudSpeaking,
@@ -89,6 +91,7 @@ export default function TextChatScreen() {
             voiceInterfaceRef={voiceInterfaceRef}
             onVoiceModeChange={setIsVoiceModeActive}
             onVoiceConnectingChange={setIsVoiceConnecting}
+            onVoiceSessionBusyChange={setIsVoiceSessionBusy}
             onVoiceUserMessage={handleVoiceUserMessage}
             onVoiceAssistantMessage={handleVoiceAssistantMessage}
             onVoiceTranscript={setVoiceTranscript}
@@ -106,6 +109,7 @@ export default function TextChatScreen() {
           transcript={voiceTranscript}
           isBudSpeaking={isBudSpeaking}
           isConnecting={isVoiceConnecting}
+          isSessionBusy={isVoiceSessionBusy}
         />
       </View>
     </ScreenLoadingGate>

@@ -40,6 +40,8 @@ interface ChatSessionContextValue {
   setIsVoiceModeActive: (active: boolean) => void;
   isVoiceConnecting: boolean;
   setIsVoiceConnecting: (connecting: boolean) => void;
+  isVoiceSessionBusy: boolean;
+  setIsVoiceSessionBusy: (busy: boolean) => void;
   voiceTranscript: string;
   setVoiceTranscript: (text: string) => void;
   isBudSpeaking: boolean;
@@ -85,6 +87,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const voiceInterfaceRef = useRef<VoiceInterfaceRef>(null);
   const [isVoiceModeActive, setIsVoiceModeActive] = useState(false);
   const [isVoiceConnecting, setIsVoiceConnecting] = useState(false);
+  const [isVoiceSessionBusy, setIsVoiceSessionBusy] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [isBudSpeaking, setIsBudSpeaking] = useState(false);
   const [insightContext, setInsightContext] = useState<InsightContext | null>(null);
@@ -142,6 +145,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     streamingIdRef.current = null;
     setIsVoiceModeActive(false);
     setIsVoiceConnecting(false);
+    setIsVoiceSessionBusy(false);
     setVoiceTranscript('');
     setIsBudSpeaking(false);
     setInsightContext(null);
@@ -151,7 +155,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     didAutoSendInsightRef.current = false;
     clearPendingChatInsight();
     navigation.setParams({ voiceInsight: undefined, chatInsight: undefined });
-    void voiceInterfaceRef.current?.endConversation();
+    void voiceInterfaceRef.current?.endConversation({ force: true });
   }, [chatHomeResetToken, navigation]);
 
   useEffect(() => {
@@ -388,6 +392,8 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       setIsVoiceModeActive,
       isVoiceConnecting,
       setIsVoiceConnecting,
+      isVoiceSessionBusy,
+      setIsVoiceSessionBusy,
       voiceTranscript,
       setVoiceTranscript,
       isBudSpeaking,
@@ -413,6 +419,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       memoryLoading,
       isVoiceModeActive,
       isVoiceConnecting,
+      isVoiceSessionBusy,
       voiceTranscript,
       isBudSpeaking,
       userContext,

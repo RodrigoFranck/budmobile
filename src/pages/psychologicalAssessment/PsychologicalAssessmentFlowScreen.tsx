@@ -22,6 +22,7 @@ import {
   PSYCHOLOGICAL_ASSESSMENT_TOTAL_QUESTIONS,
   psychologicalAssessmentSteps,
 } from '@/features/psychologicalAssessment/psychologicalAssessmentSteps';
+import { useBudConfirmDialog } from '@/contexts/BudConfirmDialogContext';
 import { usePsychologicalAssessment } from '@/hooks/usePsychologicalAssessment';
 import { useActivitiesTheme } from '@/lib/activitiesTheme';
 import type { PsychologicalAssessmentStackParamList } from '@/types/psychologicalAssessmentNavigation';
@@ -75,16 +76,17 @@ export default function PsychologicalAssessmentFlowScreen() {
     [step.key],
   );
 
+  const { confirm } = useBudConfirmDialog();
+
   const handleClose = useCallback(() => {
-    Alert.alert('Sair da avaliação?', 'Suas respostas desta sessão serão perdidas.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Sair',
-        style: 'destructive',
-        onPress: () => navigation.getParent()?.goBack(),
-      },
-    ]);
-  }, [navigation]);
+    confirm({
+      title: 'Sair da avaliação?',
+      message: 'Suas respostas desta sessão serão perdidas.',
+      confirmLabel: 'Sair',
+      destructive: true,
+      onConfirm: () => navigation.getParent()?.goBack(),
+    });
+  }, [confirm, navigation]);
 
   const handleBack = useCallback(() => {
     if (currentStep === 0) {

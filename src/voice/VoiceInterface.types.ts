@@ -1,4 +1,4 @@
 export interface VoiceInterfaceRef {
   startConversation: () => Promise<void>;
-  endConversation: () => Promise<void>;
+  endConversation: (options?: { force?: boolean }) => Promise<void>;
 }

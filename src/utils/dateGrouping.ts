@@ -3,6 +3,11 @@ import { ptBR } from "date-fns/locale";
 import { getNowInBrasilia, parseDateString } from "./dateUtils";
 import { resolveConversationDisplayTitle } from "./generateConversationTitle";
 
+function buildConversationFallbackTitle(date: Date): string {
+  const label = format(date, "d 'de' MMMM", { locale: ptBR });
+  return `Conversa de ${label}`;
+}
+
 export interface ConversationWithDate {
   id: string;
   title: string | null;
@@ -104,7 +109,7 @@ export function groupConversationsByDate(conversations: ConversationWithDate[]):
     if (!group.conversations.some(c => c.id === conv.id)) {
       group.conversations.push({
         id: conv.id,
-        title: resolveConversationDisplayTitle(conv.title, "Conversa do dia"),
+        title: resolveConversationDisplayTitle(conv.title, buildConversationFallbackTitle(convDate)),
         dateLabel,
         date: convDate,
       });

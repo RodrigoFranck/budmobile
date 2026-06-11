@@ -30,6 +30,8 @@ export default function ChatHome() {
     setIsVoiceModeActive,
     isVoiceConnecting,
     setIsVoiceConnecting,
+    isVoiceSessionBusy,
+    setIsVoiceSessionBusy,
     voiceTranscript,
     setVoiceTranscript,
     isBudSpeaking,
@@ -90,6 +92,7 @@ export default function ChatHome() {
             voiceInterfaceRef={voiceInterfaceRef}
             onVoiceModeChange={handleVoiceModeChange}
             onVoiceConnectingChange={setIsVoiceConnecting}
+            onVoiceSessionBusyChange={setIsVoiceSessionBusy}
             onVoiceUserMessage={handleVoiceUserMessage}
             onVoiceAssistantMessage={handleVoiceAssistantMessage}
             onVoiceTranscript={setVoiceTranscript}
@@ -107,6 +110,7 @@ export default function ChatHome() {
           transcript={voiceTranscript}
           isBudSpeaking={isBudSpeaking}
           isConnecting={isVoiceConnecting}
+          isSessionBusy={isVoiceSessionBusy}
         />
       </View>
     </ScreenLoadingGate>

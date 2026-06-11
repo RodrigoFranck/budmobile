@@ -155,29 +155,34 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
     }
   };
 
-  const backTop = insets.top + 8;
-
-  const renderBackButton = () => (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Voltar"
-      onPress={onClose}
-      style={[styles.backButton, { top: backTop }]}
+  const renderScreenHeader = () => (
+    <View
+      style={[styles.headerOverlay, { paddingTop: insets.top + 8 }]}
+      pointerEvents="box-none"
     >
-      <ArrowLeft size={20} color="#ffffff" />
-    </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Voltar"
+        onPress={onClose}
+        style={styles.backButton}
+      >
+        <ArrowLeft size={20} color="#ffffff" />
+      </Pressable>
+    </View>
   );
 
   const renderLoading = () => (
-    <View style={styles.loadingContainer}>
-      {renderBackButton()}
-      <Text style={styles.loadingText}>{loadingMessages[currentMessageIndex]}</Text>
+    <View style={styles.stateContainer}>
+      {renderScreenHeader()}
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>{loadingMessages[currentMessageIndex]}</Text>
+      </View>
     </View>
   );
 
   const renderInsufficient = () => (
-    <View style={styles.gradient}>
-      {renderBackButton()}
+    <View style={styles.stateContainer}>
+      {renderScreenHeader()}
       <View style={styles.centerContent}>
         <Text style={styles.centerTitle}>Ainda estamos nos conhecendo...</Text>
         <Text style={styles.centerSubtitle}>
@@ -206,8 +211,8 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
   );
 
   const renderNoInsight = () => (
-    <View style={styles.gradient}>
-      {renderBackButton()}
+    <View style={styles.stateContainer}>
+      {renderScreenHeader()}
       <View style={styles.centerContent}>
         <Text style={styles.centerTitle}>Ainda não geramos esse insight</Text>
         <Text style={styles.centerSubtitle}>
@@ -221,8 +226,8 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
   );
 
   const renderError = () => (
-    <View style={styles.gradient}>
-      {renderBackButton()}
+    <View style={styles.stateContainer}>
+      {renderScreenHeader()}
       <View style={styles.centerContent}>
         <Text style={styles.centerTitle}>{error}</Text>
         <Pressable style={styles.outlineButton} onPress={onClose}>
@@ -235,78 +240,88 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
   const renderContent = () => {
     if (!insight) return null;
 
+    const headerSpacer = insets.top + 56;
+
     return (
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        <ImageBackground source={inspiredBg} style={styles.hero} resizeMode="cover">
-          <View style={styles.heroOverlay} />
-          {renderBackButton()}
-          <View style={styles.heroTitleBlock}>
-            <Text style={styles.heroSubtitle}>
-              Pensamentos e insights baseados nas últimas conversas
-            </Text>
-            <Text style={styles.heroHeadline}>{insight.headline}</Text>
+      <View style={styles.contentRoot}>
+        {renderScreenHeader()}
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <ImageBackground source={inspiredBg} style={styles.hero} resizeMode="cover">
+            <View style={styles.heroOverlay} />
+            <View style={[styles.heroTitleBlock, { paddingTop: headerSpacer }]}>
+              <Text style={styles.heroSubtitle}>
+                Pensamentos e insights baseados nas últimas conversas
+              </Text>
+              <Text style={styles.heroHeadline}>{insight.headline}</Text>
+            </View>
+          </ImageBackground>
+
+          <View style={styles.body}>
+            <View style={styles.introCard}>
+              <Text style={styles.introText}>{insight.intro}</Text>
+              <Text style={styles.introSignature}>- Bud</Text>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{insight.what_i_noticed.title}</Text>
+              <Text style={styles.sectionBody}>{insight.what_i_noticed.content}</Text>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{insight.reflection.title}</Text>
+              <Text style={styles.sectionBody}>{insight.reflection.content}</Text>
+            </View>
+
+            <ImageBackground source={inspiredBg} style={styles.takeawayCard} resizeMode="cover">
+              <View style={styles.takeawayOverlay}>
+                <Text style={styles.takeawayLabel}>{insight.key_takeaway.title}</Text>
+                <Text style={styles.takeawayText}>{insight.key_takeaway.content}</Text>
+              </View>
+            </ImageBackground>
+
+            <View style={styles.ctaSection}>
+              <Text style={styles.sectionTitle}>{insight.next_steps.title}</Text>
+              <Text style={styles.sectionBody}>{insight.next_steps.content}</Text>
+              <Pressable style={styles.ctaButton} onPress={handleTalkAbout}>
+                <Text style={styles.ctaButtonText}>Vamos conversar sobre isso</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.feedbackSection}>
+              <Text style={styles.feedbackLabel}>Feedback</Text>
+              <View style={styles.feedbackRow}>
+                <Pressable
+                  style={[styles.feedbackButton, feedbackGiven === 'negative' && styles.feedbackButtonActive]}
+                  onPress={() => handleFeedback('negative')}
+                >
+                  <ThumbsDown size={24} color={feedbackGiven === 'negative' ? '#fff' : 'rgba(255,255,255,0.6)'} />
+                </Pressable>
+                <Pressable
+                  style={[styles.feedbackButton, feedbackGiven === 'positive' && styles.feedbackButtonActive]}
+                  onPress={() => handleFeedback('positive')}
+                >
+                  <ThumbsUp size={24} color={feedbackGiven === 'positive' ? '#fff' : 'rgba(255,255,255,0.6)'} />
+                </Pressable>
+                <Pressable
+                  style={[styles.feedbackButton, feedbackGiven === 'love' && styles.feedbackButtonActive]}
+                  onPress={() => handleFeedback('love')}
+                >
+                  <Heart
+                    size={24}
+                    color={feedbackGiven === 'love' ? '#fff' : 'rgba(255,255,255,0.6)'}
+                    fill={feedbackGiven === 'love' ? '#fff' : 'transparent'}
+                  />
+                </Pressable>
+              </View>
+              {feedbackGiven ? <Text style={styles.feedbackThanks}>Obrigado pelo feedback</Text> : null}
+            </View>
           </View>
-        </ImageBackground>
-
-        <View style={styles.introCard}>
-          <Text style={styles.introText}>{insight.intro}</Text>
-          <Text style={styles.introSignature}>- Bud</Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{insight.what_i_noticed.title}</Text>
-          <Text style={styles.sectionBody}>{insight.what_i_noticed.content}</Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{insight.reflection.title}</Text>
-          <Text style={styles.sectionBody}>{insight.reflection.content}</Text>
-        </View>
-
-        <ImageBackground source={inspiredBg} style={styles.takeawayCard} resizeMode="cover">
-          <View style={styles.takeawayOverlay}>
-            <Text style={styles.takeawayLabel}>{insight.key_takeaway.title}</Text>
-            <Text style={styles.takeawayText}>{insight.key_takeaway.content}</Text>
-          </View>
-        </ImageBackground>
-
-        <View style={styles.ctaSection}>
-          <Text style={styles.sectionTitle}>{insight.next_steps.title}</Text>
-          <Text style={styles.sectionBody}>{insight.next_steps.content}</Text>
-          <Pressable style={styles.ctaButton} onPress={handleTalkAbout}>
-            <Text style={styles.ctaButtonText}>Vamos conversar sobre isso</Text>
-          </Pressable>
-        </View>
-
-        <View style={[styles.feedbackSection, { paddingBottom: insets.bottom + 24 }]}>
-          <Text style={styles.feedbackLabel}>Feedback</Text>
-          <View style={styles.feedbackRow}>
-            <Pressable
-              style={[styles.feedbackButton, feedbackGiven === 'negative' && styles.feedbackButtonActive]}
-              onPress={() => handleFeedback('negative')}
-            >
-              <ThumbsDown size={24} color={feedbackGiven === 'negative' ? '#fff' : 'rgba(255,255,255,0.6)'} />
-            </Pressable>
-            <Pressable
-              style={[styles.feedbackButton, feedbackGiven === 'positive' && styles.feedbackButtonActive]}
-              onPress={() => handleFeedback('positive')}
-            >
-              <ThumbsUp size={24} color={feedbackGiven === 'positive' ? '#fff' : 'rgba(255,255,255,0.6)'} />
-            </Pressable>
-            <Pressable
-              style={[styles.feedbackButton, feedbackGiven === 'love' && styles.feedbackButtonActive]}
-              onPress={() => handleFeedback('love')}
-            >
-              <Heart
-                size={24}
-                color={feedbackGiven === 'love' ? '#fff' : 'rgba(255,255,255,0.6)'}
-                fill={feedbackGiven === 'love' ? '#fff' : 'transparent'}
-              />
-            </Pressable>
-          </View>
-          {feedbackGiven ? <Text style={styles.feedbackThanks}>Obrigado pelo feedback</Text> : null}
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     );
   };
 
@@ -326,7 +341,7 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
       <View style={styles.modalRoot}>
-        <View style={styles.gradient}>{body}</View>
+        {body}
       </View>
     </Modal>
   );

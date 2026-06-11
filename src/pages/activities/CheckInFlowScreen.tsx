@@ -22,6 +22,7 @@ import { CheckInTextInput } from '@/components/checkin/CheckInTextInput';
 import { useCheckInFlowStyles } from '@/components/checkin/checkInFlow.styles';
 import { getCheckInSteps } from '@/features/checkin/checkInSteps';
 import type { CheckInStepConfig } from '@/features/checkin/checkInFlow.types';
+import { useBudConfirmDialog } from '@/contexts/BudConfirmDialogContext';
 import { useCheckIns, type CheckinType } from '@/hooks/useCheckIns';
 import { resolveCheckInGradient, useActivitiesTheme } from '@/lib/activitiesTheme';
 import type { ActivitiesStackParamList } from '@/types/activitiesNavigation.types';
@@ -83,12 +84,17 @@ export default function CheckInFlowScreen() {
     [step.key],
   );
 
+  const { confirm } = useBudConfirmDialog();
+
   const handleClose = useCallback(() => {
-    Alert.alert('Sair do check-in?', 'Suas respostas desta sessão serão perdidas.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => navigation.goBack() },
-    ]);
-  }, [navigation]);
+    confirm({
+      title: 'Sair do check-in?',
+      message: 'Suas respostas desta sessão serão perdidas.',
+      confirmLabel: 'Sair',
+      destructive: true,
+      onConfirm: () => navigation.goBack(),
+    });
+  }, [confirm, navigation]);
 
   const handleBack = useCallback(() => {
     if (currentStep === 0) {

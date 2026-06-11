@@ -19,10 +19,11 @@ import { createVoiceModeStyles } from '@/voice/VoiceMode.styles';
 interface VoiceModeProps {
   visible: boolean;
   onClose: () => void;
-  onEndVoice?: () => void;
+  onEndVoice?: () => void | Promise<void>;
   transcript?: string;
   isBudSpeaking?: boolean;
   isConnecting?: boolean;
+  isSessionBusy?: boolean;
 }
 
 function VoiceActivityBars({
@@ -82,6 +83,7 @@ export function VoiceMode({
   transcript = '',
   isBudSpeaking = false,
   isConnecting = false,
+  isSessionBusy = false,
 }: VoiceModeProps) {
   const colors = useAppColors();
   const insets = useSafeAreaInsets();
@@ -95,12 +97,28 @@ export function VoiceMode({
     [colors, insets.bottom, insets.top],
   );
   const [displayedText, setDisplayedText] = useState('');
+  const [isEnding, setIsEnding] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  const handleClose = () => {
-    onEndVoice?.();
-    onClose();
+  const isLocked = isSessionBusy || isConnecting || isEnding;
+
+  const handleClose = async () => {
+    if (isLocked) return;
+
+    setIsEnding(true);
+    try {
+      await onEndVoice?.();
+    } finally {
+      setIsEnding(false);
+      onClose();
+    }
   };
+
+  useEffect(() => {
+    if (!visible) {
+      setIsEnding(false);
+    }
+  }, [visible]);
 
   useEffect(() => {
     if (!transcript) {
@@ -126,13 +144,26 @@ export function VoiceMode({
     scrollRef.current?.scrollToEnd({ animated: true });
   }, [displayedText]);
 
-  const statusLabel = isConnecting
-    ? 'Bud está conectando...'
-    : isBudSpeaking
-      ? 'Bud está falando'
-      : 'Bud está ouvindo...';
+  const statusLabel = isEnding
+    ? 'Encerrando conexão...'
+    : isConnecting
+      ? 'Bud está conectando...'
+      : isBudSpeaking
+        ? 'Bud está falando'
+        : 'Bud está ouvindo...';
 
-  const transcriptPlaceholder = isConnecting ? 'Conectando…' : 'Ouvindo…';
+  const transcriptPlaceholder = isEnding
+    ? 'Encerrando…'
+    : isConnecting
+      ? 'Conectando…'
+      : 'Ouvindo…';
+
+  const actionButtonStyle = isLocked
+    ? [styles.actionButton, styles.actionButtonDisabled]
+    : styles.actionButton;
+  const backButtonStyle = isLocked
+    ? [styles.backButton, styles.actionButtonDisabled]
+    : styles.backButton;
 
   return (
     <Modal
@@ -147,9 +178,11 @@ export function VoiceMode({
       >
         <TouchableOpacity
           onPress={handleClose}
+          disabled={isLocked}
           accessibilityRole="button"
           accessibilityLabel="Voltar"
-          style={styles.backButton}
+          accessibilityState={{ disabled: isLocked }}
+          style={backButtonStyle}
         >
           <ChevronLeft size={20} color={colors.foreground} strokeWidth={2} />
         </TouchableOpacity>
@@ -171,9 +204,11 @@ export function VoiceMode({
           <View style={styles.actionsRow}>
             <TouchableOpacity
               onPress={handleClose}
+              disabled={isLocked}
               accessibilityRole="button"
               accessibilityLabel="Encerrar microfone"
-              style={styles.actionButton}
+              accessibilityState={{ disabled: isLocked }}
+              style={actionButtonStyle}
             >
               <MicOff size={22} color={colors.foreground} strokeWidth={2} />
             </TouchableOpacity>
@@ -182,9 +217,11 @@ export function VoiceMode({
 
             <TouchableOpacity
               onPress={handleClose}
+              disabled={isLocked}
               accessibilityRole="button"
               accessibilityLabel="Voltar ao teclado"
-              style={styles.actionButton}
+              accessibilityState={{ disabled: isLocked }}
+              style={actionButtonStyle}
             >
               <Keyboard size={22} color={colors.foreground} strokeWidth={2} />
             </TouchableOpacity>
