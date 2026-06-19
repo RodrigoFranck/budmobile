@@ -51,6 +51,8 @@ interface TabScreenContextValue {
   generalInsight: ReturnType<typeof useExploreInsights>['generalInsight'];
   frequencyInsight: ReturnType<typeof useExploreInsights>['frequencyInsight'];
   habitInsight: ReturnType<typeof useExploreInsights>['habitInsight'];
+  deepInsightProgress: ReturnType<typeof useExploreInsights>['deepInsightProgress'];
+  refreshExploreInsights: ReturnType<typeof useExploreInsights>['refreshInsights'];
 }
 
 const TabScreenContext = createContext<TabScreenContextValue | undefined>(undefined);
@@ -71,13 +73,18 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
     refetch: refetchConversations,
     getOrCreateTodayConversation,
   } = useConversations();
+
+  const [insightsRefreshToken, setInsightsRefreshToken] = useState(0);
+
   const {
     yesterdayInsight,
     generalInsight,
     frequencyInsight,
     habitInsight,
+    deepInsightProgress,
     isLoading: insightsLoading = false,
-  } = useExploreInsights();
+    refreshInsights,
+  } = useExploreInsights(insightsRefreshToken);
 
   const [chatConversationId, setChatConversationId] = useState<string | null>(null);
   const [chatConversationReady, setChatConversationReady] = useState(false);
@@ -225,6 +232,8 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
       generalInsight,
       frequencyInsight,
       habitInsight,
+      deepInsightProgress,
+      refreshExploreInsights: refreshInsights,
     }),
     [
       isTabReady,
@@ -251,6 +260,8 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
       generalInsight,
       frequencyInsight,
       habitInsight,
+      deepInsightProgress,
+      refreshInsights,
     ],
   );
 

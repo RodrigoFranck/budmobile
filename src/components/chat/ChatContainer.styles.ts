@@ -38,15 +38,6 @@ export function createChatContainerStyles(params: {
       marginTop: Spacing.md,
       opacity: 0.92,
     },
-    footerWrap: {
-      paddingVertical: Spacing.sm,
-    },
-    footerText: {
-      fontFamily: 'Fraunces_400Regular',
-      fontSize: 14,
-      fontStyle: 'italic',
-      color: colors['chat-label-muted'],
-    },
   });
 }
 

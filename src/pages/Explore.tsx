@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { View, ScrollView, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Book, Settings } from 'lucide-react-native';
 import type { Insight } from '@/hooks/useExploreInsights';
 import { InsightCard } from '@/components/explore/InsightCard';
@@ -26,7 +26,14 @@ export default function ExploreScreen() {
     generalInsight,
     frequencyInsight,
     habitInsight,
+    refreshExploreInsights,
   } = useTabScreenContext();
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshExploreInsights({ cacheOnly: true });
+    }, [refreshExploreInsights]),
+  );
 
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -136,6 +143,8 @@ export default function ExploreScreen() {
             onButtonClick={handleContinueYesterday}
             locked={yesterdayInsight.locked}
             remaining={yesterdayInsight.remaining}
+            cycleProgress={yesterdayInsight.cycleProgress}
+            cycleRequired={yesterdayInsight.cycleRequired}
             onMicClick={() => navigateToChatVoice('yesterday_journey', yesterdayInsight)}
             micDisabled={yesterdayInsight.locked}
           />
@@ -150,6 +159,8 @@ export default function ExploreScreen() {
             onButtonClick={handleTalkAboutInsight}
             locked={generalInsight.locked}
             remaining={generalInsight.remaining}
+            cycleProgress={generalInsight.cycleProgress}
+            cycleRequired={generalInsight.cycleRequired}
             onMicClick={() => navigateToChatVoice('general_insight', generalInsight)}
             micDisabled={generalInsight.locked}
           />
@@ -164,6 +175,8 @@ export default function ExploreScreen() {
             onButtonClick={handleTalkAboutFrequency}
             locked={frequencyInsight.locked}
             remaining={frequencyInsight.remaining}
+            cycleProgress={frequencyInsight.cycleProgress}
+            cycleRequired={frequencyInsight.cycleRequired}
             onMicClick={() => navigateToChatVoice('frequency', frequencyInsight)}
             micDisabled={frequencyInsight.locked}
           />
@@ -178,6 +191,8 @@ export default function ExploreScreen() {
             onButtonClick={handleStartHabit}
             locked={habitInsight.locked}
             remaining={habitInsight.remaining}
+            cycleProgress={habitInsight.cycleProgress}
+            cycleRequired={habitInsight.cycleRequired}
             onMicClick={() => navigateToChatVoice('habit', habitInsight)}
             micDisabled={habitInsight.locked}
           />

@@ -166,47 +166,46 @@ export default function CheckInResultScreen() {
         </Pressable>
       </View>
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: Math.max(insets.bottom, 20) + 16 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingMessage} accessibilityLiveRegion="polite">
-              {loadingMessages[loadingIdx]}
-            </Text>
-          </View>
-        ) : null}
+      {loading ? (
+        <View style={[styles.loadingContainer, { paddingBottom: insets.bottom }]}>
+          <Text style={styles.loadingMessage} accessibilityLiveRegion="polite">
+            {loadingMessages[loadingIdx]}
+          </Text>
+        </View>
+      ) : null}
 
-        {!loading && generateFailed && !report ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.errorText}>
-              Não foi possível gerar o relatório agora. Suas respostas foram salvas.
-            </Text>
-            <Pressable
-              style={styles.ctaButton}
-              onPress={() => setRetryKey((key) => key + 1)}
-              accessibilityRole="button"
-              accessibilityLabel="Tentar novamente"
-            >
-              <Text style={styles.ctaLabel}>Tentar novamente</Text>
-            </Pressable>
-            <Pressable
-              style={styles.errorButton}
-              onPress={() => navigation.navigate('CheckInActivities')}
-              accessibilityRole="button"
-              accessibilityLabel="Fechar"
-            >
-              <Text style={styles.errorButtonLabel}>Fechar</Text>
-            </Pressable>
-          </View>
-        ) : null}
+      {!loading && generateFailed && !report ? (
+        <View style={[styles.loadingContainer, { paddingBottom: insets.bottom }]}>
+          <Text style={styles.errorText}>
+            Não foi possível gerar o relatório agora. Suas respostas foram salvas.
+          </Text>
+          <Pressable
+            style={styles.ctaButton}
+            onPress={() => setRetryKey((key) => key + 1)}
+            accessibilityRole="button"
+            accessibilityLabel="Tentar novamente"
+          >
+            <Text style={styles.ctaLabel}>Tentar novamente</Text>
+          </Pressable>
+          <Pressable
+            style={styles.errorButton}
+            onPress={() => navigation.navigate('CheckInActivities')}
+            accessibilityRole="button"
+            accessibilityLabel="Fechar"
+          >
+            <Text style={styles.errorButtonLabel}>Fechar</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
-        {!loading && report ? (
-          <>
+      {!loading && report ? (
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Math.max(insets.bottom, 20) + 16 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
             <Text style={styles.headline} accessibilityRole="header">
               {report.headline}
             </Text>
@@ -242,9 +241,8 @@ export default function CheckInResultScreen() {
             >
               <Text style={styles.ctaLabel}>Vamos conversar sobre isso</Text>
             </Pressable>
-          </>
-        ) : null}
-      </ScrollView>
+        </ScrollView>
+      ) : null}
     </View>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   ActivityIndicator,
   ImageBackground,
@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight, Lock, MessageSquare, Sparkles } from 'lucide-react-native';
+
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 import ConversationDetail from '@/components/history/ConversationDetail';
 import { DeepInsightSheet } from '@/components/explore/DeepInsightSheet';
@@ -29,8 +31,19 @@ export default function HistoryScreen() {
   const colors = useAppColors();
   const styles = useMemo(() => createHistoryStyles(colors), [colors]);
   const tabLoading = useTabScreenLoading('History');
-  const { conversations, generalInsight, insightsLoading } =
-    useTabScreenContext();
+  const {
+    conversations,
+    generalInsight,
+    deepInsightProgress,
+    insightsLoading,
+    refreshExploreInsights,
+  } = useTabScreenContext();
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshExploreInsights({ cacheOnly: true });
+    }, [refreshExploreInsights]),
+  );
 
   const [selectedConversation, setSelectedConversation] = useState<{
     id: string;
@@ -60,7 +73,7 @@ export default function HistoryScreen() {
   const canGoNewer = selectedMonthIndex > 0;
   const canGoOlder = selectedMonthIndex < monthGroups.length - 1;
 
-  const canOpenDeepInsight = !insightsLoading && !generalInsight.locked;
+  const canOpenDeepInsight = !insightsLoading && !deepInsightProgress.locked;
 
   if (selectedConversation) {
     return (
@@ -119,10 +132,14 @@ export default function HistoryScreen() {
               ) : canOpenDeepInsight ? (
                 <>
                   <Text style={styles.inspiredTitle} numberOfLines={2}>
-                    {generalInsight.title}
+                    {generalInsight.locked
+                      ? 'Inspirado em você'
+                      : generalInsight.title}
                   </Text>
                   <Text style={styles.inspiredDescription} numberOfLines={2}>
-                    {generalInsight.description}
+                    {generalInsight.locked
+                      ? 'Toque para ler seu insight semanal.'
+                      : generalInsight.description}
                   </Text>
                   <View style={styles.inspiredHintRow}>
                     <Text style={styles.inspiredHint}>Toque para ler</Text>
@@ -133,7 +150,9 @@ export default function HistoryScreen() {
                 <View style={styles.inspiredLockedRow}>
                   <Lock size={20} color="rgba(255,255,255,0.6)" />
                   <Text style={styles.inspiredLockedText}>
-                    Continue conversando com o Bud para desbloquear seu insight semanal.
+                    Continue conversando com o Bud para desbloquear seu insight semanal (
+                    {deepInsightProgress.progress}/{deepInsightProgress.required} conversas nesta
+                    semana).
                   </Text>
                 </View>
               )}

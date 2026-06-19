@@ -156,7 +156,7 @@ export function VoiceMode({
     ? 'Encerrando…'
     : isConnecting
       ? 'Conectando…'
-      : 'Ouvindo…';
+      : '';
 
   const actionButtonStyle = isLocked
     ? [styles.actionButton, styles.actionButtonDisabled]

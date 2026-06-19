@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback, useMemo } from 'react';
 import { FlatList, Keyboard, View, Text } from 'react-native';
+import { TypingIndicator } from '@/components/chat/TypingIndicator';
 import { format, isSameDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChatMessage } from './ChatMessage';
@@ -206,13 +207,10 @@ export function ChatContainer({ messages, loading, topPadding, scrollResetToken 
 
   const showEmpty = messages.length === 0 && !loading;
 
-  const typingIndicator = useMemo(() => (
-    showTypingFooter ? (
-      <View style={styles.footerWrap}>
-        <Text style={styles.footerText}>Bud está digitando...</Text>
-      </View>
-    ) : null
-  ), [showTypingFooter, styles.footerText, styles.footerWrap]);
+  const typingIndicator = useMemo(
+    () => (showTypingFooter ? <TypingIndicator /> : null),
+    [showTypingFooter],
+  );
 
   return (
     <FlatList
