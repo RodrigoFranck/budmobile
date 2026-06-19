@@ -30,6 +30,7 @@ export interface InsightContext {
   habitTitle?: string;
   badge?: string;
   title?: string;
+  cardDescription?: string;
   backgroundType?: "yesterday" | "inspired" | "frequency" | "habit";
 }
 

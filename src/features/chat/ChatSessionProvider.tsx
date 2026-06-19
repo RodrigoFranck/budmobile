@@ -10,14 +10,19 @@ import {
   type RefObject,
 } from 'react';
 
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useTabScreenContext } from '@/contexts/TabScreenContext';
 import { countUserTurns, matchApproach } from '@/utils/approachMatcher';
+import { buildInsightApproachContext } from '@/utils/buildInsightApproachContext';
 import { streamChat, type InsightContext, type UserContext } from '@/utils/chatStream';
 import type { ChatInsightParam } from '@/types/chatInsight';
-import { clearPendingChatInsight } from '@/utils/navigateToChat';
+import {
+  clearPendingChatInsight,
+  consumePendingChatInsight,
+  registerChatInsightConsumer,
+} from '@/utils/navigateToChat';
 import { syncExploreInsights } from '@/utils/syncExploreInsights';
 import type { StreamingMessage } from '@/types/messages';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
@@ -57,6 +62,7 @@ interface ChatSessionContextValue {
   handleVoiceAssistantMessage: (text: string) => Promise<void>;
   handleEndVoiceSession: () => Promise<void>;
   applyChatInsight: (insight: ChatInsightParam) => void;
+  bootstrapInsightSession: () => void;
   trySendPendingInsight: () => void;
   handleVoiceInsight: (insight: {
     insight_type: string;
@@ -100,6 +106,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [isBudSpeaking, setIsBudSpeaking] = useState(false);
   const [insightContext, setInsightContext] = useState<InsightContext | null>(null);
+  const insightContextRef = useRef<InsightContext | null>(null);
   const [recentInsights, setRecentInsights] = useState<
     Array<{ insight_type: string; title: string; description: string }>
   >([]);
@@ -115,20 +122,32 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     contextSummary: insight.contextSummary,
     internalContext: insight.internalContext,
     backgroundType: insight.backgroundType,
+    cardDescription: insight.cardDescription,
+    conversationId: insight.conversationId,
   }), []);
+
+  const trySendPendingInsightRef = useRef<() => void>(() => {});
+  const bootstrapInsightSessionRef = useRef<() => void>(() => {});
+  const handledInsightKeyRef = useRef<string | null>(null);
+  const isVoiceAutoStartInFlightRef = useRef(false);
 
   const applyChatInsight = useCallback(
     (insight: ChatInsightParam) => {
       pendingChatInsightRef.current = insight;
       didAutoSendInsightRef.current = false;
-      setInsightContext(mapChatInsightToContext(insight));
+      const mappedContext = mapChatInsightToContext(insight);
+      insightContextRef.current = mappedContext;
+      setInsightContext(mappedContext);
       setRecentInsights([
         {
           insight_type: insight.insightType,
-          title: insight.title,
-          description: insight.contextSummary,
+          title: insight.contextSummary,
+          description: insight.internalContext,
         },
       ]);
+      if (insight.autoStartVoice) {
+        setShouldAutoStartVoice(true);
+      }
     },
     [mapChatInsightToContext],
   );
@@ -150,6 +169,8 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (chatHomeResetToken === 0) return;
 
+    handledInsightKeyRef.current = null;
+    isVoiceAutoStartInFlightRef.current = false;
     setStreamingMessages([]);
     setIsStreaming(false);
     streamingIdRef.current = null;
@@ -159,6 +180,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     setVoiceTranscript('');
     setIsBudSpeaking(false);
     setInsightContext(null);
+    insightContextRef.current = null;
     setRecentInsights([]);
     setShouldAutoStartVoice(false);
     pendingChatInsightRef.current = null;
@@ -168,23 +190,6 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     navigation.setParams({ voiceInsight: undefined, chatInsight: undefined });
     void voiceInterfaceRef.current?.endConversation({ force: true });
   }, [chatHomeResetToken, navigation]);
-
-  useEffect(() => {
-    if (!shouldAutoStartVoice) return;
-    if (!currentConversationId) return;
-
-    const start = async () => {
-      try {
-        await voiceInterfaceRef.current?.startConversation();
-      } catch {
-        // startConversation already alerts on most failures
-      } finally {
-        setShouldAutoStartVoice(false);
-      }
-    };
-
-    void start();
-  }, [shouldAutoStartVoice, currentConversationId]);
 
   useEffect(() => {
     if (streamingMessages.length === 0) return;
@@ -216,7 +221,9 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       (msg) => !dbContents.has(`${msg.role}:${msg.content}`) || msg.isStreaming,
     );
 
-    return [...dbMessagesFormatted, ...filteredStreaming];
+    return [...dbMessagesFormatted, ...filteredStreaming].filter(
+      (msg) => msg.role !== 'context',
+    );
   }, [dbMessages, streamingMessages]);
 
   useEffect(() => {
@@ -277,7 +284,8 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     async (message: string, contextOverride?: InsightContext | null) => {
       if (!currentConversationId || !user) return;
 
-      const activeInsightContext = contextOverride ?? insightContext;
+      const activeInsightContext =
+        contextOverride ?? insightContextRef.current ?? insightContext;
 
       const userMessageId = `user-${Date.now()}`;
       setStreamingMessages((prev) => [
@@ -325,15 +333,23 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
         countUserTurns(apiMessages),
       );
 
+      const streamUserContext = activeInsightContext
+        ? { ...userContext, isFirstInteractionOfDay: true }
+        : userContext;
+
+      const streamApproachContext = activeInsightContext
+        ? buildInsightApproachContext(activeInsightContext)
+        : {
+            strategy: approachDecision.strategy,
+            guidanceText: approachDecision.guidanceText,
+          };
+
       await streamChat({
         messages: apiMessages,
-        userContext,
+        userContext: streamUserContext,
         insightContext: activeInsightContext ?? undefined,
         memoryContext: memoryLoading ? undefined : memoryContext,
-        approachContext: {
-          strategy: approachDecision.strategy,
-          guidanceText: approachDecision.guidanceText,
-        },
+        approachContext: streamApproachContext,
         onDelta: (deltaText) => {
           accumulatedContent += deltaText;
           setStreamingMessages((prev) =>
@@ -383,24 +399,91 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  const trySendPendingInsight = useCallback(() => {
+  const bootstrapInsightSession = useCallback(() => {
     const pending = pendingChatInsightRef.current;
-    if (!pending?.initialUserMessage?.trim()) return;
-    if (!currentConversationId) return;
-    if (didAutoSendInsightRef.current) return;
-    if (isStreaming) return;
 
-    didAutoSendInsightRef.current = true;
-    const message = pending.initialUserMessage.trim();
-    const context = mapChatInsightToContext(pending);
-    pendingChatInsightRef.current = null;
+    if (
+      pending?.initialUserMessage?.trim() &&
+      currentConversationId &&
+      user &&
+      !didAutoSendInsightRef.current &&
+      !isStreaming
+    ) {
+      didAutoSendInsightRef.current = true;
+      const message = pending.initialUserMessage.trim();
+      const context = mapChatInsightToContext(pending);
+      pendingChatInsightRef.current = null;
+      void handleSendMessage(message, context);
+      return;
+    }
 
-    void handleSendMessage(message, context);
-  }, [currentConversationId, handleSendMessage, isStreaming, mapChatInsightToContext]);
+    if (
+      !shouldAutoStartVoice ||
+      !currentConversationId ||
+      !voiceInterfaceRef.current ||
+      isVoiceAutoStartInFlightRef.current
+    ) {
+      return;
+    }
+
+    isVoiceAutoStartInFlightRef.current = true;
+    void voiceInterfaceRef.current
+      .startConversation()
+      .catch(() => {
+        // startConversation already alerts on most failures
+      })
+      .finally(() => {
+        isVoiceAutoStartInFlightRef.current = false;
+        setShouldAutoStartVoice(false);
+      });
+  }, [
+    currentConversationId,
+    handleSendMessage,
+    isStreaming,
+    mapChatInsightToContext,
+    shouldAutoStartVoice,
+    user,
+  ]);
+
+  const trySendPendingInsight = useCallback(() => {
+    bootstrapInsightSession();
+  }, [bootstrapInsightSession]);
+
+  trySendPendingInsightRef.current = trySendPendingInsight;
+  bootstrapInsightSessionRef.current = bootstrapInsightSession;
+
+  const processIncomingChatInsight = useCallback(
+    (insight: ChatInsightParam) => {
+      const insightKey = `${insight.insightType}:${insight.title}:${insight.initialUserMessage ?? ''}:${insight.autoStartVoice ? 'voice' : 'text'}`;
+      if (handledInsightKeyRef.current === insightKey) return;
+      handledInsightKeyRef.current = insightKey;
+
+      applyChatInsight(insight);
+      requestAnimationFrame(() => {
+        bootstrapInsightSessionRef.current();
+      });
+    },
+    [applyChatInsight],
+  );
 
   useEffect(() => {
-    trySendPendingInsight();
-  }, [trySendPendingInsight]);
+    registerChatInsightConsumer(processIncomingChatInsight);
+    consumePendingChatInsight();
+
+    return () => {
+      registerChatInsightConsumer(null);
+    };
+  }, [processIncomingChatInsight]);
+
+  useFocusEffect(
+    useCallback(() => {
+      consumePendingChatInsight();
+    }, []),
+  );
+
+  useEffect(() => {
+    bootstrapInsightSession();
+  }, [bootstrapInsightSession]);
 
   const value = useMemo<ChatSessionContextValue>(
     () => ({
@@ -430,6 +513,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       handleVoiceAssistantMessage,
       handleEndVoiceSession,
       applyChatInsight,
+      bootstrapInsightSession,
       trySendPendingInsight,
       handleVoiceInsight,
     }),
@@ -454,6 +538,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       handleVoiceAssistantMessage,
       handleEndVoiceSession,
       applyChatInsight,
+      bootstrapInsightSession,
       trySendPendingInsight,
       handleVoiceInsight,
     ],

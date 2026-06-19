@@ -4,6 +4,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Book, Settings } from 'lucide-react-native';
 import type { Insight } from '@/hooks/useExploreInsights';
+import { buildExploreChatInsight } from '@/utils/buildExploreChatInsight';
+import { navigateToChatTab } from '@/utils/navigateToChat';
 import { InsightCard } from '@/components/explore/InsightCard';
 import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
 import {
@@ -54,30 +56,32 @@ export default function ExploreScreen() {
     ).start();
   }, [opacityAnim]);
 
+  const navigateToChatText = (insightType: string, insight: Insight) => {
+    navigateToChatTab(navigation, {
+      chatInsight: buildExploreChatInsight(insightType, insight, 'text'),
+    });
+  };
+
   const navigateToChatVoice = (insightType: string, insight: Insight) => {
-    navigation.navigate('Chat', {
-      voiceInsight: {
-        insight_type: insightType,
-        title: insight.title,
-        description: insight.description,
-      },
+    navigateToChatTab(navigation, {
+      chatInsight: buildExploreChatInsight(insightType, insight, 'voice'),
     });
   };
 
   const handleContinueYesterday = () => {
-    navigation.navigate('Chat');
+    navigateToChatText('yesterday_journey', yesterdayInsight);
   };
 
   const handleTalkAboutInsight = () => {
-    navigation.navigate('Chat');
+    navigateToChatText('general_insight', generalInsight);
   };
 
   const handleTalkAboutFrequency = () => {
-    navigation.navigate('Chat');
+    navigateToChatText('frequency', frequencyInsight);
   };
 
   const handleStartHabit = () => {
-    navigation.navigate('Chat');
+    navigateToChatText('habit', habitInsight);
   };
 
   return (
