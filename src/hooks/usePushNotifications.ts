@@ -8,6 +8,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import {
   clearStoredPushToken,
+  displayRemoteMessageAsNotification,
+  getPushDataFromRemoteMessage,
   getStoredPushToken,
   registerForPushNotificationsAsync,
   removePushTokenForUser,
@@ -15,6 +17,19 @@ import {
   type PushNotificationData,
 } from '@/services/pushNotifications';
 import type { RootStackParamList } from '@/types/navigation';
+
+function navigateFromPushData(
+  navigationRef: NavigationContainerRefWithCurrent<RootStackParamList>,
+  data: PushNotificationData | undefined
+): void {
+  if (!navigationRef.isReady() || !data?.screen) {
+    return;
+  }
+
+  if (data.screen === 'MainTabs') {
+    navigationRef.navigate('MainTabs');
+  }
+}
 
 export function usePushNotifications(
   navigationRef: NavigationContainerRefWithCurrent<RootStackParamList>
@@ -64,22 +79,40 @@ export function usePushNotifications(
   }, [user?.id]);
 
   useEffect(() => {
+    if (Platform.OS === 'web') {
+      return;
+    }
+
+    void messaging()
+      .getInitialNotification()
+      .then((remoteMessage) => {
+        if (!remoteMessage) {
+          return;
+        }
+
+        navigateFromPushData(navigationRef, getPushDataFromRemoteMessage(remoteMessage));
+      });
+
+    const openedAppUnsubscribe = messaging().onNotificationOpenedApp((remoteMessage) => {
+      navigateFromPushData(navigationRef, getPushDataFromRemoteMessage(remoteMessage));
+    });
+
+    const foregroundUnsubscribe = messaging().onMessage(async (remoteMessage) => {
+      await displayRemoteMessageAsNotification(remoteMessage);
+    });
+
     const receivedSubscription = Notifications.addNotificationReceivedListener(() => {});
 
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
         const data = response.notification.request.content.data as PushNotificationData;
-        if (!navigationRef.isReady() || !data?.screen) {
-          return;
-        }
-
-        if (data.screen === 'MainTabs') {
-          navigationRef.navigate('MainTabs');
-        }
+        navigateFromPushData(navigationRef, data);
       }
     );
 
     return () => {
+      openedAppUnsubscribe();
+      foregroundUnsubscribe();
       receivedSubscription.remove();
       responseSubscription.remove();
     };

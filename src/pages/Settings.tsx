@@ -30,6 +30,7 @@ import {
 } from "@/constants/healthSafety";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useNotificationPreferences } from "@/hooks/useNotificationPreferences";
+import { getCurrentFcmTokenAsync } from "@/services/pushNotifications";
 import { supabase } from "@/integrations/supabase/client";
 
 const HOUR_OPTIONS = Array.from({ length: 18 }, (_, index) => index + 6);
@@ -186,6 +187,7 @@ export default function SettingsScreen() {
   const [resettingOnboarding, setResettingOnboarding] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [timePickerVisible, setTimePickerVisible] = useState(false);
+  const [loadingFcmToken, setLoadingFcmToken] = useState(false);
 
   const lightModeValue = useMemo(() => !darkMode, [darkMode]);
   const colors = useMemo(() => (darkMode ? DARK_COLORS : LIGHT_COLORS), [darkMode]);
@@ -230,6 +232,27 @@ export default function SettingsScreen() {
   );
 
   const selectedHour = Number.parseInt(dailyTimeLabel.split(":")[0] ?? "20", 10);
+
+  const handleCopyFcmToken = useCallback(async () => {
+    setLoadingFcmToken(true);
+    try {
+      const token = await getCurrentFcmTokenAsync();
+      if (!token) {
+        Alert.alert(
+          "Token FCM não encontrado",
+          "Ative as notificações e aceite a permissão no sistema. No iOS, use um iPhone físico e configure a chave APNs no Firebase Console.",
+        );
+        return;
+      }
+
+      await Share.share({
+        message: token,
+        title: "FCM registration token",
+      });
+    } finally {
+      setLoadingFcmToken(false);
+    }
+  }, []);
 
   const openHelp = useCallback(() => {
     WebBrowser.openBrowserAsync(BUDMIND_HELP_URL);
@@ -446,6 +469,21 @@ export default function SettingsScreen() {
             <Text style={styles.rowText}>Horário diário</Text>
             <Text style={[styles.rowText, { fontSize: 18, color: colors.primary }]}>
               {dailyTimeLabel}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {__DEV__ && notificationsEnabled ? (
+          <TouchableOpacity
+            onPress={handleCopyFcmToken}
+            activeOpacity={0.8}
+            style={styles.row}
+            accessibilityRole="button"
+            accessibilityLabel="Copiar token FCM para teste no Firebase"
+            disabled={loadingFcmToken}
+          >
+            <Text style={styles.rowText}>
+              {loadingFcmToken ? "Obtendo token FCM..." : "Copiar token FCM (dev)"}
             </Text>
           </TouchableOpacity>
         ) : null}

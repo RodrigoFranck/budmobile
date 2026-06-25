@@ -5,6 +5,10 @@ if (__DEV__) {
 
 import './src/config/silenceWebRtcLogs';
 
+import { registerBackgroundMessageHandler } from './src/services/pushNotificationsBackground';
+
+registerBackgroundMessageHandler();
+
 import { registerRootComponent } from 'expo';
 
 import App from './App';

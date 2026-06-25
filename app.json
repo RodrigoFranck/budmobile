@@ -54,7 +54,12 @@
         {
           "ios": {
             "useFrameworks": "static",
-            "forceStaticLinking": ["RNFBApp", "RNFBMessaging"]
+            "forceStaticLinking": [
+              "RNFBApp",
+              "RNFBMessaging",
+              "livekit-react-native",
+              "livekit-react-native-webrtc"
+            ]
           }
         }
       ],

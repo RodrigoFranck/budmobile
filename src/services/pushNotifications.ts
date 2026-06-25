@@ -1,9 +1,11 @@
-import messaging from '@react-native-firebase/messaging';
+import messaging, { type FirebaseMessagingTypes } from '@react-native-firebase/messaging';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { supabase } from '@/integrations/supabase/client';
+
+export const DEFAULT_NOTIFICATION_CHANNEL_ID = 'default';
 
 let storedPushToken: string | null = null;
 
@@ -40,10 +42,64 @@ async function getFcmTokenAsync(): Promise<string | null> {
 
   try {
     return await messaging().getToken();
-  } catch (error) {
-    console.error('[push] Erro ao obter token FCM:', error);
+  } catch {
     return null;
   }
+}
+
+function canRegisterForPushOnThisDevice(): boolean {
+  if (Device.isDevice) {
+    return true;
+  }
+
+  // Android emulator with Google Play can receive FCM tokens in development.
+  return __DEV__ && Platform.OS === 'android';
+}
+
+export async function requestNotificationPermissionAsync(): Promise<boolean> {
+  if (Platform.OS === 'web') {
+    return false;
+  }
+
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync({
+      ios: {
+        allowAlert: true,
+        allowBadge: true,
+        allowSound: true,
+      },
+    });
+    finalStatus = status;
+  }
+
+  if (finalStatus !== 'granted') {
+    return false;
+  }
+
+  if (Platform.OS === 'ios') {
+    const authStatus = await messaging().requestPermission();
+    return (
+      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+      authStatus === messaging.AuthorizationStatus.PROVISIONAL
+    );
+  }
+
+  return true;
+}
+
+async function configureAndroidNotificationChannel(): Promise<void> {
+  if (Platform.OS !== 'android') {
+    return;
+  }
+
+  await Notifications.setNotificationChannelAsync(DEFAULT_NOTIFICATION_CHANNEL_ID, {
+    name: 'Bud',
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 250, 250, 250],
+  });
 }
 
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
@@ -51,47 +107,38 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     return null;
   }
 
-  if (!Device.isDevice) {
+  const granted = await requestNotificationPermissionAsync();
+  if (!granted) {
     return null;
   }
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
+  await configureAndroidNotificationChannel();
 
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-
-  if (finalStatus !== 'granted') {
+  if (!canRegisterForPushOnThisDevice()) {
     return null;
   }
 
-  if (Platform.OS === 'ios') {
-    const authStatus = await messaging().requestPermission();
-    const enabled =
-      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+  return getFcmTokenAsync();
+}
 
-    if (!enabled) {
+export async function getCurrentFcmTokenAsync(): Promise<string | null> {
+  if (storedPushToken) {
+    return storedPushToken;
+  }
+
+  const { status } = await Notifications.getPermissionsAsync();
+  if (status !== 'granted') {
+    const granted = await requestNotificationPermissionAsync();
+    if (!granted) {
       return null;
     }
   }
 
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'Bud',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-    });
+  if (!canRegisterForPushOnThisDevice()) {
+    return null;
   }
 
-  const token = await getFcmTokenAsync();
-  if (token && __DEV__) {
-    console.log('[push] FCM token (Firebase Console → Messaging → teste):', token);
-  }
-
-  return token;
+  return getFcmTokenAsync();
 }
 
 export async function savePushTokenForUser(
@@ -109,7 +156,6 @@ export async function savePushTokenForUser(
   );
 
   if (error) {
-    console.error('[push] Erro ao salvar token:', error.message);
     return;
   }
 
@@ -127,8 +173,18 @@ export async function removePushTokenForUser(
     .eq('expo_push_token', pushToken);
 
   if (error) {
-    console.error('[push] Erro ao remover token:', error.message);
+    return;
   }
+}
+
+export async function removeAllPushTokensForUser(userId: string): Promise<void> {
+  const { error } = await supabase.from('push_tokens').delete().eq('user_id', userId);
+
+  if (error) {
+    return;
+  }
+
+  clearStoredPushToken();
 }
 
 export async function syncPushTokenForUser(userId: string): Promise<string | null> {
@@ -146,3 +202,29 @@ export type PushNotificationData = {
   conversationId?: string;
   [key: string]: unknown;
 };
+
+export async function displayRemoteMessageAsNotification(
+  remoteMessage: FirebaseMessagingTypes.RemoteMessage
+): Promise<void> {
+  const title = remoteMessage.notification?.title;
+  const body = remoteMessage.notification?.body;
+
+  if (!title && !body) {
+    return;
+  }
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: title ?? 'Bud',
+      body: body ?? '',
+      data: (remoteMessage.data ?? {}) as Record<string, unknown>,
+    },
+    trigger: null,
+  });
+}
+
+export function getPushDataFromRemoteMessage(
+  remoteMessage: FirebaseMessagingTypes.RemoteMessage
+): PushNotificationData {
+  return (remoteMessage.data ?? {}) as PushNotificationData;
+}

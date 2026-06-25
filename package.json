@@ -9,10 +9,10 @@
   "scripts": {
     "postinstall": "node scripts/patch-expo-gradle-node.js",
     "start": "expo start",
+    "start:clear": "expo start -c",
     "android": "expo run:android",
     "android:bundle": "cd android && ./gradlew bundleRelease",
-    "ios": "DEVELOPER_DIR=\"$HOME/Downloads/Xcode 2.app/Contents/Developer\" expo run:ios",
-    "web": "expo start --web",
+    "ios": "DEVELOPER_DIR=\"$HOME/Downloads/Xcode 2.app/Contents/Developer\" expo run:ios --configuration Debug",
     "db:repair-subscriptions": "cd ../budmind && npm run db:repair-subscriptions"
   },
   "dependencies": {

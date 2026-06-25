@@ -6,8 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import { OnboardingBackButton } from '@/components/onboarding/OnboardingBackButton';
 import { OnboardingPrimaryButton } from '@/components/onboarding/OnboardingPrimaryButton';
 import { frauncesFont, useOnboardingColors } from '@/constants/onboardingTheme';
-import { useAuth } from '@/contexts/AuthContext';
-import { registerForPushNotificationsAsync, savePushTokenForUser } from '@/services/pushNotifications';
+import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
 import type { OnboardingNavigationProp } from '@/types/onboardingNavigation';
 
 const H_PAD = 24;
@@ -93,7 +92,7 @@ export default function OnboardingNotificationsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<OnboardingNavigationProp>();
   const onboardingColors = useOnboardingColors();
-  const { user } = useAuth();
+  const { setNotificationsEnabled } = useNotificationPreferences();
   const [activating, setActivating] = useState(false);
 
   const goToVoice = () => navigation.navigate('OnboardingVoice');
@@ -101,12 +100,17 @@ export default function OnboardingNotificationsScreen() {
   const onActivate = async () => {
     setActivating(true);
     try {
-      const token = await registerForPushNotificationsAsync();
-      if (token && user?.id) {
-        await savePushTokenForUser(user.id, token);
-      }
+      await setNotificationsEnabled(true);
     } finally {
       setActivating(false);
+      goToVoice();
+    }
+  };
+
+  const onSkip = async () => {
+    try {
+      await setNotificationsEnabled(false);
+    } finally {
       goToVoice();
     }
   };
@@ -166,7 +170,7 @@ export default function OnboardingNotificationsScreen() {
           disabled={activating}
         />
         <View style={{ height: 12 }} />
-        <OnboardingPrimaryButton label="Continuar" onPress={goToVoice} />
+        <OnboardingPrimaryButton label="Continuar" onPress={onSkip} />
       </View>
     </LinearGradient>
   );

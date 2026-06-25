@@ -5,6 +5,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import {
   registerForPushNotificationsAsync,
+  removeAllPushTokensForUser,
+  requestNotificationPermissionAsync,
   savePushTokenForUser,
 } from '@/services/pushNotifications';
 
@@ -85,6 +87,15 @@ export function useNotificationPreferences() {
       setEnabled(nextEnabled);
 
       try {
+        if (Platform.OS !== 'web' && nextEnabled) {
+          const granted = await requestNotificationPermissionAsync();
+          if (!granted) {
+            throw new Error(
+              'Permissão de notificações negada. Ative em Ajustes > Bud > Notificações.',
+            );
+          }
+        }
+
         const { error } = await supabase
           .from('profiles')
           .update({
@@ -97,12 +108,19 @@ export function useNotificationPreferences() {
           throw error;
         }
 
-        if (nextEnabled && Platform.OS !== 'web') {
+        if (Platform.OS === 'web') {
+          return;
+        }
+
+        if (nextEnabled) {
           const token = await registerForPushNotificationsAsync();
           if (token) {
             await savePushTokenForUser(user.id, token);
           }
+          return;
         }
+
+        await removeAllPushTokensForUser(user.id);
       } catch (error) {
         setEnabled(!nextEnabled);
         throw error;

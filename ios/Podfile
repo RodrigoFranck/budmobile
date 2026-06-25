@@ -54,6 +54,17 @@ target 'budmobile' do
     :privacy_file_aggregation_enabled => podfile_properties['apple.privacyManifestAggregationEnabled'] != 'false',
   )
 
+  pre_install do |installer|
+    static_linking_pods = JSON.parse(podfile_properties['ios.forceStaticLinking'] || '[]')
+    installer.pod_targets.each do |pod|
+      next unless static_linking_pods.include?(pod.name)
+
+      def pod.build_type
+        Pod::BuildType.static_library
+      end
+    end
+  end
+
   post_install do |installer|
     react_native_post_install(
       installer,
@@ -61,5 +72,13 @@ target 'budmobile' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
+
+    installer.pods_project.targets.each do |target|
+      next unless ['livekit-react-native-webrtc', 'livekit-react-native'].include?(target.name)
+
+      target.build_configurations.each do |config|
+        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+      end
+    end
   end
 end
