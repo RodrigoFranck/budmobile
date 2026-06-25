@@ -121,26 +121,6 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   return getFcmTokenAsync();
 }
 
-export async function getCurrentFcmTokenAsync(): Promise<string | null> {
-  if (storedPushToken) {
-    return storedPushToken;
-  }
-
-  const { status } = await Notifications.getPermissionsAsync();
-  if (status !== 'granted') {
-    const granted = await requestNotificationPermissionAsync();
-    if (!granted) {
-      return null;
-    }
-  }
-
-  if (!canRegisterForPushOnThisDevice()) {
-    return null;
-  }
-
-  return getFcmTokenAsync();
-}
-
 export async function savePushTokenForUser(
   userId: string,
   pushToken: string

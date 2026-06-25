@@ -8,7 +8,6 @@ import {
   Alert,
   ActivityIndicator,
   Share,
-  StyleSheet,
   Linking,
   Appearance,
   Platform,
@@ -30,144 +29,14 @@ import {
 } from "@/constants/healthSafety";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useNotificationPreferences } from "@/hooks/useNotificationPreferences";
-import { getCurrentFcmTokenAsync } from "@/services/pushNotifications";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  createSettingsStyles,
+  DARK_COLORS,
+  LIGHT_COLORS,
+} from "@/pages/Settings.styles";
 
 const HOUR_OPTIONS = Array.from({ length: 18 }, (_, index) => index + 6);
-
-const DARK_COLORS = {
-  background: "#1D1916",
-  card: "#373737",
-  cardBorder: "rgba(255,255,255,0.06)",
-  text: "#FFFFFF",
-  icon: "rgba(255,255,255,0.75)",
-  primary: "#BBEEEE",
-} as const;
-
-const LIGHT_COLORS = {
-  background: "#F7F1ED",
-  card: "#FFFFFF",
-  cardBorder: "rgba(0,0,0,0.08)",
-  text: "#1D1916",
-  icon: "rgba(29,25,22,0.65)",
-  primary: "#2E7D7A",
-} as const;
-
-type Colors = {
-  background: string;
-  card: string;
-  cardBorder: string;
-  text: string;
-  icon: string;
-  primary: string;
-};
-
-const createStyles = (colors: Colors) =>
-  StyleSheet.create({
-    screen: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    content: {
-      flexGrow: 1,
-      paddingHorizontal: 18,
-      paddingTop: Spacing.md,
-      gap: Spacing.base,
-    },
-    backButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor:
-        colors === DARK_COLORS ? "rgba(255,255,255,0.18)" : "rgba(29,25,22,0.08)",
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: Spacing.md,
-    },
-    row: {
-      backgroundColor: colors.card,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-      paddingHorizontal: 18,
-      height: 56,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    rowText: {
-      color: colors.text,
-      fontSize: 22,
-      fontFamily: "InriaSerif-Regular",
-    },
-    rightSlot: {
-      height: 56,
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    switch: {
-      transform: [{ translateY: -1 }],
-    },
-    footer: {
-      marginTop: "auto",
-      paddingTop: Spacing.xl,
-      gap: Spacing.md,
-      alignItems: "center",
-    },
-    footerDisclaimer: {
-      color: colors.icon,
-      fontSize: 12,
-      lineHeight: 17,
-      textAlign: "center",
-    },
-    footerLegal: {
-      color: colors.icon,
-      fontSize: 14,
-      lineHeight: 20,
-      textAlign: "center",
-    },
-    legalLink: {
-      color: colors.primary,
-      textDecorationLine: "underline",
-    },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.5)",
-      justifyContent: "flex-end",
-    },
-    modalSheet: {
-      backgroundColor: colors.card,
-      borderTopLeftRadius: 16,
-      borderTopRightRadius: 16,
-      paddingHorizontal: 18,
-      paddingTop: 16,
-      paddingBottom: 24,
-      maxHeight: "50%",
-    },
-    modalTitle: {
-      color: colors.text,
-      fontSize: 20,
-      fontFamily: "InriaSerif-Regular",
-      marginBottom: 12,
-    },
-    hourOption: {
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.cardBorder,
-    },
-    hourOptionText: {
-      color: colors.text,
-      fontSize: 18,
-      fontFamily: "InriaSerif-Regular",
-    },
-    hourOptionTextSelected: {
-      color: colors.primary,
-      fontWeight: "700",
-    },
-    destructiveText: {
-      color: "#E05252",
-    },
-  });
 
 export default function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -187,11 +56,10 @@ export default function SettingsScreen() {
   const [resettingOnboarding, setResettingOnboarding] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [timePickerVisible, setTimePickerVisible] = useState(false);
-  const [loadingFcmToken, setLoadingFcmToken] = useState(false);
 
   const lightModeValue = useMemo(() => !darkMode, [darkMode]);
   const colors = useMemo(() => (darkMode ? DARK_COLORS : LIGHT_COLORS), [darkMode]);
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const styles = useMemo(() => createSettingsStyles(colors), [colors]);
 
   const handleToggleDarkMode = useCallback(
     async (isLightMode: boolean) => {
@@ -232,27 +100,6 @@ export default function SettingsScreen() {
   );
 
   const selectedHour = Number.parseInt(dailyTimeLabel.split(":")[0] ?? "20", 10);
-
-  const handleCopyFcmToken = useCallback(async () => {
-    setLoadingFcmToken(true);
-    try {
-      const token = await getCurrentFcmTokenAsync();
-      if (!token) {
-        Alert.alert(
-          "Token FCM não encontrado",
-          "Ative as notificações e aceite a permissão no sistema. No iOS, use um iPhone físico e configure a chave APNs no Firebase Console.",
-        );
-        return;
-      }
-
-      await Share.share({
-        message: token,
-        title: "FCM registration token",
-      });
-    } finally {
-      setLoadingFcmToken(false);
-    }
-  }, []);
 
   const openHelp = useCallback(() => {
     WebBrowser.openBrowserAsync(BUDMIND_HELP_URL);
@@ -427,7 +274,7 @@ export default function SettingsScreen() {
                 value={lightModeValue}
                 onValueChange={handleToggleDarkMode}
                 trackColor={{
-                  false: colors === DARK_COLORS ? "rgba(255,255,255,0.25)" : "rgba(29,25,22,0.18)",
+                  false: colors.switchTrackOff,
                   true: colors.primary,
                 }}
                 thumbColor="#FFFFFF"
@@ -447,7 +294,7 @@ export default function SettingsScreen() {
                 value={notificationsEnabled}
                 onValueChange={handleToggleNotifications}
                 trackColor={{
-                  false: colors === DARK_COLORS ? "rgba(255,255,255,0.25)" : "rgba(29,25,22,0.18)",
+                  false: colors.switchTrackOff,
                   true: colors.primary,
                 }}
                 thumbColor="#FFFFFF"
@@ -467,24 +314,7 @@ export default function SettingsScreen() {
             disabled={notificationsSaving}
           >
             <Text style={styles.rowText}>Horário diário</Text>
-            <Text style={[styles.rowText, { fontSize: 18, color: colors.primary }]}>
-              {dailyTimeLabel}
-            </Text>
-          </TouchableOpacity>
-        ) : null}
-
-        {__DEV__ && notificationsEnabled ? (
-          <TouchableOpacity
-            onPress={handleCopyFcmToken}
-            activeOpacity={0.8}
-            style={styles.row}
-            accessibilityRole="button"
-            accessibilityLabel="Copiar token FCM para teste no Firebase"
-            disabled={loadingFcmToken}
-          >
-            <Text style={styles.rowText}>
-              {loadingFcmToken ? "Obtendo token FCM..." : "Copiar token FCM (dev)"}
-            </Text>
+            <Text style={styles.rowTextValue}>{dailyTimeLabel}</Text>
           </TouchableOpacity>
         ) : null}
 
