@@ -12,6 +12,8 @@ import {
   Linking,
   Appearance,
   Platform,
+  Modal,
+  Pressable,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -27,7 +29,10 @@ import {
   TERMS_OF_SERVICE_URL,
 } from "@/constants/healthSafety";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useNotificationPreferences } from "@/hooks/useNotificationPreferences";
 import { supabase } from "@/integrations/supabase/client";
+
+const HOUR_OPTIONS = Array.from({ length: 18 }, (_, index) => index + 6);
 
 const DARK_COLORS = {
   background: "#1D1916",
@@ -124,6 +129,40 @@ const createStyles = (colors: Colors) =>
       color: colors.primary,
       textDecorationLine: "underline",
     },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      justifyContent: "flex-end",
+    },
+    modalSheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 16,
+      paddingHorizontal: 18,
+      paddingTop: 16,
+      paddingBottom: 24,
+      maxHeight: "50%",
+    },
+    modalTitle: {
+      color: colors.text,
+      fontSize: 20,
+      fontFamily: "InriaSerif-Regular",
+      marginBottom: 12,
+    },
+    hourOption: {
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    hourOptionText: {
+      color: colors.text,
+      fontSize: 18,
+      fontFamily: "InriaSerif-Regular",
+    },
+    hourOptionTextSelected: {
+      color: colors.primary,
+      fontWeight: "700",
+    },
     destructiveText: {
       color: "#E05252",
     },
@@ -134,10 +173,19 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { user, signOut, deleteAccount, refreshOnboardingStatus } = useAuth();
   const { mode, loaded: themeLoaded, setMode, setPreference } = useTheme();
+  const {
+    enabled: notificationsEnabled,
+    dailyTimeLabel,
+    loaded: notificationsLoaded,
+    saving: notificationsSaving,
+    setNotificationsEnabled,
+    setDailyNotificationTime,
+  } = useNotificationPreferences();
   const darkMode = mode === "dark";
   const darkModeLoading = !themeLoaded;
   const [resettingOnboarding, setResettingOnboarding] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [timePickerVisible, setTimePickerVisible] = useState(false);
 
   const lightModeValue = useMemo(() => !darkMode, [darkMode]);
   const colors = useMemo(() => (darkMode ? DARK_COLORS : LIGHT_COLORS), [darkMode]);
@@ -155,6 +203,33 @@ export default function SettingsScreen() {
     },
     [setMode, setPreference],
   );
+
+  const handleToggleNotifications = useCallback(
+    async (nextEnabled: boolean) => {
+      try {
+        await setNotificationsEnabled(nextEnabled);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Erro desconhecido";
+        Alert.alert("Erro", message);
+      }
+    },
+    [setNotificationsEnabled],
+  );
+
+  const handleSelectHour = useCallback(
+    async (hour: number) => {
+      setTimePickerVisible(false);
+      try {
+        await setDailyNotificationTime(hour);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Erro desconhecido";
+        Alert.alert("Erro", message);
+      }
+    },
+    [setDailyNotificationTime],
+  );
+
+  const selectedHour = Number.parseInt(dailyTimeLabel.split(":")[0] ?? "20", 10);
 
   const openHelp = useCallback(() => {
     WebBrowser.openBrowserAsync(BUDMIND_HELP_URL);
@@ -339,6 +414,42 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        <View style={styles.row}>
+          <Text style={styles.rowText}>Notificações</Text>
+          <View style={styles.rightSlot}>
+            {!notificationsLoaded || notificationsSaving ? (
+              <ActivityIndicator size="small" color={colors.icon} />
+            ) : (
+              <Switch
+                value={notificationsEnabled}
+                onValueChange={handleToggleNotifications}
+                trackColor={{
+                  false: colors === DARK_COLORS ? "rgba(255,255,255,0.25)" : "rgba(29,25,22,0.18)",
+                  true: colors.primary,
+                }}
+                thumbColor="#FFFFFF"
+                style={styles.switch}
+              />
+            )}
+          </View>
+        </View>
+
+        {notificationsEnabled ? (
+          <TouchableOpacity
+            onPress={() => setTimePickerVisible(true)}
+            activeOpacity={0.8}
+            style={styles.row}
+            accessibilityRole="button"
+            accessibilityLabel={`Horário da notificação diária, ${dailyTimeLabel}`}
+            disabled={notificationsSaving}
+          >
+            <Text style={styles.rowText}>Horário diário</Text>
+            <Text style={[styles.rowText, { fontSize: 18, color: colors.primary }]}>
+              {dailyTimeLabel}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+
         <TouchableOpacity
           onPress={openSupportFeedback}
           activeOpacity={0.8}
@@ -409,6 +520,44 @@ export default function SettingsScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={timePickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setTimePickerVisible(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setTimePickerVisible(false)}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>Horário da notificação diária</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {HOUR_OPTIONS.map((hour) => {
+                const label = `${String(hour).padStart(2, "0")}:00`;
+                const isSelected = hour === selectedHour;
+                return (
+                  <TouchableOpacity
+                    key={hour}
+                    style={styles.hourOption}
+                    onPress={() => handleSelectHour(hour)}
+                    accessibilityRole="button"
+                    accessibilityLabel={label}
+                    accessibilityState={{ selected: isSelected }}
+                  >
+                    <Text
+                      style={[
+                        styles.hourOptionText,
+                        isSelected ? styles.hourOptionTextSelected : null,
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

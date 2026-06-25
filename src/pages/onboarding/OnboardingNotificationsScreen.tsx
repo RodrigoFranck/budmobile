@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -5,6 +6,8 @@ import { useNavigation } from '@react-navigation/native';
 import { OnboardingBackButton } from '@/components/onboarding/OnboardingBackButton';
 import { OnboardingPrimaryButton } from '@/components/onboarding/OnboardingPrimaryButton';
 import { frauncesFont, useOnboardingColors } from '@/constants/onboardingTheme';
+import { useAuth } from '@/contexts/AuthContext';
+import { registerForPushNotificationsAsync, savePushTokenForUser } from '@/services/pushNotifications';
 import type { OnboardingNavigationProp } from '@/types/onboardingNavigation';
 
 const H_PAD = 24;
@@ -90,10 +93,32 @@ export default function OnboardingNotificationsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<OnboardingNavigationProp>();
   const onboardingColors = useOnboardingColors();
+  const { user } = useAuth();
+  const [activating, setActivating] = useState(false);
+
+  const goToVoice = () => navigation.navigate('OnboardingVoice');
+
+  const onActivate = async () => {
+    setActivating(true);
+    try {
+      const token = await registerForPushNotificationsAsync();
+      if (token && user?.id) {
+        await savePushTokenForUser(user.id, token);
+      }
+    } finally {
+      setActivating(false);
+      goToVoice();
+    }
+  };
 
   return (
     <LinearGradient
-      colors={[onboardingColors.linearTop, onboardingColors.linearBottom]}
+      colors={[
+        onboardingColors.linearTop,
+        onboardingColors.linearMid,
+        onboardingColors.linearBottom,
+      ]}
+      locations={[0, 0.55, 1]}
       style={{ flex: 1, paddingTop: insets.top }}
     >
       <View style={{ paddingHorizontal: H_PAD, paddingTop: 8, paddingBottom: 16 }}>
@@ -118,7 +143,7 @@ export default function OnboardingNotificationsScreen() {
           style={{
             fontSize: 15,
             lineHeight: 22,
-            color: onboardingColors.textSecondary,
+            color: onboardingColors.textOnGradient,
             marginBottom: 28,
           }}
         >
@@ -136,19 +161,12 @@ export default function OnboardingNotificationsScreen() {
         }}
       >
         <OnboardingPrimaryButton
-          label="Ativar notificações"
-          onPress={() => {}}
-          disabled
-          labelColor={onboardingColors.textSecondary}
-          style={{
-            backgroundColor: onboardingColors.card,
-            borderWidth: 1,
-            borderColor: onboardingColors.borderDark,
-            opacity: 1,
-          }}
+          label={activating ? 'Ativando...' : 'Ativar notificações'}
+          onPress={onActivate}
+          disabled={activating}
         />
         <View style={{ height: 12 }} />
-        <OnboardingPrimaryButton label="Continuar" onPress={() => navigation.navigate('OnboardingVoice')} />
+        <OnboardingPrimaryButton label="Continuar" onPress={goToVoice} />
       </View>
     </LinearGradient>
   );

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "961344184195",
+    "project_id": "bud-companion",
+    "storage_bucket": "bud-companion.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:961344184195:android:36969a98576489d46520b6",
+        "android_client_info": {
+          "package_name": "com.falecombud.bud"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBx5k7XDageBIzwNEDMVcVp_sbldKtbmuU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

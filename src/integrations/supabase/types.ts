@@ -39,6 +39,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      clinical_knowledge: {
+        Row: {
+          category: string
+          chunk_index: number
+          content: string
+          created_at: string
+          embedding: string | null
+          id: string
+          source_file: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          chunk_index?: number
+          content: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          source_file?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          chunk_index?: number
+          content?: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          source_file?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       conversation_analysis: {
         Row: {
           behavioral_analysis: Json | null
@@ -204,6 +240,42 @@ export type Database = {
         }
         Relationships: []
       }
+      insight_unlock_rules: {
+        Row: {
+          count_scope: string
+          created_at: string
+          display_order: number
+          insight_type: string
+          is_active: boolean
+          locked_description: string
+          locked_title: string
+          required_conversations: number
+          updated_at: string
+        }
+        Insert: {
+          count_scope?: string
+          created_at?: string
+          display_order?: number
+          insight_type: string
+          is_active?: boolean
+          locked_description: string
+          locked_title: string
+          required_conversations?: number
+          updated_at?: string
+        }
+        Update: {
+          count_scope?: string
+          created_at?: string
+          display_order?: number
+          insight_type?: string
+          is_active?: boolean
+          locked_description?: string
+          locked_title?: string
+          required_conversations?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       legacy_conversation_logs: {
         Row: {
           conversation_type: string | null
@@ -272,6 +344,36 @@ export type Database = {
           },
         ]
       }
+      notification_log: {
+        Row: {
+          body: string
+          dedupe_key: string
+          id: string
+          notification_type: string
+          sent_at: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          dedupe_key: string
+          id?: string
+          notification_type: string
+          sent_at?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          dedupe_key?: string
+          id?: string
+          notification_type?: string
+          sent_at?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           age: string | null
@@ -296,12 +398,15 @@ export type Database = {
           location_city: string | null
           location_state: string | null
           name: string | null
+          notification_daily_time: string
           occupation: string | null
           onboarding_completed: boolean | null
           phone: string | null
           position: string | null
+          push_notifications_enabled: boolean
           relationship: string | null
           state: string | null
+          timezone: string
           updated_at: string
           user_id: string
         }
@@ -328,12 +433,15 @@ export type Database = {
           location_city?: string | null
           location_state?: string | null
           name?: string | null
+          notification_daily_time?: string
           occupation?: string | null
           onboarding_completed?: boolean | null
           phone?: string | null
           position?: string | null
+          push_notifications_enabled?: boolean
           relationship?: string | null
           state?: string | null
+          timezone?: string
           updated_at?: string
           user_id: string
         }
@@ -360,12 +468,15 @@ export type Database = {
           location_city?: string | null
           location_state?: string | null
           name?: string | null
+          notification_daily_time?: string
           occupation?: string | null
           onboarding_completed?: boolean | null
           phone?: string | null
           position?: string | null
+          push_notifications_enabled?: boolean
           relationship?: string | null
           state?: string | null
+          timezone?: string
           updated_at?: string
           user_id?: string
         }
@@ -393,6 +504,33 @@ export type Database = {
           created_at?: string
           id?: string
           responses?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      push_tokens: {
+        Row: {
+          created_at: string
+          expo_push_token: string
+          id: string
+          platform: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expo_push_token: string
+          id?: string
+          platform: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expo_push_token?: string
+          id?: string
+          platform?: string
           updated_at?: string
           user_id?: string
         }
@@ -707,12 +845,39 @@ export type Database = {
       }
     }
     Functions: {
+      get_daily_notification_user_ids: {
+        Args: never
+        Returns: {
+          user_id: string
+        }[]
+      }
+      get_reengagement_user_ids: {
+        Args: { inactive_days?: number }
+        Returns: {
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      match_clinical_knowledge_filtered: {
+        Args: {
+          filter_category?: string
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          category: string
+          content: string
+          id: string
+          similarity: number
+          title: string
+        }[]
       }
     }
     Enums: {

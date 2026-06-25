@@ -48,12 +48,16 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Bud precisa acessar o microfone para conversas de voz.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Bud precisa acessar a câmera para tirar fotos e anexar imagens em conversas e solicitações.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Bud precisa acessar o microfone para conversas de voz.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>SplashScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>

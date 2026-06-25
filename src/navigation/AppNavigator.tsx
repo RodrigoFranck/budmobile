@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { DefaultTheme, DarkTheme, NavigationContainer } from '@react-navigation/native';
+import { DefaultTheme, DarkTheme, NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { InteractionManager, View } from 'react-native';
 
 import { SplashScreen } from '@/components/SplashScreen';
@@ -25,6 +26,8 @@ function BootstrapScreen() {
 export default function AppNavigator() {
   const { user, loading, onboardingCompleted, onboardingStatusLoaded } = useAuth();
   const { mode } = useTheme();
+  const navigationRef = useNavigationContainerRef<RootStackParamList>();
+  usePushNotifications(navigationRef);
   const isLoading = Boolean(loading);
   const waitOnboarding = Boolean(user && !onboardingStatusLoaded);
   const [minSplashElapsed, setMinSplashElapsed] = useState(false);
@@ -54,7 +57,7 @@ export default function AppNavigator() {
 
   return (
     <View style={{ flex: 1 }}>
-      <NavigationContainer theme={mode === 'dark' ? DarkTheme : DefaultTheme}>
+      <NavigationContainer ref={navigationRef} theme={mode === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack.Navigator
           screenOptions={{
             headerShown: false,

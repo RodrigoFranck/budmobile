@@ -15,9 +15,13 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.bud.app",
+      "bundleIdentifier": "com.bud.budios",
+      "googleServicesFile": "./ios/budmobile/GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "buildNumber": "11",
+      "entitlements": {
+        "aps-environment": "development"
+      },
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Bud precisa acessar o microfone para conversas de voz.",
         "NSCameraUsageDescription": "Bud precisa acessar a câmera para tirar fotos e anexar imagens em conversas e solicitações.",
@@ -26,6 +30,7 @@
       "scheme": "com.bud.app"
     },
     "android": {
+      "googleServicesFile": "./android/app/google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#AEECEF"
@@ -33,10 +38,26 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.falecombud.bud",
-      "permissions": ["RECORD_AUDIO"]
+      "permissions": ["RECORD_AUDIO", "POST_NOTIFICATIONS"]
+    },
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
     },
     "plugins": [
       "expo-apple-authentication",
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static",
+            "forceStaticLinking": ["RNFBApp", "RNFBMessaging"]
+          }
+        }
+      ],
       [
         "expo-notifications",
         {
