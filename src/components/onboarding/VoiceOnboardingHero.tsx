@@ -133,7 +133,7 @@ export function VoiceOnboardingHero() {
         style={[
           styles.caption,
           {
-            color: onboardingColors.textOnGradientMuted,
+            color: onboardingColors.textSecondary,
             fontSize: layout.captionSize,
           },
         ]}

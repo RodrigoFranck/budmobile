@@ -117,12 +117,7 @@ export default function OnboardingNotificationsScreen() {
 
   return (
     <LinearGradient
-      colors={[
-        onboardingColors.linearTop,
-        onboardingColors.linearMid,
-        onboardingColors.linearBottom,
-      ]}
-      locations={[0, 0.55, 1]}
+      colors={[onboardingColors.linearTop, onboardingColors.linearBottom]}
       style={{ flex: 1, paddingTop: insets.top }}
     >
       <View style={{ paddingHorizontal: H_PAD, paddingTop: 8, paddingBottom: 16 }}>
@@ -147,7 +142,7 @@ export default function OnboardingNotificationsScreen() {
           style={{
             fontSize: 15,
             lineHeight: 22,
-            color: onboardingColors.textOnGradient,
+            color: onboardingColors.textSecondary,
             marginBottom: 28,
           }}
         >

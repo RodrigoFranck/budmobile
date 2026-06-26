@@ -20,8 +20,6 @@ export const CRISIS_RESOURCES = [
   },
 ] as const;
 
-export const PRIVACY_POLICY_URL =
-  'https://falecombud.com.br/legal/privacidade-bud-2026';
-export const TERMS_OF_SERVICE_URL =
-  'https://falecombud.com.br/legal/cluf-bud-2026';
+export const PRIVACY_POLICY_URL = 'https://falecombud.com.br/privacy';
+export const TERMS_OF_SERVICE_URL = 'https://falecombud.com.br/terms';
 export const HELP_URL = 'https://falecombud.com.br';
