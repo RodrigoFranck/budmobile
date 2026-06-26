@@ -11,6 +11,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
 import { Apple, ChevronLeft, Eye, EyeOff } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,6 +31,14 @@ import {
   ELEVEN_LABS_GRANTS_BADGE_LIGHT_URI,
   ELEVEN_LABS_STARTUP_GRANTS_URL,
 } from "@/constants/partnerships";
+import {
+  mapLoginError,
+  mapSignupError,
+  signupEmailFailedAlert,
+  signupIncompleteAlert,
+  signupPasswordMismatchAlert,
+  signupSuccessAlert,
+} from "@/utils/auth/authMessages";
 
 const backgroundLogin = require("@/assets/background-login.png");
 
@@ -75,12 +84,16 @@ export default function AuthScreen({ navigation }: Props) {
     }
   }, [user, authLoading, awaitingVerification]);
 
+  const showAuthAlert = ({ title, message }: { title: string; message: string }) => {
+    Alert.alert(title, message);
+  };
+
   const handleLogin = async () => {
     setIsLoadingLogin(true);
     try {
       const { error } = await signIn(loginEmail.trim(), loginPassword);
       if (error) {
-        alert(`Erro ao fazer login: ${error.message}`);
+        showAuthAlert(mapLoginError(error.message));
         return;
       }
     } finally {
@@ -90,38 +103,38 @@ export default function AuthScreen({ navigation }: Props) {
 
   const handleSignup = async () => {
     if (signupPassword !== signupConfirmPassword) {
-      alert("As senhas não coincidem");
+      showAuthAlert(signupPasswordMismatchAlert());
       return;
     }
 
     setIsLoadingSignup(true);
     setAwaitingVerification(true);
 
-    const { error } = await signUp(signupEmail, signupPassword, signupName);
+    const trimmedEmail = signupEmail.trim();
+    const { error, userId } = await signUp(trimmedEmail, signupPassword, signupName);
 
     if (error) {
-      alert(`Erro ao criar conta: ${error.message}`);
+      showAuthAlert(mapSignupError(error.message));
       setIsLoadingSignup(false);
       setAwaitingVerification(false);
       return;
     }
-
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData?.session?.user?.id;
 
     if (!userId) {
-      alert("Não foi possível obter o ID do usuário.");
+      showAuthAlert(signupIncompleteAlert());
       setIsLoadingSignup(false);
       setAwaitingVerification(false);
       return;
     }
 
+    let emailSent = false;
+
     try {
-      const { error: fnError } = await supabase.functions.invoke(
+      const { data, error: fnError } = await supabase.functions.invoke(
         "send-auth-email",
         {
           body: {
-            email: signupEmail.trim(),
+            email: trimmedEmail,
             type: "email_confirmation",
             name: signupName,
             userId,
@@ -131,13 +144,23 @@ export default function AuthScreen({ navigation }: Props) {
       );
       if (fnError) {
         console.error("send-auth-email error:", fnError);
+      } else if (data?.success) {
+        emailSent = true;
+      } else {
+        console.error("send-auth-email unexpected response:", data);
       }
     } catch (emailErr) {
       console.error("Error invoking send-auth-email:", emailErr);
     }
 
     setIsLoadingSignup(false);
-    alert("Conta criada! Verifique seu email para confirmar.");
+
+    if (emailSent) {
+      showAuthAlert(signupSuccessAlert(trimmedEmail));
+      return;
+    }
+
+    showAuthAlert(signupEmailFailedAlert());
   };
 
   const handleGoogleSignIn = async () => {
@@ -145,7 +168,7 @@ export default function AuthScreen({ navigation }: Props) {
     try {
       const { error } = await signInWithGoogle();
       if (error) {
-        alert(`Erro ao fazer login: ${error.message}`);
+        showAuthAlert(mapLoginError(error.message));
       }
     } finally {
       setIsLoadingGoogle(false);
@@ -166,7 +189,7 @@ export default function AuthScreen({ navigation }: Props) {
     try {
       const { error } = await signInWithApple();
       if (error) {
-        alert(`Erro ao fazer login: ${error.message}`);
+        showAuthAlert(mapLoginError(error.message));
       }
     } finally {
       setIsLoadingApple(false);
@@ -389,6 +412,10 @@ export default function AuthScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
       </View>
+
+      <Text style={styles.signupHint}>
+        Ao criar sua conta, enviaremos um e-mail de confirmação para você.
+      </Text>
 
       <TouchableOpacity
         style={[styles.button, isLoadingSignup && styles.buttonDisabled]}

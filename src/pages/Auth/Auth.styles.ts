@@ -254,6 +254,14 @@ export const authStyles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
     color: '#FFFFFF',
   },
+  signupHint: {
+    fontSize: 13,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: 'rgba(74, 74, 74, 0.75)',
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: 16,
+  },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
