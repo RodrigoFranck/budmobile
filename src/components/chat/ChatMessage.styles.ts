@@ -18,15 +18,28 @@ export function createChatMessageStyles(params: { colors: AppColors }) {
       color: colors['chat-label-muted'],
       marginBottom: 6,
     },
+    userLabel: {
+      alignSelf: 'flex-end',
+    },
+    assistantLabel: {
+      alignSelf: 'flex-start',
+    },
+    messageContent: {
+      alignSelf: 'stretch',
+      width: '100%',
+    },
+    userMessageContent: {
+      alignSelf: 'flex-end',
+      maxWidth: '100%',
+    },
     body: {
       fontSize: Typography.base,
       lineHeight: Typography.lineHeight.relaxed + 4,
       color: colors['chat-body'],
-      maxWidth: '92%',
+      flexShrink: 1,
     },
-    streamingCursor: {
-      opacity: 0.45,
+    stanzaSpacing: {
+      marginTop: 14,
     },
   });
 }
-

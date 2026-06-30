@@ -12,6 +12,7 @@ export interface StreamingMessage {
   role: MessageRole;
   content: string;
   isStreaming?: boolean;
+  isRevealing?: boolean;
   createdAt?: string;
 }
 
@@ -23,6 +24,7 @@ export interface Message {
   role: MessageRole;
   content: string;
   isStreaming?: boolean;
+  isRevealing?: boolean;
   /** ISO date for dividers (from DB or client) */
   createdAt?: string;
 }

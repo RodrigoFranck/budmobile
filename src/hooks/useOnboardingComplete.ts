@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
-import { Alert } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useOnboardingFlow } from '@/contexts/OnboardingFlowContext';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -13,11 +13,12 @@ export function useOnboardingComplete() {
     conversationGoal,
     shareConversations,
   } = useOnboardingFlow();
+  const { showAlert } = useAppAlert();
   const [submitting, setSubmitting] = useState(false);
 
   const completeOnboarding = useCallback(async () => {
     if (!user?.id) {
-      Alert.alert('Erro', 'Sessão inválida. Faça login novamente.');
+      showAlert({ title: 'Erro', message: 'Sessão inválida. Faça login novamente.' });
       return { error: new Error('no user') };
     }
 
@@ -39,7 +40,7 @@ export function useOnboardingComplete() {
       );
 
       if (profileError) {
-        Alert.alert('Erro', profileError.message);
+        showAlert({ title: 'Erro', message: profileError.message });
         return { error: profileError };
       }
 
@@ -54,7 +55,7 @@ export function useOnboardingComplete() {
       return { error: null };
     } catch (e) {
       const err = e instanceof Error ? e : new Error('Erro desconhecido');
-      Alert.alert('Erro', err.message);
+      showAlert({ title: 'Erro', message: err.message });
       return { error: err };
     } finally {
       setSubmitting(false);
@@ -68,6 +69,7 @@ export function useOnboardingComplete() {
     conversationGoal,
     shareConversations,
     refreshOnboardingStatus,
+    showAlert,
   ]);
 
   return { completeOnboarding, submitting };

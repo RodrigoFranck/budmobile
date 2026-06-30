@@ -42,6 +42,7 @@ export default function TextChatScreen() {
     handleVoiceUserMessage,
     handleVoiceAssistantMessage,
     handleEndVoiceSession,
+    handleAssistantRevealComplete,
   } = useChatSession();
 
   const handleBack = useCallback(() => {
@@ -80,6 +81,7 @@ export default function TextChatScreen() {
             messages={allMessages}
             loading={isStreaming || messagesLoading}
             topPadding={Spacing.base}
+            onAssistantRevealComplete={handleAssistantRevealComplete}
           />
           <MessageInputBar
             autoFocus

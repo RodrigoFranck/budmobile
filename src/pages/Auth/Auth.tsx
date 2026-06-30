@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { Apple, ChevronLeft, Eye, EyeOff } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppAlert } from "@/contexts/AppAlertContext";
 import { supabase } from "@/integrations/supabase/client";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "@/types/navigation";
@@ -30,6 +31,13 @@ import {
   ELEVEN_LABS_GRANTS_BADGE_LIGHT_URI,
   ELEVEN_LABS_STARTUP_GRANTS_URL,
 } from "@/constants/partnerships";
+import {
+  mapLoginError,
+  mapSignupError,
+  signupIncompleteAlert,
+  signupPasswordMismatchAlert,
+  signupSuccessAlert,
+} from "@/utils/auth/authMessages";
 
 const backgroundLogin = require("@/assets/background-login.png");
 
@@ -39,6 +47,7 @@ type EmailTab = "login" | "signup";
 
 export default function AuthScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { showAlert } = useAppAlert();
   const {
     signUp,
     signIn,
@@ -75,12 +84,16 @@ export default function AuthScreen({ navigation }: Props) {
     }
   }, [user, authLoading, awaitingVerification]);
 
+  const showAuthAlert = ({ title, message }: { title: string; message: string }) => {
+    showAlert({ title, message });
+  };
+
   const handleLogin = async () => {
     setIsLoadingLogin(true);
     try {
       const { error } = await signIn(loginEmail.trim(), loginPassword);
       if (error) {
-        alert(`Erro ao fazer login: ${error.message}`);
+        showAuthAlert(mapLoginError(error.message));
         return;
       }
     } finally {
@@ -90,54 +103,42 @@ export default function AuthScreen({ navigation }: Props) {
 
   const handleSignup = async () => {
     if (signupPassword !== signupConfirmPassword) {
-      alert("As senhas não coincidem");
+      showAuthAlert(signupPasswordMismatchAlert());
       return;
     }
 
     setIsLoadingSignup(true);
     setAwaitingVerification(true);
 
-    const { error } = await signUp(signupEmail, signupPassword, signupName);
+    const trimmedEmail = signupEmail.trim();
+    const { error, userId } = await signUp(trimmedEmail, signupPassword, signupName);
 
     if (error) {
-      alert(`Erro ao criar conta: ${error.message}`);
+      showAuthAlert(mapSignupError(error.message));
       setIsLoadingSignup(false);
       setAwaitingVerification(false);
       return;
     }
-
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData?.session?.user?.id;
 
     if (!userId) {
-      alert("Não foi possível obter o ID do usuário.");
+      showAuthAlert(signupIncompleteAlert());
       setIsLoadingSignup(false);
       setAwaitingVerification(false);
       return;
     }
 
-    try {
-      const { error: fnError } = await supabase.functions.invoke(
-        "send-auth-email",
-        {
-          body: {
-            email: signupEmail.trim(),
-            type: "email_confirmation",
-            name: signupName,
-            userId,
-            redirectTo: SITE_ORIGIN,
-          },
-        },
-      );
-      if (fnError) {
-        console.error("send-auth-email error:", fnError);
-      }
-    } catch (emailErr) {
-      console.error("Error invoking send-auth-email:", emailErr);
-    }
+    void supabase.functions.invoke("send-auth-email", {
+      body: {
+        email: trimmedEmail,
+        type: "email_confirmation",
+        name: signupName,
+        userId,
+        redirectTo: SITE_ORIGIN,
+      },
+    });
 
     setIsLoadingSignup(false);
-    alert("Conta criada! Verifique seu email para confirmar.");
+    showAuthAlert(signupSuccessAlert(trimmedEmail));
   };
 
   const handleGoogleSignIn = async () => {
@@ -145,7 +146,7 @@ export default function AuthScreen({ navigation }: Props) {
     try {
       const { error } = await signInWithGoogle();
       if (error) {
-        alert(`Erro ao fazer login: ${error.message}`);
+        showAuthAlert(mapLoginError(error.message));
       }
     } finally {
       setIsLoadingGoogle(false);
@@ -166,7 +167,7 @@ export default function AuthScreen({ navigation }: Props) {
     try {
       const { error } = await signInWithApple();
       if (error) {
-        alert(`Erro ao fazer login: ${error.message}`);
+        showAuthAlert(mapLoginError(error.message));
       }
     } finally {
       setIsLoadingApple(false);
@@ -389,6 +390,10 @@ export default function AuthScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
       </View>
+
+      <Text style={styles.signupHint}>
+        Ao criar sua conta, enviaremos um e-mail de confirmação para você.
+      </Text>
 
       <TouchableOpacity
         style={[styles.button, isLoadingSignup && styles.buttonDisabled]}

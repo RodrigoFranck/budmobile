@@ -26,7 +26,11 @@ interface AuthContextType {
   loading: boolean;
   onboardingCompleted: boolean;
   onboardingStatusLoaded: boolean;
-  signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
+  signUp: (
+    email: string,
+    password: string,
+    name: string,
+  ) => Promise<{ error: Error | null; userId: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
   signInWithApple: () => Promise<{ error: Error | null }>;
@@ -280,7 +284,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       passwordSchema.parse(password);
       nameSchema.parse(name);
 
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -291,15 +295,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) {
-        return { error: new Error(error.message) };
+        return { error: new Error(error.message), userId: null };
       }
 
-      return { error: null };
+      return { error: null, userId: data.user?.id ?? null };
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return { error: new Error(error.issues[0]?.message || 'Erro de validação') };
+        return {
+          error: new Error(error.issues[0]?.message || 'Erro de validação'),
+          userId: null,
+        };
       }
-      return { error: error as Error };
+      return { error: error as Error, userId: null };
     }
   };
 

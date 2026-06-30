@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
 export type AgeRangeOption =
+  | 'under-18'
   | '18-24'
   | '25-34'
   | '35-44'

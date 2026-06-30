@@ -254,6 +254,14 @@ export const authStyles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
     color: '#FFFFFF',
   },
+  signupHint: {
+    fontSize: 13,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: 'rgba(74, 74, 74, 0.75)',
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: 16,
+  },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -315,6 +323,53 @@ export const authStyles = StyleSheet.create({
   termsLink: {
     textDecorationLine: 'underline',
     color: '#666666',
+  },
+  forgotPasswordTitle: {
+    fontSize: 32,
+    fontWeight: '400',
+    fontFamily: 'InriaSerif-Regular',
+    color: '#1E3A5F',
+    textAlign: 'left',
+    marginBottom: 12,
+    lineHeight: 38,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
+  },
+  forgotPasswordDescription: {
+    fontSize: 14,
+    fontWeight: '400',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: 'rgba(74, 74, 74, 0.75)',
+    textAlign: 'left',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  textLinkButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  textLinkButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    color: '#1E3A5F',
+  },
+  emailHighlight: {
+    fontWeight: '600',
+    color: '#1E3A5F',
+  },
+  forgotPasswordContent: {
+    width: '100%',
+    justifyContent: 'flex-start',
+  },
+  forgotPasswordNavBar: {
+    width: '100%',
+    paddingHorizontal: 24,
+    paddingBottom: 8,
+  },
+  forgotPasswordBody: {
+    width: '100%',
+    paddingTop: 24,
   },
 });
 

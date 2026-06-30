@@ -5,10 +5,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
-  Alert,
   ActivityIndicator,
   Share,
-  StyleSheet,
   Linking,
   Appearance,
   Platform,
@@ -18,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 import { ArrowLeft, ExternalLink, Link2 } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppAlert } from "@/contexts/AppAlertContext";
 import type { NavigationProp } from "@/types/navigation";
 import { Spacing } from "@/constants/styles";
 import { BUDMIND_HELP_URL, BUD_NATIVE_LINK_URL } from "@/constants/preferences";
@@ -28,110 +27,16 @@ import {
 } from "@/constants/healthSafety";
 import { useTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/integrations/supabase/client";
-
-const DARK_COLORS = {
-  background: "#1D1916",
-  card: "#373737",
-  cardBorder: "rgba(255,255,255,0.06)",
-  text: "#FFFFFF",
-  icon: "rgba(255,255,255,0.75)",
-  primary: "#BBEEEE",
-} as const;
-
-const LIGHT_COLORS = {
-  background: "#F7F1ED",
-  card: "#FFFFFF",
-  cardBorder: "rgba(0,0,0,0.08)",
-  text: "#1D1916",
-  icon: "rgba(29,25,22,0.65)",
-  primary: "#2E7D7A",
-} as const;
-
-type Colors = {
-  background: string;
-  card: string;
-  cardBorder: string;
-  text: string;
-  icon: string;
-  primary: string;
-};
-
-const createStyles = (colors: Colors) =>
-  StyleSheet.create({
-    screen: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    content: {
-      flexGrow: 1,
-      paddingHorizontal: 18,
-      paddingTop: Spacing.md,
-      gap: Spacing.base,
-    },
-    backButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor:
-        colors === DARK_COLORS ? "rgba(255,255,255,0.18)" : "rgba(29,25,22,0.08)",
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: Spacing.md,
-    },
-    row: {
-      backgroundColor: colors.card,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-      paddingHorizontal: 18,
-      height: 56,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    rowText: {
-      color: colors.text,
-      fontSize: 22,
-      fontFamily: "InriaSerif-Regular",
-    },
-    rightSlot: {
-      height: 56,
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    switch: {
-      transform: [{ translateY: -1 }],
-    },
-    footer: {
-      marginTop: "auto",
-      paddingTop: Spacing.xl,
-      gap: Spacing.md,
-      alignItems: "center",
-    },
-    footerDisclaimer: {
-      color: colors.icon,
-      fontSize: 12,
-      lineHeight: 17,
-      textAlign: "center",
-    },
-    footerLegal: {
-      color: colors.icon,
-      fontSize: 14,
-      lineHeight: 20,
-      textAlign: "center",
-    },
-    legalLink: {
-      color: colors.primary,
-      textDecorationLine: "underline",
-    },
-    destructiveText: {
-      color: "#E05252",
-    },
-  });
+import {
+  createSettingsStyles,
+  DARK_COLORS,
+  LIGHT_COLORS,
+} from "@/pages/Settings.styles";
 
 export default function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
+  const { showAlert } = useAppAlert();
   const { user, signOut, deleteAccount, refreshOnboardingStatus } = useAuth();
   const { mode, loaded: themeLoaded, setMode, setPreference } = useTheme();
   const darkMode = mode === "dark";
@@ -139,14 +44,18 @@ export default function SettingsScreen() {
   const [resettingOnboarding, setResettingOnboarding] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
-  const lightModeValue = useMemo(() => !darkMode, [darkMode]);
-  const colors = useMemo(() => (darkMode ? DARK_COLORS : LIGHT_COLORS), [darkMode]);
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const deepModeValue = useMemo(() => darkMode, [darkMode]);
+  const colors = useMemo(
+    () => (darkMode ? DARK_COLORS : LIGHT_COLORS),
+    [darkMode],
+  );
+  const styles = useMemo(() => createSettingsStyles(colors), [colors]);
 
-  const handleToggleDarkMode = useCallback(
-    async (isLightMode: boolean) => {
-      const nextMode = isLightMode ? "light" : "dark";
-      const deviceMode = Appearance.getColorScheme() === "light" ? "light" : "dark";
+  const handleToggleDeepMode = useCallback(
+    async (enabled: boolean) => {
+      const nextMode = enabled ? "dark" : "light";
+      const deviceMode =
+        Appearance.getColorScheme() === "light" ? "light" : "dark";
       if (nextMode === deviceMode) {
         await setPreference("system");
         return;
@@ -194,10 +103,11 @@ export default function SettingsScreen() {
   }, []);
 
   const handleDeleteAccount = useCallback(() => {
-    Alert.alert(
-      "Excluir conta",
-      "Esta ação é permanente. Todos os seus dados, conversas e preferências serão removidos e não poderão ser recuperados.",
-      [
+    showAlert({
+      title: "Excluir conta",
+      message:
+        "Esta ação é permanente. Todos os seus dados, conversas e preferências serão removidos e não poderão ser recuperados.",
+      buttons: [
         { text: "Cancelar", style: "cancel" },
         {
           text: "Excluir conta",
@@ -207,7 +117,7 @@ export default function SettingsScreen() {
             try {
               const { error } = await deleteAccount();
               if (error) {
-                Alert.alert("Erro", error.message);
+                showAlert({ title: "Erro", message: error.message });
               }
             } finally {
               setDeletingAccount(false);
@@ -215,51 +125,59 @@ export default function SettingsScreen() {
           },
         },
       ],
-    );
-  }, [deleteAccount]);
+    });
+  }, [deleteAccount, showAlert]);
 
   const handleSignOut = useCallback(() => {
-    Alert.alert("Sair", "Deseja sair da sua conta?", [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Sair", style: "destructive", onPress: () => signOut() },
-    ]);
-  }, [signOut]);
+    showAlert({
+      title: "Sair",
+      message: "Deseja sair da sua conta?",
+      buttons: [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Sair", style: "destructive", onPress: () => signOut() },
+      ],
+    });
+  }, [showAlert, signOut]);
 
   const handleResetOnboarding = useCallback(() => {
     if (!user?.id) {
-      Alert.alert("Erro", "Sessão inválida. Faça login novamente.");
+      showAlert({ title: "Erro", message: "Sessão inválida. Faça login novamente." });
       return;
     }
 
-    Alert.alert("Rever onboarding", "Isso vai reabrir o onboarding ao finalizar. Continuar?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Continuar",
-        style: "default",
-        onPress: async () => {
-          setResettingOnboarding(true);
-          try {
-            const { error } = await supabase
-              .from("profiles")
-              .update({ onboarding_completed: false })
-              .eq("user_id", user.id);
+    showAlert({
+      title: "Rever onboarding",
+      message: "Isso vai reabrir o onboarding ao finalizar. Continuar?",
+      buttons: [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Continuar",
+          onPress: async () => {
+            setResettingOnboarding(true);
+            try {
+              const { error } = await supabase
+                .from("profiles")
+                .update({ onboarding_completed: false })
+                .eq("user_id", user.id);
 
-            if (error) {
-              Alert.alert("Erro", error.message);
-              return;
+              if (error) {
+                showAlert({ title: "Erro", message: error.message });
+                return;
+              }
+
+              await refreshOnboardingStatus();
+            } catch (e: unknown) {
+              const message =
+                e instanceof Error ? e.message : "Erro desconhecido";
+              showAlert({ title: "Erro", message });
+            } finally {
+              setResettingOnboarding(false);
             }
-
-            await refreshOnboardingStatus();
-          } catch (e: unknown) {
-            const message = e instanceof Error ? e.message : "Erro desconhecido";
-            Alert.alert("Erro", message);
-          } finally {
-            setResettingOnboarding(false);
-          }
+          },
         },
-      },
-    ]);
-  }, [refreshOnboardingStatus, user?.id]);
+      ],
+    });
+  }, [refreshOnboardingStatus, showAlert, user?.id]);
 
   const goBack = useCallback(() => {
     if (navigation.canGoBack()) {
@@ -320,16 +238,16 @@ export default function SettingsScreen() {
         </TouchableOpacity>
 
         <View style={styles.row}>
-          <Text style={styles.rowText}>Modo claro</Text>
+          <Text style={styles.rowText}>Modo profundo</Text>
           <View style={styles.rightSlot}>
             {darkModeLoading ? (
               <ActivityIndicator size="small" color={colors.icon} />
             ) : (
               <Switch
-                value={lightModeValue}
-                onValueChange={handleToggleDarkMode}
+                value={deepModeValue}
+                onValueChange={handleToggleDeepMode}
                 trackColor={{
-                  false: colors === DARK_COLORS ? "rgba(255,255,255,0.25)" : "rgba(29,25,22,0.18)",
+                  false: colors.switchTrackOff,
                   true: colors.primary,
                 }}
                 thumbColor="#FFFFFF"
@@ -369,7 +287,9 @@ export default function SettingsScreen() {
           disabled={resettingOnboarding}
         >
           <Text style={styles.rowText}>
-            {resettingOnboarding ? "Reabrindo onboarding..." : "Rever onboarding"}
+            {resettingOnboarding
+              ? "Reabrindo onboarding..."
+              : "Rever onboarding"}
           </Text>
         </TouchableOpacity>
 

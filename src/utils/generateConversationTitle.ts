@@ -55,7 +55,7 @@ const SPECIFIC_SUBTYPE_LABELS = new Set(
   Object.values(THEME_SUBTYPES).flatMap((subtypes) => subtypes.map((subtype) => subtype.label)),
 );
 
-const QUALIFIER_LABELS: Record<string, string> = {
+const BASE_QUALIFIER_LABELS: Record<string, string> = {
   trabalho: "trabalho",
   emprego: "trabalho",
   chefe: "chefe",
@@ -111,6 +111,60 @@ function normalizeToken(text: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 }
+
+function countAccentMarks(text: string): number {
+  return (text.normalize("NFD").match(/[\u0300-\u036f]/g) ?? []).length;
+}
+
+function preferAccentLabel(current: string | undefined, candidate: string): string {
+  if (!current) {
+    return candidate;
+  }
+
+  const currentAccents = countAccentMarks(current);
+  const candidateAccents = countAccentMarks(candidate);
+  if (candidateAccents > currentAccents) {
+    return candidate;
+  }
+
+  if (candidateAccents === currentAccents && candidate.length > current.length) {
+    return candidate;
+  }
+
+  return current;
+}
+
+function buildQualifierLabels(): Record<string, string> {
+  const labels: Record<string, string> = { ...BASE_QUALIFIER_LABELS };
+
+  const registerLabel = (label: string) => {
+    const normalized = normalizeToken(label);
+    labels[normalized] = preferAccentLabel(labels[normalized], label);
+  };
+
+  const registerKeyword = (keyword: string) => {
+    if (keyword.includes(" ")) {
+      return;
+    }
+    registerLabel(keyword);
+  };
+
+  CONVERSATION_THEMES.forEach((theme) => {
+    registerLabel(theme.label);
+    theme.keywords.forEach(registerKeyword);
+  });
+
+  Object.values(THEME_SUBTYPES).forEach((subtypes) => {
+    subtypes.forEach((subtype) => {
+      registerLabel(subtype.label);
+      subtype.keywords.forEach(registerKeyword);
+    });
+  });
+
+  return labels;
+}
+
+const QUALIFIER_LABELS = buildQualifierLabels();
 
 function capitalizeFirst(text: string): string {
   if (!text) {
@@ -233,8 +287,30 @@ function rankSubstantiveWords(messages: string[], excludedTokens: Set<string>): 
     .map(([word]) => word);
 }
 
-function toQualifierLabel(word: string): string {
-  return QUALIFIER_LABELS[word] ?? word;
+function findOriginalWordInMessages(normalizedWord: string, messages: string[]): string | null {
+  for (const message of messages) {
+    const words = message.match(/[\p{L}]+/gu) ?? [];
+    for (const word of words) {
+      if (normalizeToken(word) === normalizedWord) {
+        return word;
+      }
+    }
+  }
+  return null;
+}
+
+function toQualifierLabel(word: string, messages: string[] = []): string {
+  const mapped = QUALIFIER_LABELS[word];
+  if (mapped) {
+    return mapped;
+  }
+
+  const original = findOriginalWordInMessages(word, messages);
+  if (original) {
+    return preferAccentLabel(word, original);
+  }
+
+  return word;
 }
 
 function pickQualifier(messages: string[], excludedThemeLabels: string[]): string | null {
@@ -244,7 +320,7 @@ function pickQualifier(messages: string[], excludedThemeLabels: string[]): strin
   if (!top) {
     return null;
   }
-  return toQualifierLabel(top);
+  return toQualifierLabel(top, messages);
 }
 
 function combineTitleParts(parts: string[]): string | null {
@@ -267,7 +343,7 @@ function extractExplicitTopic(messages: string[]): string | null {
     /\b(?:sobre|falar\s+sobre|relacionad[oa]\s+a?|assunto\s+é)\s+([a-zà-ú]{3,20})/i,
   );
   if (sobreMatch?.[1] && !TITLE_STOP_WORDS.has(normalizeToken(sobreMatch[1]))) {
-    return toQualifierLabel(normalizeToken(sobreMatch[1]));
+    return toQualifierLabel(normalizeToken(sobreMatch[1]), messages);
   }
   return null;
 }
@@ -280,10 +356,13 @@ function buildContextualTitle(messages: string[]): string | null {
   if (!primary) {
     const words = rankSubstantiveWords(messages, new Set());
     if (words.length >= 2) {
-      return combineTitleParts([toQualifierLabel(words[0]), toQualifierLabel(words[1])]);
+      return combineTitleParts([
+        toQualifierLabel(words[0], messages),
+        toQualifierLabel(words[1], messages),
+      ]);
     }
     if (words.length === 1) {
-      return combineTitleParts([toQualifierLabel(words[0])]);
+      return combineTitleParts([toQualifierLabel(words[0], messages)]);
     }
     const explicit = extractExplicitTopic(messages);
     return explicit ? combineTitleParts([explicit]) : null;
@@ -323,10 +402,21 @@ function buildContextualTitle(messages: string[]): string | null {
 
   const words = rankSubstantiveWords(messages, getExcludedTokens([primary.label]));
   if (words.length > 0) {
-    return combineTitleParts([primary.label, toQualifierLabel(words[0])]);
+    return combineTitleParts([primary.label, toQualifierLabel(words[0], messages)]);
   }
 
   return null;
+}
+
+function titleHasMissingAccents(title: string): boolean {
+  return title.split(/\s+/).some((word) => {
+    const normalized = normalizeToken(word);
+    const preferred = QUALIFIER_LABELS[normalized];
+    if (!preferred || countAccentMarks(preferred) === 0) {
+      return false;
+    }
+    return countAccentMarks(word) < countAccentMarks(preferred);
+  });
 }
 
 function looksLikeSentenceFragment(title: string): boolean {
@@ -391,6 +481,9 @@ export function needsConversationTitleRegeneration(title: string | null | undefi
     return true;
   }
   if (isPlaceholderConversationTitle(trimmed) || isLowQualityConversationTitle(trimmed)) {
+    return true;
+  }
+  if (titleHasMissingAccents(trimmed)) {
     return true;
   }
   if (trimmed.endsWith("...")) {

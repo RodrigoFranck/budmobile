@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,6 +19,7 @@ import { CheckInFlowHeader } from '@/components/checkin/CheckInFlowHeader';
 import { CheckInSliderInput } from '@/components/checkin/CheckInSliderInput';
 import { CheckInTextInput } from '@/components/checkin/CheckInTextInput';
 import { useCheckInFlowStyles } from '@/components/checkin/checkInFlow.styles';
+import { useAppAlert } from '@/contexts/AppAlertContext';
 import { getCheckInSteps } from '@/features/checkin/checkInSteps';
 import type { CheckInStepConfig } from '@/features/checkin/checkInFlow.types';
 import { useCheckIns, type CheckinType } from '@/hooks/useCheckIns';
@@ -42,6 +42,7 @@ export default function CheckInFlowScreen() {
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
   const { submitCheckin } = useCheckIns();
+  const { showAlert } = useAppAlert();
   const theme = useActivitiesTheme();
   const styles = useCheckInFlowStyles();
 
@@ -84,11 +85,15 @@ export default function CheckInFlowScreen() {
   );
 
   const handleClose = useCallback(() => {
-    Alert.alert('Sair do check-in?', 'Suas respostas desta sessão serão perdidas.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => navigation.goBack() },
-    ]);
-  }, [navigation]);
+    showAlert({
+      title: 'Sair do check-in?',
+      message: 'Suas respostas desta sessão serão perdidas.',
+      buttons: [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Sair', style: 'destructive', onPress: () => navigation.goBack() },
+      ],
+    });
+  }, [navigation, showAlert]);
 
   const handleBack = useCallback(() => {
     if (currentStep === 0) {
@@ -103,7 +108,7 @@ export default function CheckInFlowScreen() {
     try {
       const saved = await submitCheckin(checkinType, responses);
       if (!saved) {
-        Alert.alert('Erro', 'Não foi possível salvar o check-in.');
+        showAlert({ title: 'Erro', message: 'Não foi possível salvar o check-in.' });
         return;
       }
 
@@ -117,11 +122,11 @@ export default function CheckInFlowScreen() {
       });
     } catch (err) {
       console.error(err);
-      Alert.alert('Erro', 'Não foi possível concluir o check-in.');
+      showAlert({ title: 'Erro', message: 'Não foi possível concluir o check-in.' });
     } finally {
       setSubmitting(false);
     }
-  }, [checkinType, navigation, responses, submitCheckin]);
+  }, [checkinType, navigation, responses, showAlert, submitCheckin]);
 
   const handleNext = useCallback(() => {
     if (!answered || submitting) return;

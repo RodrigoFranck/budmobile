@@ -1,10 +1,8 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -16,24 +14,19 @@ import { useNavigation } from '@react-navigation/native';
 
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Spacing, Typography } from '@/constants/styles';
+import { useAppAlert } from '@/contexts/AppAlertContext';
+import { Spacing } from '@/constants/styles';
 import type { NavigationProp } from '@/types/navigation';
-
-const COLORS = {
-  background: '#1D1916',
-  card: '#373737',
-  cardBorder: 'rgba(255,255,255,0.06)',
-  text: '#FFFFFF',
-  textMuted: 'rgba(255,255,255,0.55)',
-  primary: '#BBEEEE',
-  primaryText: '#1D1916',
-  iconMuted: 'rgba(255,255,255,0.65)',
-} as const;
+import {
+  SUPPORT_FEEDBACK_COLORS,
+  supportFeedbackStyles as styles,
+} from '@/pages/SupportFeedback.styles';
 
 export default function SupportFeedbackScreen() {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { showAlert } = useAppAlert();
 
   const [reason, setReason] = useState('');
   const [message, setMessage] = useState('');
@@ -58,17 +51,17 @@ export default function SupportFeedbackScreen() {
     const trimmedMessage = message.trim();
 
     if (trimmedReason.length === 0 || trimmedMessage.length === 0) {
-      Alert.alert('Atenção', 'Preencha o motivo e a mensagem.');
+      showAlert({ title: 'Atenção', message: 'Preencha o motivo e a mensagem.' });
       return;
     }
 
     if (trimmedReason.length > 120) {
-      Alert.alert('Atenção', 'O motivo deve ter no máximo 120 caracteres.');
+      showAlert({ title: 'Atenção', message: 'O motivo deve ter no máximo 120 caracteres.' });
       return;
     }
 
     if (trimmedMessage.length > 1000) {
-      Alert.alert('Atenção', 'A mensagem deve ter no máximo 1000 caracteres.');
+      showAlert({ title: 'Atenção', message: 'A mensagem deve ter no máximo 1000 caracteres.' });
       return;
     }
 
@@ -84,18 +77,23 @@ export default function SupportFeedbackScreen() {
 
       if (error) throw error;
 
-      Alert.alert('Enviado', 'Sua mensagem foi enviada com sucesso!', [
-        { text: 'OK', onPress: handleBack },
-      ]);
+      showAlert({
+        title: 'Enviado',
+        message: 'Sua mensagem foi enviada com sucesso!',
+        buttons: [{ text: 'OK', onPress: handleBack }],
+      });
       setReason('');
       setMessage('');
     } catch (error: unknown) {
       console.error('Error sending support email:', error);
-      Alert.alert('Erro', 'Não foi possível enviar sua mensagem. Tente novamente.');
+      showAlert({
+        title: 'Erro',
+        message: 'Não foi possível enviar sua mensagem. Tente novamente.',
+      });
     } finally {
       setSending(false);
     }
-  }, [handleBack, message, reason, user?.email]);
+  }, [handleBack, message, reason, showAlert, user?.email]);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -120,7 +118,7 @@ export default function SupportFeedbackScreen() {
             accessibilityRole="button"
             accessibilityLabel="Voltar"
           >
-            <ArrowLeft size={20} color={COLORS.text} />
+            <ArrowLeft size={20} color={SUPPORT_FEEDBACK_COLORS.text} />
           </TouchableOpacity>
 
           <Text style={styles.title}>Suporte e Feedback</Text>
@@ -135,20 +133,20 @@ export default function SupportFeedbackScreen() {
               value={reason}
               onChangeText={setReason}
               placeholder=""
-              placeholderTextColor={COLORS.textMuted}
+              placeholderTextColor={SUPPORT_FEEDBACK_COLORS.textMuted}
               style={styles.input}
               maxLength={120}
               accessibilityLabel="Motivo da solicitação"
             />
           </View>
 
-          <Text style={[styles.label, { marginTop: Spacing.lg }]}>Mensagem</Text>
+          <Text style={styles.messageLabel}>Mensagem</Text>
           <View style={[styles.inputContainer, styles.textareaContainer]}>
             <TextInput
               value={message}
               onChangeText={setMessage}
               placeholder=""
-              placeholderTextColor={COLORS.textMuted}
+              placeholderTextColor={SUPPORT_FEEDBACK_COLORS.textMuted}
               style={[styles.input, styles.textarea]}
               multiline
               maxLength={1000}
@@ -172,76 +170,4 @@ export default function SupportFeedbackScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  screen: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    paddingHorizontal: 18,
-  },
-  backButton: {
-    marginTop: Spacing.md,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    marginTop: Spacing.lg,
-    color: COLORS.text,
-    fontSize: 28,
-    fontFamily: 'InriaSerif-Regular',
-  },
-  subtitle: {
-    marginTop: Spacing.md,
-    color: COLORS.textMuted,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  label: {
-    marginTop: Spacing.xl,
-    color: COLORS.textMuted,
-    fontSize: 14,
-  },
-  inputContainer: {
-    marginTop: Spacing.sm,
-    backgroundColor: COLORS.card,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.cardBorder,
-  },
-  input: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: COLORS.text,
-    fontSize: 16,
-  },
-  textareaContainer: {
-    minHeight: 220,
-  },
-  textarea: {
-    minHeight: 220,
-  },
-  sendButton: {
-    marginTop: Spacing.xl,
-    backgroundColor: COLORS.primary,
-    borderRadius: 10,
-    height: 54,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendButtonDisabled: {
-    opacity: 0.55,
-  },
-  sendButtonText: {
-    color: COLORS.primaryText,
-    fontSize: Typography.base,
-    fontWeight: '600',
-  },
-});
 
