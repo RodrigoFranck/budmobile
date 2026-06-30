@@ -5,7 +5,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
-  Alert,
   ActivityIndicator,
   Share,
   Linking,
@@ -17,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 import { ArrowLeft, ExternalLink, Link2 } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppAlert } from "@/contexts/AppAlertContext";
 import type { NavigationProp } from "@/types/navigation";
 import { Spacing } from "@/constants/styles";
 import { BUDMIND_HELP_URL, BUD_NATIVE_LINK_URL } from "@/constants/preferences";
@@ -36,6 +36,7 @@ import {
 export default function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
+  const { showAlert } = useAppAlert();
   const { user, signOut, deleteAccount, refreshOnboardingStatus } = useAuth();
   const { mode, loaded: themeLoaded, setMode, setPreference } = useTheme();
   const darkMode = mode === "dark";
@@ -43,14 +44,18 @@ export default function SettingsScreen() {
   const [resettingOnboarding, setResettingOnboarding] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
-  const lightModeValue = useMemo(() => !darkMode, [darkMode]);
-  const colors = useMemo(() => (darkMode ? DARK_COLORS : LIGHT_COLORS), [darkMode]);
+  const deepModeValue = useMemo(() => darkMode, [darkMode]);
+  const colors = useMemo(
+    () => (darkMode ? DARK_COLORS : LIGHT_COLORS),
+    [darkMode],
+  );
   const styles = useMemo(() => createSettingsStyles(colors), [colors]);
 
-  const handleToggleDarkMode = useCallback(
-    async (isLightMode: boolean) => {
-      const nextMode = isLightMode ? "light" : "dark";
-      const deviceMode = Appearance.getColorScheme() === "light" ? "light" : "dark";
+  const handleToggleDeepMode = useCallback(
+    async (enabled: boolean) => {
+      const nextMode = enabled ? "dark" : "light";
+      const deviceMode =
+        Appearance.getColorScheme() === "light" ? "light" : "dark";
       if (nextMode === deviceMode) {
         await setPreference("system");
         return;
@@ -98,10 +103,11 @@ export default function SettingsScreen() {
   }, []);
 
   const handleDeleteAccount = useCallback(() => {
-    Alert.alert(
-      "Excluir conta",
-      "Esta ação é permanente. Todos os seus dados, conversas e preferências serão removidos e não poderão ser recuperados.",
-      [
+    showAlert({
+      title: "Excluir conta",
+      message:
+        "Esta ação é permanente. Todos os seus dados, conversas e preferências serão removidos e não poderão ser recuperados.",
+      buttons: [
         { text: "Cancelar", style: "cancel" },
         {
           text: "Excluir conta",
@@ -111,7 +117,7 @@ export default function SettingsScreen() {
             try {
               const { error } = await deleteAccount();
               if (error) {
-                Alert.alert("Erro", error.message);
+                showAlert({ title: "Erro", message: error.message });
               }
             } finally {
               setDeletingAccount(false);
@@ -119,51 +125,59 @@ export default function SettingsScreen() {
           },
         },
       ],
-    );
-  }, [deleteAccount]);
+    });
+  }, [deleteAccount, showAlert]);
 
   const handleSignOut = useCallback(() => {
-    Alert.alert("Sair", "Deseja sair da sua conta?", [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Sair", style: "destructive", onPress: () => signOut() },
-    ]);
-  }, [signOut]);
+    showAlert({
+      title: "Sair",
+      message: "Deseja sair da sua conta?",
+      buttons: [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Sair", style: "destructive", onPress: () => signOut() },
+      ],
+    });
+  }, [showAlert, signOut]);
 
   const handleResetOnboarding = useCallback(() => {
     if (!user?.id) {
-      Alert.alert("Erro", "Sessão inválida. Faça login novamente.");
+      showAlert({ title: "Erro", message: "Sessão inválida. Faça login novamente." });
       return;
     }
 
-    Alert.alert("Rever onboarding", "Isso vai reabrir o onboarding ao finalizar. Continuar?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Continuar",
-        style: "default",
-        onPress: async () => {
-          setResettingOnboarding(true);
-          try {
-            const { error } = await supabase
-              .from("profiles")
-              .update({ onboarding_completed: false })
-              .eq("user_id", user.id);
+    showAlert({
+      title: "Rever onboarding",
+      message: "Isso vai reabrir o onboarding ao finalizar. Continuar?",
+      buttons: [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Continuar",
+          onPress: async () => {
+            setResettingOnboarding(true);
+            try {
+              const { error } = await supabase
+                .from("profiles")
+                .update({ onboarding_completed: false })
+                .eq("user_id", user.id);
 
-            if (error) {
-              Alert.alert("Erro", error.message);
-              return;
+              if (error) {
+                showAlert({ title: "Erro", message: error.message });
+                return;
+              }
+
+              await refreshOnboardingStatus();
+            } catch (e: unknown) {
+              const message =
+                e instanceof Error ? e.message : "Erro desconhecido";
+              showAlert({ title: "Erro", message });
+            } finally {
+              setResettingOnboarding(false);
             }
-
-            await refreshOnboardingStatus();
-          } catch (e: unknown) {
-            const message = e instanceof Error ? e.message : "Erro desconhecido";
-            Alert.alert("Erro", message);
-          } finally {
-            setResettingOnboarding(false);
-          }
+          },
         },
-      },
-    ]);
-  }, [refreshOnboardingStatus, user?.id]);
+      ],
+    });
+  }, [refreshOnboardingStatus, showAlert, user?.id]);
 
   const goBack = useCallback(() => {
     if (navigation.canGoBack()) {
@@ -224,14 +238,14 @@ export default function SettingsScreen() {
         </TouchableOpacity>
 
         <View style={styles.row}>
-          <Text style={styles.rowText}>Modo claro</Text>
+          <Text style={styles.rowText}>Modo profundo</Text>
           <View style={styles.rightSlot}>
             {darkModeLoading ? (
               <ActivityIndicator size="small" color={colors.icon} />
             ) : (
               <Switch
-                value={lightModeValue}
-                onValueChange={handleToggleDarkMode}
+                value={deepModeValue}
+                onValueChange={handleToggleDeepMode}
                 trackColor={{
                   false: colors.switchTrackOff,
                   true: colors.primary,
@@ -273,7 +287,9 @@ export default function SettingsScreen() {
           disabled={resettingOnboarding}
         >
           <Text style={styles.rowText}>
-            {resettingOnboarding ? "Reabrindo onboarding..." : "Rever onboarding"}
+            {resettingOnboarding
+              ? "Reabrindo onboarding..."
+              : "Rever onboarding"}
           </Text>
         </TouchableOpacity>
 

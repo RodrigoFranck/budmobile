@@ -125,3 +125,38 @@ export const mapLoginError = (rawMessage: string): AuthAlert => {
     message: 'Algo deu errado ao fazer login. Tente novamente em instantes.',
   };
 };
+
+export const passwordResetEmptyEmailAlert = (): AuthAlert => ({
+  title: 'E-mail obrigatório',
+  message: 'Digite seu e-mail para receber o link de recuperação.',
+});
+
+export const mapPasswordResetError = (rawMessage: string): AuthAlert => {
+  const message = normalizeAuthError(rawMessage);
+
+  if (message.includes('invalid email') || message.includes('email inválido')) {
+    return {
+      title: 'E-mail inválido',
+      message: 'Digite um endereço de e-mail válido, como seu@email.com.',
+    };
+  }
+
+  if (message.includes('rate limit') || message.includes('too many requests')) {
+    return {
+      title: 'Muitas tentativas',
+      message: 'Você fez muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente.',
+    };
+  }
+
+  if (message.includes('network') || message.includes('fetch')) {
+    return {
+      title: 'Sem conexão',
+      message: 'Não foi possível enviar o e-mail. Verifique sua internet e tente novamente.',
+    };
+  }
+
+  return {
+    title: 'Erro ao enviar e-mail',
+    message: 'Não foi possível enviar o link de recuperação agora. Tente novamente em instantes.',
+  };
+};

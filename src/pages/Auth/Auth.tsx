@@ -11,10 +11,10 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from "react-native";
 import { Apple, ChevronLeft, Eye, EyeOff } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppAlert } from "@/contexts/AppAlertContext";
 import { supabase } from "@/integrations/supabase/client";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "@/types/navigation";
@@ -34,7 +34,6 @@ import {
 import {
   mapLoginError,
   mapSignupError,
-  signupEmailFailedAlert,
   signupIncompleteAlert,
   signupPasswordMismatchAlert,
   signupSuccessAlert,
@@ -48,6 +47,7 @@ type EmailTab = "login" | "signup";
 
 export default function AuthScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { showAlert } = useAppAlert();
   const {
     signUp,
     signIn,
@@ -85,7 +85,7 @@ export default function AuthScreen({ navigation }: Props) {
   }, [user, authLoading, awaitingVerification]);
 
   const showAuthAlert = ({ title, message }: { title: string; message: string }) => {
-    Alert.alert(title, message);
+    showAlert({ title, message });
   };
 
   const handleLogin = async () => {
@@ -127,40 +127,18 @@ export default function AuthScreen({ navigation }: Props) {
       return;
     }
 
-    let emailSent = false;
-
-    try {
-      const { data, error: fnError } = await supabase.functions.invoke(
-        "send-auth-email",
-        {
-          body: {
-            email: trimmedEmail,
-            type: "email_confirmation",
-            name: signupName,
-            userId,
-            redirectTo: SITE_ORIGIN,
-          },
-        },
-      );
-      if (fnError) {
-        console.error("send-auth-email error:", fnError);
-      } else if (data?.success) {
-        emailSent = true;
-      } else {
-        console.error("send-auth-email unexpected response:", data);
-      }
-    } catch (emailErr) {
-      console.error("Error invoking send-auth-email:", emailErr);
-    }
+    void supabase.functions.invoke("send-auth-email", {
+      body: {
+        email: trimmedEmail,
+        type: "email_confirmation",
+        name: signupName,
+        userId,
+        redirectTo: SITE_ORIGIN,
+      },
+    });
 
     setIsLoadingSignup(false);
-
-    if (emailSent) {
-      showAuthAlert(signupSuccessAlert(trimmedEmail));
-      return;
-    }
-
-    showAuthAlert(signupEmailFailedAlert());
+    showAuthAlert(signupSuccessAlert(trimmedEmail));
   };
 
   const handleGoogleSignIn = async () => {

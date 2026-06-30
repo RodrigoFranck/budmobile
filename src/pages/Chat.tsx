@@ -14,6 +14,11 @@ import { streamChat, type InsightContext, type UserContext } from '@/utils/chatS
 import type { ChatInsightParam } from '@/types/chatInsight';
 import { takePendingChatInsight, clearPendingChatInsight } from '@/utils/navigateToChat';
 import type { StreamingMessage } from '@/types/messages';
+import {
+  mergeDbAndStreamingMessages,
+  registerMessageClientId,
+  clearMessageClientIds,
+} from '@/utils/mergeChatMessages';
 import { PlatformConstants } from '@/constants/layout';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
 import { VoiceMode } from '@/voice/VoiceMode';
@@ -61,6 +66,7 @@ export default function ChatScreen() {
   const [shouldAutoStartVoice, setShouldAutoStartVoice] = useState(false);
   const pendingChatInsightRef = useRef<ChatInsightParam | null>(null);
   const didAutoSendInsightRef = useRef(false);
+  const messageClientIdsRef = useRef<Map<string, string | number>>(new Map());
 
   const voiceInsight = route.params?.voiceInsight;
 
@@ -95,6 +101,7 @@ export default function ChatScreen() {
     setStreamingMessages([]);
     setIsStreaming(false);
     streamingIdRef.current = null;
+    clearMessageClientIds(messageClientIdsRef.current);
     setIsVoiceModeActive(false);
     setIsVoiceConnecting(false);
     setVoiceTranscript('');
@@ -144,7 +151,7 @@ export default function ChatScreen() {
     if (streamingMessages.length === 0) return;
 
     const allStreamingInDb = streamingMessages.every((streamMsg) => {
-      if (streamMsg.isStreaming) return false;
+      if (streamMsg.isStreaming || streamMsg.isRevealing) return false;
       if (!streamMsg.content.trim()) return false;
 
       return dbMessages.some(
@@ -157,21 +164,15 @@ export default function ChatScreen() {
     }
   }, [dbMessages, streamingMessages]);
 
-  const allMessages = useMemo(() => {
-    const dbMessagesFormatted = dbMessages.map((msg) => ({
-      id: msg.id,
-      role: msg.role as 'user' | 'assistant' | 'context',
-      content: msg.content,
-      createdAt: msg.created_at,
-    }));
-
-    const dbContents = new Set(dbMessages.map((m) => `${m.role}:${m.content}`));
-    const filteredStreaming = streamingMessages.filter(
-      (msg) => !dbContents.has(`${msg.role}:${msg.content}`) || msg.isStreaming,
-    );
-
-    return [...dbMessagesFormatted, ...filteredStreaming];
-  }, [dbMessages, streamingMessages]);
+  const allMessages = useMemo(
+    () =>
+      mergeDbAndStreamingMessages(
+        dbMessages,
+        streamingMessages,
+        messageClientIdsRef.current,
+      ),
+    [dbMessages, streamingMessages],
+  );
 
   const userContext = useMemo<UserContext>(() => {
     const todayMessages = dbMessages.filter(
@@ -217,6 +218,16 @@ export default function ChatScreen() {
     await voiceInterfaceRef.current?.endConversation();
   }, []);
 
+  const handleAssistantRevealComplete = useCallback((messageId: string | number) => {
+    setStreamingMessages((prev) =>
+      prev.map((msg) =>
+        String(msg.id) === String(messageId)
+          ? { ...msg, isRevealing: false }
+          : msg,
+      ),
+    );
+  }, []);
+
   const handleSendMessage = useCallback(
     async (message: string, contextOverride?: InsightContext | null) => {
       if (!currentConversationId || !user) return;
@@ -224,6 +235,7 @@ export default function ChatScreen() {
       const activeInsightContext = contextOverride ?? insightContext;
 
       const userMessageId = `user-${Date.now()}`;
+      registerMessageClientId(messageClientIdsRef.current, 'user', message, userMessageId);
       setStreamingMessages((prev) => [
         ...prev,
         {
@@ -289,11 +301,17 @@ export default function ChatScreen() {
           );
         },
         onDone: async () => {
+          registerMessageClientId(
+            messageClientIdsRef.current,
+            'assistant',
+            accumulatedContent,
+            assistantMessageId,
+          );
           setIsStreaming(false);
           setStreamingMessages((prev) =>
             prev.map((msg) =>
               msg.id === assistantMessageId
-                ? { ...msg, isStreaming: false }
+                ? { ...msg, isStreaming: false, isRevealing: true }
                 : msg,
             ),
           );
@@ -389,6 +407,7 @@ export default function ChatScreen() {
           loading={isStreaming || messagesLoading}
           topPadding={Spacing.base}
           scrollResetToken={chatHomeResetToken}
+          onAssistantRevealComplete={handleAssistantRevealComplete}
         />
         <MessageInputBar
           onSendMessage={handleSendMessage}

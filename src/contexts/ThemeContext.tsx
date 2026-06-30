@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Alert, Appearance } from 'react-native';
+import { Appearance } from 'react-native';
 import { useColorScheme } from 'nativewind';
+import { appAlert } from '@/contexts/AppAlertContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -114,11 +115,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           .eq('user_id', user.id);
         if (error) {
           setPreferenceState((current) => (current === 'dark' ? 'light' : 'dark'));
-          Alert.alert('Erro', 'Não foi possível salvar sua preferência de tema.');
+          appAlert({ title: 'Erro', message: 'Não foi possível salvar sua preferência de tema.' });
         }
       } catch {
         setPreferenceState((current) => (current === 'dark' ? 'light' : 'dark'));
-        Alert.alert('Erro', 'Não foi possível salvar sua preferência de tema.');
+        appAlert({ title: 'Erro', message: 'Não foi possível salvar sua preferência de tema.' });
       }
     },
     [user?.id],

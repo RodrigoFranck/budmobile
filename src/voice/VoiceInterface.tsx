@@ -8,7 +8,6 @@ import {
 } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   PermissionsAndroid,
   Platform,
@@ -17,6 +16,7 @@ import {
 import { Audio } from 'expo-av';
 import { Mic, MicOff } from 'lucide-react-native';
 import { useConversation } from '@elevenlabs/react-native';
+import { appAlert } from '@/contexts/AppAlertContext';
 import { supabase } from '@/integrations/supabase/client';
 import { isSafetyResponse } from '@/utils/safetyDetection';
 import {
@@ -348,10 +348,10 @@ function VoiceInterfaceNativeInner(
           onTranscript?.('');
           processedRef.current.clear();
           onSafetyTriggered?.();
-          Alert.alert(
-            'Apoio disponível',
-            'Se precisar de ajuda, o CVV está disponível 24h pelo 188.',
-          );
+          appAlert({
+            title: 'Apoio disponível',
+            message: 'Se precisar de ajuda, o CVV está disponível 24h pelo 188.',
+          });
           return;
         }
         onAssistantMessage?.(text);
@@ -392,7 +392,7 @@ function VoiceInterfaceNativeInner(
     onError: (message: string) => {
       voiceSessionActiveRef.current = false;
       onConnectingChange?.(false);
-      Alert.alert('Erro', message || 'Erro na conexão de voz');
+      appAlert({ title: 'Erro', message: message || 'Erro na conexão de voz' });
       onVoiceModeChange?.(false);
     },
   });
@@ -445,10 +445,10 @@ function VoiceInterfaceNativeInner(
       const requested = await Audio.requestPermissionsAsync();
       if (requested.status === 'granted') return true;
 
-      Alert.alert(
-        'Permissão necessária',
-        'Ative o microfone do Bud em Ajustes para usar conversas por voz.',
-        [
+      appAlert({
+        title: 'Permissão necessária',
+        message: 'Ative o microfone do Bud em Ajustes para usar conversas por voz.',
+        buttons: [
           { text: 'Cancelar', style: 'cancel' },
           {
             text: 'Abrir Ajustes',
@@ -457,7 +457,7 @@ function VoiceInterfaceNativeInner(
             },
           },
         ],
-      );
+      });
       return false;
     }
 
@@ -480,10 +480,10 @@ function VoiceInterfaceNativeInner(
       onConnectingChange?.(false);
       onVoiceModeChange?.(false);
       setIsLoading(false);
-      Alert.alert(
-        'Permissão necessária',
-        'Sem permissão de microfone, o modo por voz não consegue transcrever sua fala.',
-      );
+      appAlert({
+        title: 'Permissão necessária',
+        message: 'Sem permissão de microfone, o modo por voz não consegue transcrever sua fala.',
+      });
       return;
     }
 
@@ -547,7 +547,7 @@ function VoiceInterfaceNativeInner(
       onConnectingChange?.(false);
       onVoiceModeChange?.(false);
       const msg = e instanceof Error ? e.message : 'Falha ao iniciar conversa';
-      Alert.alert('Erro', msg);
+      appAlert({ title: 'Erro', message: msg });
     } finally {
       if (generation === startGenerationRef.current) {
         setIsLoading(false);
@@ -735,10 +735,10 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
                   processedMessagesRef.current.clear();
                 }
                 onSafetyTriggered?.();
-                Alert.alert(
-                  'Apoio disponível',
-                  'Se precisar de ajuda, o CVV está disponível 24h pelo 188.',
-                );
+                appAlert({
+                  title: 'Apoio disponível',
+                  message: 'Se precisar de ajuda, o CVV está disponível 24h pelo 188.',
+                });
                 return;
               }
               onAssistantMessage?.(text);
@@ -753,7 +753,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
           onError: () => {
             voiceSessionActiveRef.current = false;
             onConnectingChange?.(false);
-            Alert.alert('Erro', 'Erro na conexão de voz');
+            appAlert({ title: 'Erro', message: 'Erro na conexão de voz' });
             setIsConnected(false);
             setIsLoading(false);
             onVoiceModeChange?.(false);
@@ -768,7 +768,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
         onVoiceModeChange?.(false);
         const msg =
           e instanceof Error ? e.message : 'Falha ao iniciar conversa';
-        Alert.alert('Erro', msg);
+        appAlert({ title: 'Erro', message: msg });
         setIsLoading(false);
       }
     }, [

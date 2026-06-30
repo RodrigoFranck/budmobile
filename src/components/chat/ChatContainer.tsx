@@ -3,22 +3,22 @@ import { FlatList, Keyboard, View, Text } from 'react-native';
 import { format, isSameDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChatMessage } from './ChatMessage';
+import { TypingIndicator } from './TypingIndicator';
 import { SafetyCard } from './SafetyCard';
 import { isSafetyResponse } from '@/utils/safetyDetection';
 import type { Message } from '@/types/messages';
 import { Spacing } from '@/constants/styles';
 import { useAppColors } from '@/lib/colors';
-import { frauncesFont } from '@/constants/onboardingTheme';
 import { createChatContainerStyles } from '@/components/chat/ChatContainer.styles';
 
-const SERIF = frauncesFont;
-const CHAT_DATE_FONT_SIZE = 15;
+const SCROLL_SETTLE_MS = 80;
 
 interface ChatContainerProps {
   messages: Message[];
   loading?: boolean;
   topPadding?: number;
   scrollResetToken?: number;
+  onAssistantRevealComplete?: (messageId: string | number) => void;
 }
 
 type ListItem =
@@ -91,11 +91,20 @@ function DateDivider({ label }: { label: string }) {
   );
 }
 
-export function ChatContainer({ messages, loading, topPadding, scrollResetToken }: ChatContainerProps) {
+export function ChatContainer({
+  messages,
+  loading,
+  topPadding,
+  scrollResetToken,
+  onAssistantRevealComplete,
+}: ChatContainerProps) {
   const colors = useAppColors();
   const flatListRef = useRef<FlatList>(null);
   const isNearBottomRef = useRef(true);
   const previousListLengthRef = useRef(0);
+  const previousLastMessageIdRef = useRef<string | number | null>(null);
+  const wasRevealingRef = useRef(false);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const styles = useMemo(
     () =>
       createChatContainerStyles({
@@ -113,27 +122,37 @@ export function ChatContainer({ messages, loading, topPadding, scrollResetToken 
   );
 
   const showTypingFooter = useMemo(() => {
-    if (!loading || messages.length === 0) {
+    if (messages.length === 0) {
       return false;
     }
-    const hasStreamingAssistantContent = messages.some(
-      (msg) =>
-        msg.role === 'assistant' &&
-        msg.isStreaming &&
-        msg.content.trim().length > 0,
-    );
-    return !hasStreamingAssistantContent;
-  }, [loading, messages]);
 
-  const scrollToLatest = useCallback((animated = false) => {
-    requestAnimationFrame(() => {
-      if (isInverted) {
-        flatListRef.current?.scrollToOffset({ offset: 0, animated });
-        return;
-      }
-      flatListRef.current?.scrollToEnd({ animated });
-    });
+    return messages.some(
+      (msg) => msg.role === 'assistant' && msg.isStreaming,
+    );
+  }, [messages]);
+
+  const scrollToLatest = useCallback((animated = true) => {
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+
+    scrollTimeoutRef.current = setTimeout(() => {
+      requestAnimationFrame(() => {
+        if (isInverted) {
+          flatListRef.current?.scrollToOffset({ offset: 0, animated });
+          return;
+        }
+        flatListRef.current?.scrollToEnd({ animated });
+      });
+    }, SCROLL_SETTLE_MS);
   }, [isInverted]);
+
+  const handleMessageContentGrowth = useCallback(() => {
+    if (!isNearBottomRef.current) {
+      return;
+    }
+    scrollToLatest(true);
+  }, [scrollToLatest]);
 
   const handleScroll = useCallback(
     (event: { nativeEvent: { contentOffset: { y: number }; contentSize: { height: number }; layoutMeasurement: { height: number } } }) => {
@@ -151,10 +170,41 @@ export function ChatContainer({ messages, loading, topPadding, scrollResetToken 
     [isInverted],
   );
 
-  const handleContentSizeChange = useCallback(() => {
-    if (!isNearBottomRef.current) return;
-    scrollToLatest(false);
-  }, [scrollToLatest]);
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage) {
+      return;
+    }
+
+    const isNewMessage = lastMessage.id !== previousLastMessageIdRef.current;
+    previousLastMessageIdRef.current = lastMessage.id;
+
+    if (!isNewMessage || !isNearBottomRef.current) {
+      return;
+    }
+
+    scrollToLatest(true);
+  }, [messages, scrollToLatest]);
+
+  useEffect(() => {
+    const isRevealing = messages.some(
+      (msg) => msg.role === 'assistant' && msg.isRevealing,
+    );
+
+    if (isRevealing && !wasRevealingRef.current && isNearBottomRef.current) {
+      scrollToLatest(true);
+    }
+
+    wasRevealingRef.current = isRevealing;
+  }, [messages, scrollToLatest]);
+
+  useEffect(() => {
+    if (!showTypingFooter || !isNearBottomRef.current) {
+      return;
+    }
+
+    scrollToLatest(true);
+  }, [showTypingFooter, scrollToLatest]);
 
   useEffect(() => {
     if (listItems.length > 0 && previousListLengthRef.current === 0) {
@@ -178,6 +228,9 @@ export function ChatContainer({ messages, loading, topPadding, scrollResetToken 
 
     return () => {
       showSubscription.remove();
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
     };
   }, [scrollToLatest]);
 
@@ -188,18 +241,30 @@ export function ChatContainer({ messages, loading, topPadding, scrollResetToken 
       }
 
       const msg = item.message;
+      const chatMessage = (
+        <ChatMessage
+          role={msg.role}
+          content={msg.content}
+          isStreaming={msg.isStreaming}
+          isRevealing={msg.isRevealing}
+          messageId={msg.id}
+          onRevealComplete={onAssistantRevealComplete}
+          onContentGrowth={handleMessageContentGrowth}
+        />
+      );
+
       if (msg.role === 'assistant' && isSafetyResponse(msg.content)) {
         return (
           <View>
-            <ChatMessage {...msg} />
+            {chatMessage}
             <SafetyCard />
           </View>
         );
       }
 
-      return <ChatMessage {...msg} />;
+      return chatMessage;
     },
-    [],
+    [handleMessageContentGrowth, onAssistantRevealComplete],
   );
 
   const keyExtractor = useCallback((item: ListItem) => item.id, []);
@@ -209,10 +274,10 @@ export function ChatContainer({ messages, loading, topPadding, scrollResetToken 
   const typingIndicator = useMemo(() => (
     showTypingFooter ? (
       <View style={styles.footerWrap}>
-        <Text style={styles.footerText}>Bud está digitando...</Text>
+        <TypingIndicator />
       </View>
     ) : null
-  ), [showTypingFooter, styles.footerText, styles.footerWrap]);
+  ), [showTypingFooter, styles.footerWrap]);
 
   return (
     <FlatList
@@ -228,11 +293,8 @@ export function ChatContainer({ messages, loading, topPadding, scrollResetToken 
       ]}
       onScroll={handleScroll}
       scrollEventThrottle={16}
-      onContentSizeChange={handleContentSizeChange}
       maintainVisibleContentPosition={
-        isInverted
-          ? { minIndexForVisible: 0, autoscrollToTopThreshold: 20 }
-          : undefined
+        isInverted ? { minIndexForVisible: 0 } : undefined
       }
       ListEmptyComponent={showEmpty ? <ChatEmptyPrompt /> : null}
       ListHeaderComponent={isInverted ? typingIndicator : null}

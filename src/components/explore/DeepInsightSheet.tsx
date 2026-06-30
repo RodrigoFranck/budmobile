@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert,
   ImageBackground,
   Modal,
   Pressable,
@@ -13,6 +12,7 @@ import { ArrowLeft, Heart, ThumbsDown, ThumbsUp } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 
 import { deepInsightSheetStyles as styles } from '@/components/explore/DeepInsightSheet.styles';
+import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useDeepInsight } from '@/hooks/useDeepInsight';
 import { supabase } from '@/integrations/supabase/client';
 import { navigateToChatTab } from '@/utils/navigateToChat';
@@ -45,6 +45,7 @@ interface DeepInsightSheetProps {
 export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainTabNavigationProp>();
+  const { showAlert } = useAppAlert();
   const {
     loading,
     status,
@@ -137,7 +138,7 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        Alert.alert('Obrigado', 'Obrigado pelo feedback!');
+        showAlert({ title: 'Obrigado', message: 'Obrigado pelo feedback!' });
         return;
       }
       await supabase.from('insight_feedback').insert({
@@ -148,10 +149,10 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         insight_content: insight as any,
       });
-      Alert.alert('Obrigado', 'Obrigado pelo feedback!');
+      showAlert({ title: 'Obrigado', message: 'Obrigado pelo feedback!' });
     } catch (err) {
       console.error('Erro ao salvar feedback:', err);
-      Alert.alert('Obrigado', 'Obrigado pelo feedback!');
+      showAlert({ title: 'Obrigado', message: 'Obrigado pelo feedback!' });
     }
   };
 

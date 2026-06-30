@@ -1,6 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -15,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAppAlert } from '@/contexts/AppAlertContext';
 import { Spacing } from '@/constants/styles';
 import type { NavigationProp } from '@/types/navigation';
 import {
@@ -26,6 +26,7 @@ export default function SupportFeedbackScreen() {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { showAlert } = useAppAlert();
 
   const [reason, setReason] = useState('');
   const [message, setMessage] = useState('');
@@ -50,17 +51,17 @@ export default function SupportFeedbackScreen() {
     const trimmedMessage = message.trim();
 
     if (trimmedReason.length === 0 || trimmedMessage.length === 0) {
-      Alert.alert('Atenção', 'Preencha o motivo e a mensagem.');
+      showAlert({ title: 'Atenção', message: 'Preencha o motivo e a mensagem.' });
       return;
     }
 
     if (trimmedReason.length > 120) {
-      Alert.alert('Atenção', 'O motivo deve ter no máximo 120 caracteres.');
+      showAlert({ title: 'Atenção', message: 'O motivo deve ter no máximo 120 caracteres.' });
       return;
     }
 
     if (trimmedMessage.length > 1000) {
-      Alert.alert('Atenção', 'A mensagem deve ter no máximo 1000 caracteres.');
+      showAlert({ title: 'Atenção', message: 'A mensagem deve ter no máximo 1000 caracteres.' });
       return;
     }
 
@@ -76,18 +77,23 @@ export default function SupportFeedbackScreen() {
 
       if (error) throw error;
 
-      Alert.alert('Enviado', 'Sua mensagem foi enviada com sucesso!', [
-        { text: 'OK', onPress: handleBack },
-      ]);
+      showAlert({
+        title: 'Enviado',
+        message: 'Sua mensagem foi enviada com sucesso!',
+        buttons: [{ text: 'OK', onPress: handleBack }],
+      });
       setReason('');
       setMessage('');
     } catch (error: unknown) {
       console.error('Error sending support email:', error);
-      Alert.alert('Erro', 'Não foi possível enviar sua mensagem. Tente novamente.');
+      showAlert({
+        title: 'Erro',
+        message: 'Não foi possível enviar sua mensagem. Tente novamente.',
+      });
     } finally {
       setSending(false);
     }
-  }, [handleBack, message, reason, user?.email]);
+  }, [handleBack, message, reason, showAlert, user?.email]);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
