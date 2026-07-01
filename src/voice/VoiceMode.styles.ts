@@ -68,6 +68,9 @@ export function createVoiceModeStyles(params: {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    actionButtonDisabled: {
+      opacity: 0.4,
+    },
     activityBarsWrap: {
       flexDirection: 'row',
       alignItems: 'flex-end',

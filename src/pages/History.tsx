@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   ActivityIndicator,
   ImageBackground,
@@ -10,6 +10,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight, Lock, MessageSquare, Sparkles } from 'lucide-react-native';
 
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+
 import ConversationDetail from '@/components/history/ConversationDetail';
 import { DeepInsightSheet } from '@/components/explore/DeepInsightSheet';
 import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
@@ -19,13 +21,7 @@ import {
 } from '@/contexts/TabScreenContext';
 import { LayoutSpacing } from '@/constants/layout';
 import { useAppColors } from '@/lib/colors';
-import { supabase } from '@/integrations/supabase/client';
 import { groupConversationsByDate, groupConversationsByMonth } from '@/utils/dateGrouping';
-import {
-  buildTitleFromUserMessages,
-  needsConversationTitleRegeneration,
-  updateConversationTitleIfNeeded,
-} from '@/utils/generateConversationTitle';
 import { createHistoryStyles } from '@/pages/History.styles';
 
 const inspiredBg = require('@/assets/inspired-bg.png');
@@ -35,10 +31,19 @@ export default function HistoryScreen() {
   const colors = useAppColors();
   const styles = useMemo(() => createHistoryStyles(colors), [colors]);
   const tabLoading = useTabScreenLoading('History');
-  const { conversations, generalInsight, insightsLoading } =
-    useTabScreenContext();
+  const {
+    conversations,
+    generalInsight,
+    deepInsightProgress,
+    insightsLoading,
+    refreshExploreInsights,
+  } = useTabScreenContext();
 
-  const [resolvedTitles, setResolvedTitles] = useState<Record<string, string>>({});
+  useFocusEffect(
+    useCallback(() => {
+      refreshExploreInsights({ cacheOnly: true });
+    }, [refreshExploreInsights]),
+  );
 
   const [selectedConversation, setSelectedConversation] = useState<{
     id: string;
@@ -48,97 +53,9 @@ export default function HistoryScreen() {
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
   const [deepInsightOpen, setDeepInsightOpen] = useState(false);
 
-  const conversationsForDisplay = useMemo(
-    () =>
-      conversations.map((conv) => {
-        const resolved = resolvedTitles[conv.id];
-        if (resolved) {
-          return { ...conv, title: resolved };
-        }
-        if (needsConversationTitleRegeneration(conv.title)) {
-          return { ...conv, title: null };
-        }
-        return conv;
-      }),
-    [conversations, resolvedTitles],
-  );
-
-  useEffect(() => {
-    if (tabLoading || conversations.length === 0) {
-      return;
-    }
-
-    const conversationsNeedingTitle = conversations.filter((conv) =>
-      needsConversationTitleRegeneration(conv.title),
-    );
-
-    if (conversationsNeedingTitle.length === 0) {
-      return;
-    }
-
-    let cancelled = false;
-    const conversationIds = conversationsNeedingTitle.map((conv) => conv.id);
-
-    const syncTitles = async () => {
-      const { data: messages, error } = await supabase
-        .from('messages')
-        .select('conversation_id, content, created_at')
-        .in('conversation_id', conversationIds)
-        .eq('role', 'user')
-        .order('created_at', { ascending: false });
-
-      if (cancelled || error || !messages) {
-        return;
-      }
-
-      const userMessagesByConversation = new Map<string, string[]>();
-      messages.forEach((message) => {
-        const existing = userMessagesByConversation.get(message.conversation_id) ?? [];
-        if (existing.length >= 8) {
-          return;
-        }
-        userMessagesByConversation.set(message.conversation_id, [...existing, message.content]);
-      });
-
-      const nextTitles: Record<string, string> = {};
-      conversationsNeedingTitle.forEach((conv) => {
-        const userMessages = userMessagesByConversation.get(conv.id);
-        if (!userMessages) {
-          return;
-        }
-        const title = buildTitleFromUserMessages(userMessages);
-        if (title) {
-          nextTitles[conv.id] = title;
-        }
-      });
-
-      if (cancelled) {
-        return;
-      }
-
-      if (Object.keys(nextTitles).length > 0) {
-        setResolvedTitles((prev) => ({ ...prev, ...nextTitles }));
-      }
-
-      await Promise.all(
-        conversationIds.map((id) =>
-          updateConversationTitleIfNeeded(id).catch((err) => {
-            console.error('Error updating conversation title:', err);
-          }),
-        ),
-      );
-    };
-
-    syncTitles();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [conversations, tabLoading]);
-
   const monthGroups = useMemo(
-    () => groupConversationsByMonth(conversationsForDisplay),
-    [conversationsForDisplay],
+    () => groupConversationsByMonth(conversations),
+    [conversations],
   );
 
   useEffect(() => {
@@ -156,7 +73,7 @@ export default function HistoryScreen() {
   const canGoNewer = selectedMonthIndex > 0;
   const canGoOlder = selectedMonthIndex < monthGroups.length - 1;
 
-  const canOpenDeepInsight = !insightsLoading && !generalInsight.locked;
+  const canOpenDeepInsight = !insightsLoading && !deepInsightProgress.locked;
 
   if (selectedConversation) {
     return (
@@ -215,10 +132,14 @@ export default function HistoryScreen() {
               ) : canOpenDeepInsight ? (
                 <>
                   <Text style={styles.inspiredTitle} numberOfLines={2}>
-                    {generalInsight.title}
+                    {generalInsight.locked
+                      ? 'Inspirado em você'
+                      : generalInsight.title}
                   </Text>
                   <Text style={styles.inspiredDescription} numberOfLines={2}>
-                    {generalInsight.description}
+                    {generalInsight.locked
+                      ? 'Toque para ler seu insight semanal.'
+                      : generalInsight.description}
                   </Text>
                   <View style={styles.inspiredHintRow}>
                     <Text style={styles.inspiredHint}>Toque para ler</Text>
@@ -229,7 +150,9 @@ export default function HistoryScreen() {
                 <View style={styles.inspiredLockedRow}>
                   <Lock size={20} color="rgba(255,255,255,0.6)" />
                   <Text style={styles.inspiredLockedText}>
-                    Continue conversando com o Bud para desbloquear seu insight semanal.
+                    Continue conversando com o Bud para desbloquear seu insight semanal (
+                    {deepInsightProgress.progress}/{deepInsightProgress.required} conversas nesta
+                    semana).
                   </Text>
                 </View>
               )}

@@ -37,11 +37,10 @@ export function createCheckInResultStyles(t: ActivitiesThemeTokens) {
       paddingTop: 8,
     },
     loadingContainer: {
-      minHeight: 360,
+      flex: 1,
       justifyContent: 'center',
       alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingVertical: 48,
+      paddingHorizontal: 24,
     },
     loadingMessage: {
       fontFamily: frauncesFont,

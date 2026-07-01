@@ -1,6 +1,22 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { isDeveloperEmail } from '@/constants/developerAccess';
+import {
+  DEEP_INSIGHT_TYPE,
+  EXPLORE_INSIGHT_TYPES,
+  type ExploreInsightType,
+  type InsightUnlockProgress,
+} from '@/types/insightUnlock.types';
+import {
+  buildInsightProgressMap,
+  fetchInsightUnlockRules,
+} from '@/utils/insightUnlock';
+import {
+  shouldSyncExploreInsights,
+  syncExploreInsights,
+  type StoredExploreInsight,
+} from '@/utils/syncExploreInsights';
 
 export interface Insight {
   title: string;
@@ -12,222 +28,252 @@ export interface Insight {
   contextSummary?: string;
   internalContext?: string;
   conversationId?: string;
-  cycleProgress?: number; // Progresso no ciclo atual
-  cycleRequired?: number; // Conversas necessárias para próximo ciclo
+  cycleProgress?: number;
+  cycleRequired?: number;
 }
 
-export function useExploreInsights() {
-  const { user } = useAuth();
-  const [yesterdayInsight, setYesterdayInsight] = useState<Insight>({ 
-    title: '', 
-    description: '', 
-    loading: true 
-  });
-  const [generalInsight, setGeneralInsight] = useState<Insight>({ 
-    title: '', 
-    description: '', 
-    loading: true 
-  });
-  const [frequencyInsight, setFrequencyInsight] = useState<Insight>({ 
-    title: '', 
-    description: '', 
-    loading: true 
-  });
-  const [habitInsight, setHabitInsight] = useState<Insight>({ 
-    title: '', 
-    description: '', 
-    loading: true 
-  });
-  
+export interface LoadExploreInsightsOptions {
+  cacheOnly?: boolean;
+  forceSync?: boolean;
+}
 
-  useEffect(() => {
+const EMPTY_INSIGHT: Insight = {
+  title: '',
+  description: '',
+  loading: true,
+};
+
+const LOGIN_MESSAGE: Insight = {
+  title: 'Faça login para ver seus insights',
+  description: 'Entre na sua conta para acessar insights personalizados.',
+  loading: false,
+};
+
+function applyDeveloperAccess(insight: Insight, cycleRequired?: number): Insight {
+  return {
+    ...insight,
+    locked: false,
+    remaining: 0,
+    ...(cycleRequired
+      ? { cycleProgress: cycleRequired, cycleRequired }
+      : {}),
+  };
+}
+
+function buildInsightFromSources(
+  progress: InsightUnlockProgress,
+  ruleTitle: string,
+  ruleDescription: string,
+  storedInsight?: {
+    title: string;
+    description: string;
+    locked: boolean | null;
+    context_summary: string | null;
+    internal_context: string | null;
+    conversation_id: string | null;
+  } | null,
+): Insight {
+  const locked = progress.locked;
+
+  if (!locked && storedInsight && storedInsight.locked === false) {
+    return {
+      title: storedInsight.title,
+      description: storedInsight.description,
+      locked: false,
+      remaining: 0,
+      cycleProgress: progress.progress,
+      cycleRequired: progress.required,
+      contextSummary: storedInsight.context_summary ?? undefined,
+      internalContext: storedInsight.internal_context ?? undefined,
+      conversationId: storedInsight.conversation_id ?? undefined,
+      loading: false,
+    };
+  }
+
+  return {
+    title: locked ? ruleTitle : storedInsight?.title || ruleTitle,
+    description: locked ? ruleDescription : storedInsight?.description || ruleDescription,
+    locked,
+    remaining: progress.remaining,
+    cycleProgress: progress.progress,
+    cycleRequired: progress.required,
+    contextSummary: storedInsight?.context_summary ?? undefined,
+    internalContext: storedInsight?.internal_context ?? undefined,
+    conversationId: storedInsight?.conversation_id ?? undefined,
+    loading: false,
+  };
+}
+
+export function useExploreInsights(refreshToken = 0) {
+  const { user } = useAuth();
+  const isDeveloper = isDeveloperEmail(user?.email);
+  const hasLoadedOnceRef = useRef(false);
+
+  const [yesterdayInsight, setYesterdayInsight] = useState<Insight>(EMPTY_INSIGHT);
+  const [generalInsight, setGeneralInsight] = useState<Insight>(EMPTY_INSIGHT);
+  const [frequencyInsight, setFrequencyInsight] = useState<Insight>(EMPTY_INSIGHT);
+  const [habitInsight, setHabitInsight] = useState<Insight>(EMPTY_INSIGHT);
+  const [deepInsightProgress, setDeepInsightProgress] = useState<InsightUnlockProgress>({
+    conversationCount: 0,
+    required: 5,
+    remaining: 5,
+    progress: 0,
+    locked: true,
+  });
+
+  const applyInsightsFromDb = useCallback(async () => {
     if (!user) {
-      const loginMessage = { 
-        title: 'Faça login para ver seus insights',
-        description: 'Entre na sua conta para acessar insights personalizados.',
-        loading: false 
-      };
-      setYesterdayInsight(loginMessage);
-      setGeneralInsight(loginMessage);
-      setFrequencyInsight(loginMessage);
-      setHabitInsight(loginMessage);
-      return;
+      return null;
     }
 
-    const fetchInsights = async () => {
-      
-      
-
-      // Contar TODAS as conversas (histórico total) para cálculo de ciclo
-      const { count: totalCount } = await supabase
-        .from('conversations')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('is_archived', false);
-
-      const totalConversationCount = totalCount || 0;
-      
-      // Insights devem refletir interações antigas:
-      // buscar os mais recentes por tipo, ordenando por insight_date desc.
-      const insightTypeValues = [
-        'yesterday_journey',
-        'general_insight',
-        'frequency',
-        'habit',
-      ] as const;
-
-      const { data: insightsData } = await supabase
+    const [rules, insightsResult] = await Promise.all([
+      fetchInsightUnlockRules(),
+      supabase
         .from('user_insights')
-        .select('*, context_summary, internal_context, conversation_id, cycle_conversation_count')
+        .select(
+          'insight_type, title, description, locked, context_summary, internal_context, conversation_id, generated_at, insight_date',
+        )
         .eq('user_id', user.id)
-        .in('insight_type', insightTypeValues)
-        .order('insight_date', { ascending: false });
+        .in('insight_type', [...EXPLORE_INSIGHT_TYPES, DEEP_INSIGHT_TYPE]),
+    ]);
 
-      const insights = insightsData || [];
+    const progressMap = await buildInsightProgressMap(user.id, rules);
+    const storedRows = insightsResult.data ?? [];
+    const storedByType = new Map(storedRows.map((row) => [row.insight_type, row]));
 
-      // Mensagens empáticas padrão no estilo Bud
-      const fallbackMessages = {
-        yesterday_journey: {
-          noInsights: {
-            title: 'Ainda estou te conhecendo',
-            description: 'Quando a gente conversar, vou poder te trazer algo sobre como foi o dia anterior.',
-            locked: true,
-          },
-          missingInsight: {
-            title: 'Senti sua falta ontem',
-            description: 'Não conversamos ontem, mas tô aqui quando quiser.',
-            locked: true,
-          }
-        },
-        general_insight: {
-          noInsights: {
-            title: 'Preciso de mais contexto',
-            description: 'Continue conversando comigo que logo eu consigo observar alguns padrões sobre você.',
-            locked: true,
-          },
-          missingInsight: {
-            title: 'Preciso de mais contexto',
-            description: 'Continue conversando comigo que logo eu consigo te trazer algo.',
-            locked: true,
-          }
-        },
-        frequency: {
-          noInsights: {
-            title: 'Vou observar sua frequência',
-            description: 'Continue conversando comigo que logo eu te trago um resumo de como você usa o Bud.',
-            locked: true,
-          },
-          missingInsight: {
-            title: 'Observando sua frequência',
-            description: 'Continue conversando comigo que logo eu te trago um resumo de como você usa o Bud.',
-            locked: true,
-          }
-        },
-        habit: {
-          noInsights: {
-            title: 'Um hábito pra você',
-            description: 'Quanto mais a gente conversa, mais eu consigo sugerir algo que faça sentido pra sua rotina.',
-            locked: true,
-          },
-          missingInsight: {
-            title: 'Um hábito pra você',
-            description: 'Quanto mais a gente conversa, mais eu consigo sugerir algo pra você.',
-            locked: true,
-          }
-        },
-      };
+    const ruleByType = new Map(rules.map((rule) => [rule.insight_type, rule]));
+    const deepRule = ruleByType.get(DEEP_INSIGHT_TYPE);
+    const deepProgress = progressMap[DEEP_INSIGHT_TYPE] ?? {
+      conversationCount: 0,
+      required: deepRule?.required_conversations ?? 5,
+      remaining: deepRule?.required_conversations ?? 5,
+      progress: 0,
+      locked: true,
+    };
 
-      if (!insights || insights.length === 0) {
-        setYesterdayInsight({ ...fallbackMessages.yesterday_journey.noInsights, loading: false });
-        setGeneralInsight({ ...fallbackMessages.general_insight.noInsights, loading: false, remaining: Math.max(0, 5 - totalConversationCount), cycleProgress: Math.min(totalConversationCount, 5), cycleRequired: 5 });
-        setFrequencyInsight({ ...fallbackMessages.frequency.noInsights, loading: false, remaining: Math.max(0, 3 - totalConversationCount), cycleProgress: Math.min(totalConversationCount, 3), cycleRequired: 3 });
-        setHabitInsight({ ...fallbackMessages.habit.noInsights, loading: false, remaining: Math.max(0, 3 - totalConversationCount), cycleProgress: Math.min(totalConversationCount, 3), cycleRequired: 3 });
+    setDeepInsightProgress(
+      isDeveloper
+        ? {
+            ...deepProgress,
+            locked: false,
+            remaining: 0,
+            progress: deepProgress.required,
+          }
+        : deepProgress,
+    );
+
+    const buildForType = (insightType: ExploreInsightType) => {
+      const rule = ruleByType.get(insightType);
+      const progress = progressMap[insightType];
+      if (!rule || !progress) {
+        return { title: '', description: '', loading: false, locked: true };
+      }
+
+      const insight = buildInsightFromSources(
+        progress,
+        rule.locked_title,
+        rule.locked_description,
+        storedByType.get(insightType) ?? null,
+      );
+
+      return isDeveloper
+        ? applyDeveloperAccess(insight, progress.required)
+        : insight;
+    };
+
+    setYesterdayInsight(buildForType('yesterday_journey'));
+    setGeneralInsight(buildForType('general_insight'));
+    setFrequencyInsight(buildForType('frequency'));
+    setHabitInsight(buildForType('habit'));
+
+    return {
+      storedRows: storedRows as StoredExploreInsight[],
+      progressMap,
+    };
+  }, [isDeveloper, user]);
+
+  const loadInsights = useCallback(
+    async (options: LoadExploreInsightsOptions = {}) => {
+      if (!user) {
+        hasLoadedOnceRef.current = false;
+        setYesterdayInsight(LOGIN_MESSAGE);
+        setGeneralInsight(LOGIN_MESSAGE);
+        setFrequencyInsight(LOGIN_MESSAGE);
+        setHabitInsight(LOGIN_MESSAGE);
+        setDeepInsightProgress({
+          conversationCount: 0,
+          required: 5,
+          remaining: 5,
+          progress: 0,
+          locked: true,
+        });
         return;
       }
 
-      // Map insights by type
-      const yesterday = insights.find(i => i.insight_type === 'yesterday_journey');
-      const general = insights.find(i => i.insight_type === 'general_insight');
-      const frequency = insights.find(i => i.insight_type === 'frequency');
-      const habit = insights.find(i => i.insight_type === 'habit');
+      const showLoading = !hasLoadedOnceRef.current;
+      if (showLoading) {
+        setYesterdayInsight((prev) => ({ ...prev, loading: true }));
+        setGeneralInsight((prev) => ({ ...prev, loading: true }));
+        setFrequencyInsight((prev) => ({ ...prev, loading: true }));
+        setHabitInsight((prev) => ({ ...prev, loading: true }));
+      }
 
-      // Usar valores do banco diretamente (edge function já calcula corretamente)
-      const getProgressFromDB = (insight: any, required: number) => {
-        if (!insight) {
-          // Sem insight: calcular progresso inicial
-          return { 
-            progress: Math.min(totalConversationCount, required), 
-            remaining: Math.max(0, required - totalConversationCount) 
-          };
+      try {
+        const snapshot = await applyInsightsFromDb();
+        hasLoadedOnceRef.current = true;
+
+        if (options.cacheOnly || !snapshot) {
+          return;
         }
-        // Usar remaining do DB diretamente
-        const dbRemaining = insight.remaining ?? required;
-        const progress = required - dbRemaining;
-        return { 
-          progress: Math.max(0, Math.min(progress, required)), 
-          remaining: Math.max(0, dbRemaining) 
+
+        const needsSync =
+          options.forceSync ||
+          shouldSyncExploreInsights(snapshot.storedRows, snapshot.progressMap);
+
+        if (!needsSync) {
+          return;
+        }
+
+        void syncExploreInsights({ force: options.forceSync }).then(async () => {
+          try {
+            await applyInsightsFromDb();
+          } catch (error) {
+            console.error('Error refreshing explore insights after sync:', error);
+          }
+        });
+      } catch (error) {
+        console.error('Error loading explore insights:', error);
+        const errorInsight: Insight = {
+          title: 'Não foi possível carregar',
+          description: 'Tente novamente em instantes.',
+          loading: false,
+          locked: true,
         };
-      };
+        setYesterdayInsight(errorInsight);
+        setGeneralInsight(errorInsight);
+        setFrequencyInsight(errorInsight);
+        setHabitInsight(errorInsight);
+      }
+    },
+    [applyInsightsFromDb, user],
+  );
 
-      const generalProgress = getProgressFromDB(general, 5);
-      const frequencyProgress = getProgressFromDB(frequency, 3);
-      const habitProgress = getProgressFromDB(habit, 3);
-
-      setYesterdayInsight({
-        title: yesterday?.title || fallbackMessages.yesterday_journey.missingInsight.title,
-        description: yesterday?.description || fallbackMessages.yesterday_journey.missingInsight.description,
-        locked: yesterday?.locked ?? fallbackMessages.yesterday_journey.missingInsight.locked,
-        contextSummary: yesterday?.context_summary || undefined,
-        internalContext: yesterday?.internal_context || undefined,
-        conversationId: yesterday?.conversation_id || undefined,
-        loading: false,
-      });
-
-      setGeneralInsight({
-        title: general?.title || fallbackMessages.general_insight.missingInsight.title,
-        description: general?.description || fallbackMessages.general_insight.missingInsight.description,
-        locked: general?.locked ?? fallbackMessages.general_insight.missingInsight.locked,
-        remaining: generalProgress.remaining,
-        cycleProgress: generalProgress.progress,
-        cycleRequired: 5,
-        contextSummary: general?.context_summary || undefined,
-        internalContext: general?.internal_context || undefined,
-        loading: false,
-      });
-
-      setFrequencyInsight({
-        title: frequency?.title || fallbackMessages.frequency.missingInsight.title,
-        description: frequency?.description || fallbackMessages.frequency.missingInsight.description,
-        locked: frequency?.locked ?? fallbackMessages.frequency.missingInsight.locked,
-        remaining: frequencyProgress.remaining,
-        cycleProgress: frequencyProgress.progress,
-        cycleRequired: 3,
-        loading: false,
-      });
-
-      setHabitInsight({
-        title: habit?.title || fallbackMessages.habit.missingInsight.title,
-        description: habit?.description || fallbackMessages.habit.missingInsight.description,
-        locked: habit?.locked ?? fallbackMessages.habit.missingInsight.locked,
-        remaining: habitProgress.remaining,
-        cycleProgress: habitProgress.progress,
-        cycleRequired: 3,
-        contextSummary: habit?.context_summary || undefined,
-        internalContext: habit?.internal_context || undefined,
-        loading: false,
-      });
-    };
-
-    fetchInsights();
-  }, [user]);
+  useEffect(() => {
+    hasLoadedOnceRef.current = false;
+    void loadInsights();
+  }, [loadInsights, refreshToken]);
 
   return {
     yesterdayInsight,
     generalInsight,
     frequencyInsight,
     habitInsight,
-    isLoading: yesterdayInsight.loading || generalInsight.loading || 
-               frequencyInsight.loading || habitInsight.loading,
+    deepInsightProgress,
+    isLoading:
+      yesterdayInsight.loading ||
+      generalInsight.loading ||
+      frequencyInsight.loading ||
+      habitInsight.loading,
+    refreshInsights: loadInsights,
   };
 }
-

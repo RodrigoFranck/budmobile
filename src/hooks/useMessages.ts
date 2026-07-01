@@ -112,7 +112,10 @@ export function useMessages(conversationId: string | null) {
     };
   }, [conversationId, user]);
 
-  const addMessage = async (content: string, role: "user" | "assistant") => {
+  const addMessage = async (
+    content: string,
+    role: "user" | "assistant" | "context",
+  ) => {
     if (!conversationId) return null;
 
     try {

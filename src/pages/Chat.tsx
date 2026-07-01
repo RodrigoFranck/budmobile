@@ -53,6 +53,7 @@ export default function ChatScreen() {
   const voiceInterfaceRef = useRef<VoiceInterfaceRef>(null);
   const [isVoiceModeActive, setIsVoiceModeActive] = useState(false);
   const [isVoiceConnecting, setIsVoiceConnecting] = useState(false);
+  const [isVoiceSessionBusy, setIsVoiceSessionBusy] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [isBudSpeaking, setIsBudSpeaking] = useState(false);
   const route = useRoute<RouteProp<MainTabParamList, 'Chat'>>();
@@ -104,6 +105,7 @@ export default function ChatScreen() {
     clearMessageClientIds(messageClientIdsRef.current);
     setIsVoiceModeActive(false);
     setIsVoiceConnecting(false);
+    setIsVoiceSessionBusy(false);
     setVoiceTranscript('');
     setIsBudSpeaking(false);
     setInsightContext(null);
@@ -113,7 +115,7 @@ export default function ChatScreen() {
     didAutoSendInsightRef.current = false;
     clearPendingChatInsight();
     navigation.setParams({ voiceInsight: undefined, chatInsight: undefined });
-    void voiceInterfaceRef.current?.endConversation();
+    void voiceInterfaceRef.current?.endConversation({ force: true });
   }, [chatHomeResetToken, navigation]);
 
   useEffect(() => {
@@ -416,6 +418,7 @@ export default function ChatScreen() {
           voiceInterfaceRef={voiceInterfaceRef}
           onVoiceModeChange={setIsVoiceModeActive}
           onVoiceConnectingChange={setIsVoiceConnecting}
+          onVoiceSessionBusyChange={setIsVoiceSessionBusy}
           onVoiceUserMessage={handleVoiceUserMessage}
           onVoiceAssistantMessage={handleVoiceAssistantMessage}
           onVoiceTranscript={setVoiceTranscript}
@@ -433,6 +436,7 @@ export default function ChatScreen() {
         transcript={voiceTranscript}
         isBudSpeaking={isBudSpeaking}
         isConnecting={isVoiceConnecting}
+        isSessionBusy={isVoiceSessionBusy}
       />
       </View>
     </ScreenLoadingGate>

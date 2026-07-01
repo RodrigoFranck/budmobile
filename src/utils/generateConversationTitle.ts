@@ -7,6 +7,7 @@ const PLACEHOLDER_TITLE_PATTERNS = [
   /^conversa\s*#?\d+$/i,
   /^conversa\s+de\s+/i,
   /^nova conversa$/i,
+  /^conversa do dia$/i,
   /^chat\s*#?\d+$/i,
   /^new chat$/i,
   /^untitled$/i,
@@ -47,6 +48,19 @@ const THEME_SUBTYPES: Record<string, Array<{ label: string; keywords: string[] }
     { label: "Tristeza", keywords: ["triste", "tristeza", "chorar", "chorei"] },
     { label: "Desânimo", keywords: ["desanimado", "desanimada", "sem vontade", "vazio"] },
   ],
+  Relacionamentos: [
+    { label: "Família", keywords: ["família", "familia", "mãe", "mae", "pai", "filho", "filha", "irmão", "irmao", "irmã", "irma"] },
+    { label: "Parceiro", keywords: ["parceiro", "parceira", "namorado", "namorada", "marido", "esposa", "namoro"] },
+    { label: "Amizade", keywords: ["amigo", "amiga", "amizade"] },
+  ],
+  Saúde: [
+    { label: "Sintomas", keywords: ["sintoma", "dor", "doendo", "machucado", "machucada", "febre"] },
+    { label: "Exercício", keywords: ["exercício", "exercicio", "academia", "treino", "correr"] },
+  ],
+  Estresse: [
+    { label: "Sobrecarga", keywords: ["sobrecarga", "exausto", "exausta", "demais", "cobrança", "cobranca"] },
+    { label: "Pressão", keywords: ["pressão", "pressao", "prazo", "deadline", "urgente"] },
+  ],
 };
 
 const BARE_THEME_LABELS = new Set(CONVERSATION_THEMES.map((theme) => theme.label));
@@ -55,7 +69,7 @@ const SPECIFIC_SUBTYPE_LABELS = new Set(
   Object.values(THEME_SUBTYPES).flatMap((subtypes) => subtypes.map((subtype) => subtype.label)),
 );
 
-const BASE_QUALIFIER_LABELS: Record<string, string> = {
+const QUALIFIER_LABELS: Record<string, string> = {
   trabalho: "trabalho",
   emprego: "trabalho",
   chefe: "chefe",
@@ -94,6 +108,26 @@ const TITLE_STOP_WORDS = new Set([
   "falar", "dizer", "acho", "sinto", "senti", "estava", "acordei", "acordar",
   "fiquei", "tenho", "tinha", "fazendo", "sendo", "coisa", "coisas", "vez",
   "sono", "dormir", "dormi", "dormindo",
+  "gostaria", "consigo", "consegui", "conseguir", "precisava", "queria",
+  "poderia", "devia", "seria", "estou", "estava", "estive", "sinto", "sentindo",
+  "alguma", "algum", "algumas", "alguns", "tudo", "nada", "sempre", "nunca",
+  "também", "tambem", "porque", "então", "entao", "assim", "daí", "dai",
+  "outro", "outra", "outros", "outras", "mesmo", "mesma", "cada", "todo", "toda",
+  "muito", "muita", "pouco", "pouca", "demais", "bastante", "quase", "talvez",
+  "parece", "parecia", "acho", "penso", "pensando", "falando", "conversando",
+  "voltar", "voltei", "retorno", "retornei", "prover", "providenciar",
+  "realmente", "literalmente", "basicamente", "tipo",
+  "gente", "voce", "você", "pedalar", "escutando", "brasil",
+]);
+
+const WEAK_QUALIFIER_WORDS = new Set([
+  "alguma", "algum", "tudo", "nada", "coisa", "coisas", "gostaria", "consigo",
+  "quero", "preciso", "estou", "estava", "sinto", "acho", "parece", "talvez",
+  "sempre", "nunca", "ainda", "mesmo", "muito", "pouco", "bem", "mal",
+  "retorno", "voltar", "prover", "falar", "conversar", "dizer", "pensar",
+  "sentir", "fazer", "sendo", "tendo", "indo", "vindo", "ficando",
+  "hoje", "ontem", "amanha", "amanhã", "agora", "depois", "antes",
+  "realmente", "literalmente", "basicamente",
 ]);
 
 interface ThemeScore {
@@ -111,60 +145,6 @@ function normalizeToken(text: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 }
-
-function countAccentMarks(text: string): number {
-  return (text.normalize("NFD").match(/[\u0300-\u036f]/g) ?? []).length;
-}
-
-function preferAccentLabel(current: string | undefined, candidate: string): string {
-  if (!current) {
-    return candidate;
-  }
-
-  const currentAccents = countAccentMarks(current);
-  const candidateAccents = countAccentMarks(candidate);
-  if (candidateAccents > currentAccents) {
-    return candidate;
-  }
-
-  if (candidateAccents === currentAccents && candidate.length > current.length) {
-    return candidate;
-  }
-
-  return current;
-}
-
-function buildQualifierLabels(): Record<string, string> {
-  const labels: Record<string, string> = { ...BASE_QUALIFIER_LABELS };
-
-  const registerLabel = (label: string) => {
-    const normalized = normalizeToken(label);
-    labels[normalized] = preferAccentLabel(labels[normalized], label);
-  };
-
-  const registerKeyword = (keyword: string) => {
-    if (keyword.includes(" ")) {
-      return;
-    }
-    registerLabel(keyword);
-  };
-
-  CONVERSATION_THEMES.forEach((theme) => {
-    registerLabel(theme.label);
-    theme.keywords.forEach(registerKeyword);
-  });
-
-  Object.values(THEME_SUBTYPES).forEach((subtypes) => {
-    subtypes.forEach((subtype) => {
-      registerLabel(subtype.label);
-      subtype.keywords.forEach(registerKeyword);
-    });
-  });
-
-  return labels;
-}
-
-const QUALIFIER_LABELS = buildQualifierLabels();
 
 function capitalizeFirst(text: string): string {
   if (!text) {
@@ -287,40 +267,179 @@ function rankSubstantiveWords(messages: string[], excludedTokens: Set<string>): 
     .map(([word]) => word);
 }
 
-function findOriginalWordInMessages(normalizedWord: string, messages: string[]): string | null {
-  for (const message of messages) {
-    const words = message.match(/[\p{L}]+/gu) ?? [];
-    for (const word of words) {
-      if (normalizeToken(word) === normalizedWord) {
-        return word;
-      }
+function toQualifierLabel(word: string): string {
+  return QUALIFIER_LABELS[word] ?? word;
+}
+
+function isWeakQualifier(word: string): boolean {
+  const normalized = normalizeToken(word);
+  if (!normalized || normalized.length < 4) {
+    return true;
+  }
+  if (TITLE_STOP_WORDS.has(normalized) || WEAK_QUALIFIER_WORDS.has(normalized)) {
+    return true;
+  }
+  return false;
+}
+
+function isGoodTitleCandidate(title: string): boolean {
+  const words = title.split(/\s+/).filter(Boolean);
+  if (words.length === 0) {
+    return false;
+  }
+  const substantiveWords = words.filter((word) => !isWeakQualifier(word));
+  if (substantiveWords.length === 0) {
+    return false;
+  }
+  if (words.length === 1) {
+    const word = normalizeToken(words[0]);
+    return word.length >= 5 || SPECIFIC_SUBTYPE_LABELS.has(words[0]);
+  }
+  return substantiveWords.length >= 1;
+}
+
+function cleanPhraseTokens(phrase: string): string | null {
+  const words = tokenize(phrase)
+    .filter((word) => !TITLE_STOP_WORDS.has(word) && !isWeakQualifier(word))
+    .slice(0, 3)
+    .map((word) => toQualifierLabel(word));
+
+  if (words.length === 0) {
+    return null;
+  }
+
+  return words.join(" ");
+}
+
+function stripLeadingFillers(text: string): string {
+  return text
+    .replace(/^(oi|olá|ola|hey|e aí|eai|bom dia|boa tarde|boa noite)[,!.?\s]*/i, "")
+    .replace(/^(quero|preciso|gostaria)\s+(de\s+)?(falar|conversar)\s+(sobre\s+)?/i, "")
+    .replace(/^(estou|tô|to)\s+(me\s+)?(sentindo|sinto)\s+/i, "")
+    .replace(/^(tenho\s+)?(me\s+)?sentido\s+/i, "")
+    .replace(/^(andei|estive)\s+(me\s+)?(sentindo|sinto)\s+/i, "")
+    .trim();
+}
+
+function extractTopicFromPatterns(text: string): string | null {
+  const patterns: Array<RegExp> = [
+    /\b(?:falar|conversar)\s+sobre\s+(?:o\s+|a\s+|os\s+|as\s+|meu\s+|minha\s+|meus\s+|minhas\s+)?(.{3,40}?)(?:\.|,|!|\?|$)/i,
+    /\bsobre\s+(?:o\s+|a\s+|os\s+|as\s+|meu\s+|minha\s+)?(.{3,40}?)(?:\.|,|!|\?|$)/i,
+    /\b(?:preocupad[oa]|ansios[oa]|triste|estressad[oa]|desanimad[oa]|cansad[oa]|irritad[oa])\s+(?:com|por)\s+(?:o\s+|a\s+|meu\s+|minha\s+)?(.{3,35}?)(?:\.|,|e\s|$)/i,
+    /\bproblema[s]?\s+com\s+(?:o\s+|a\s+|meu\s+|minha\s+)?(.{3,35}?)(?:\.|,|$)/i,
+    /\bdificuldade\s+(?:de|para|em)\s+(.{3,35}?)(?:\.|,|$)/i,
+    /\b(?:meu|minha)\s+(\w{4,15})\s+(?:está|esta|andou|tem sido|ficou)/i,
+    /\bretorno\s+ao?\s+trabalho/i,
+    /\bnão consigo\s+(\w{4,15})/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match) {
+      continue;
+    }
+    if (!match[1] && !/retorno/i.test(match[0])) {
+      continue;
+    }
+
+    if (/retorno\s+ao?\s+trabalho/i.test(match[0])) {
+      return "retorno ao trabalho";
+    }
+
+    const cleaned = cleanPhraseTokens(match[1] ?? "");
+    if (cleaned && isGoodTitleCandidate(cleaned)) {
+      return cleaned;
     }
   }
+
   return null;
 }
 
-function toQualifierLabel(word: string, messages: string[] = []): string {
-  const mapped = QUALIFIER_LABELS[word];
-  if (mapped) {
-    return mapped;
-  }
-
-  const original = findOriginalWordInMessages(word, messages);
-  if (original) {
-    return preferAccentLabel(word, original);
-  }
-
-  return word;
-}
-
-function pickQualifier(messages: string[], excludedThemeLabels: string[]): string | null {
-  const excluded = getExcludedTokens(excludedThemeLabels);
-  const ranked = rankSubstantiveWords(messages, excluded);
-  const top = ranked[0];
-  if (!top) {
+function extractCoreFromMessage(message: string): string | null {
+  const normalized = stripLeadingFillers(normalizeMessageText(message));
+  if (!normalized) {
     return null;
   }
-  return toQualifierLabel(top, messages);
+
+  const fromPattern = extractTopicFromPatterns(normalized);
+  if (fromPattern) {
+    return fromPattern;
+  }
+
+  const tokens = tokenize(normalized).filter(
+    (word) => !TITLE_STOP_WORDS.has(word) && !isWeakQualifier(word),
+  );
+
+  if (tokens.length >= 2) {
+    const phrase = tokens.slice(0, 3).map((word) => toQualifierLabel(word)).join(" ");
+    if (isGoodTitleCandidate(phrase)) {
+      return phrase;
+    }
+  }
+
+  if (tokens.length === 1 && tokens[0].length >= 5) {
+    return toQualifierLabel(tokens[0]);
+  }
+
+  return null;
+}
+
+function pickBestExtractedTitle(messages: string[]): string | null {
+  let best: string | null = null;
+  let bestScore = 0;
+
+  for (const message of messages) {
+    const extracted = extractCoreFromMessage(message);
+    if (!extracted || !isGoodTitleCandidate(extracted)) {
+      continue;
+    }
+
+    const wordCount = extracted.split(/\s+/).length;
+    const score = wordCount * 10 + extracted.length;
+    if (score > bestScore) {
+      best = extracted;
+      bestScore = score;
+    }
+  }
+
+  return best;
+}
+
+function formatWithContext(head: string, context: string): string {
+  const normalizedContext = normalizeToken(context);
+  const peopleWords = [
+    "mae", "mãe", "pai", "chefe", "parceiro", "parceira", "amigo", "amiga",
+    "familia", "família", "namorado", "namorada", "marido", "esposa",
+  ];
+
+  if (peopleWords.some((person) => normalizedContext.includes(normalizeToken(person)))) {
+    return `${head} com ${context}`;
+  }
+
+  const feminineWords = ["entrevista", "reuniao", "reunião", "escola", "faculdade", "crise"];
+  if (
+    feminineWords.some((word) => normalizedContext.includes(normalizeToken(word))) ||
+    context.endsWith("a")
+  ) {
+    return `${head} na ${context}`;
+  }
+
+  return `${head} no ${context}`;
+}
+
+function smartCombine(head: string, tail: string): string {
+  const normalizedHead = normalizeToken(head);
+  const normalizedTail = normalizeToken(tail);
+
+  if (!tail || isWeakQualifier(tail) || normalizedHead === normalizedTail) {
+    return head;
+  }
+
+  if (BARE_THEME_LABELS.has(head) || SPECIFIC_SUBTYPE_LABELS.has(head)) {
+    return formatWithContext(head, tail);
+  }
+
+  return `${head} e ${tail}`;
 }
 
 function combineTitleParts(parts: string[]): string | null {
@@ -333,43 +452,53 @@ function combineTitleParts(parts: string[]): string | null {
     return capitalizeFirst(fitTitleLength(unique[0]));
   }
 
-  const combined = unique.slice(0, 2).join(" e ");
+  const combined = smartCombine(unique[0], unique[1]);
   return capitalizeFirst(fitTitleLength(combined));
 }
 
-function extractExplicitTopic(messages: string[]): string | null {
-  const combined = messages.join(" ");
-  const sobreMatch = combined.match(
-    /\b(?:sobre|falar\s+sobre|relacionad[oa]\s+a?|assunto\s+é)\s+([a-zà-ú]{3,20})/i,
-  );
-  if (sobreMatch?.[1] && !TITLE_STOP_WORDS.has(normalizeToken(sobreMatch[1]))) {
-    return toQualifierLabel(normalizeToken(sobreMatch[1]), messages);
+function pickQualifier(messages: string[], excludedThemeLabels: string[]): string | null {
+  const excluded = getExcludedTokens(excludedThemeLabels);
+  const ranked = rankSubstantiveWords(messages, excluded).filter((word) => !isWeakQualifier(word));
+  const top = ranked[0];
+  if (!top) {
+    return null;
   }
-  return null;
+  return toQualifierLabel(top);
+}
+
+function isBareThemeWord(word: string): boolean {
+  const normalized = normalizeToken(word);
+  return [...BARE_THEME_LABELS].some((label) => normalizeToken(label) === normalized);
 }
 
 function buildContextualTitle(messages: string[]): string | null {
+  const extracted = pickBestExtractedTitle(messages);
+  if (extracted) {
+    const extractedWords = extracted.split(/\s+/).filter(Boolean);
+    const isTooGeneric =
+      extractedWords.length === 1 && isBareThemeWord(extractedWords[0]);
+
+    if (!isTooGeneric) {
+      return capitalizeFirst(fitTitleLength(extracted));
+    }
+  }
+
   const rankedThemes = rankThemes(messages);
   const primary = rankedThemes[0];
   const secondary = rankedThemes[1];
 
   if (!primary) {
-    const words = rankSubstantiveWords(messages, new Set());
+    const words = rankSubstantiveWords(messages, new Set()).filter((word) => !isWeakQualifier(word));
     if (words.length >= 2) {
-      return combineTitleParts([
-        toQualifierLabel(words[0], messages),
-        toQualifierLabel(words[1], messages),
-      ]);
+      return combineTitleParts([toQualifierLabel(words[0]), toQualifierLabel(words[1])]);
     }
     if (words.length === 1) {
-      return combineTitleParts([toQualifierLabel(words[0], messages)]);
+      return combineTitleParts([toQualifierLabel(words[0])]);
     }
-    const explicit = extractExplicitTopic(messages);
-    return explicit ? combineTitleParts([explicit]) : null;
+    return null;
   }
 
   const subtype = detectThemeSubtype(messages, primary.label);
-  const explicit = extractExplicitTopic(messages);
   const qualifier = pickQualifier(messages, [
     primary.label,
     ...(subtype ? [subtype] : []),
@@ -385,38 +514,28 @@ function buildContextualTitle(messages: string[]): string | null {
   }
 
   if (subtype) {
-    return combineTitleParts([subtype, explicit ?? undefined].filter(Boolean) as string[]);
+    return combineTitleParts([subtype]);
   }
 
-  if (qualifier) {
+  if (qualifier && qualifier.length >= 5) {
     return combineTitleParts([primary.label, qualifier]);
   }
 
-  if (secondary && secondary.score >= primary.score * 0.45) {
+  if (secondary && secondary.score >= primary.score * 0.6) {
     return combineTitleParts([primary.label, secondary.label]);
   }
 
-  if (explicit) {
-    return combineTitleParts([primary.label, explicit]);
+  const words = rankSubstantiveWords(messages, getExcludedTokens([primary.label]))
+    .filter((word) => !isWeakQualifier(word) && word.length >= 5);
+  if (words.length > 0) {
+    return combineTitleParts([primary.label, toQualifierLabel(words[0])]);
   }
 
-  const words = rankSubstantiveWords(messages, getExcludedTokens([primary.label]));
-  if (words.length > 0) {
-    return combineTitleParts([primary.label, toQualifierLabel(words[0], messages)]);
+  if (SPECIFIC_SUBTYPE_LABELS.has(primary.label)) {
+    return capitalizeFirst(primary.label);
   }
 
   return null;
-}
-
-function titleHasMissingAccents(title: string): boolean {
-  return title.split(/\s+/).some((word) => {
-    const normalized = normalizeToken(word);
-    const preferred = QUALIFIER_LABELS[normalized];
-    if (!preferred || countAccentMarks(preferred) === 0) {
-      return false;
-    }
-    return countAccentMarks(word) < countAccentMarks(preferred);
-  });
 }
 
 function looksLikeSentenceFragment(title: string): boolean {
@@ -435,8 +554,71 @@ function looksLikeSentenceFragment(title: string): boolean {
     "nao",
     "hoje",
     "ontem",
+    "conversou",
+    "posso",
+    "compartilhar",
+    "finalizar",
+    "queee",
+    "conversando",
+    "falando",
   ];
   return fragmentStarts.some((start) => lower.startsWith(start));
+}
+
+function looksLikeAssistantEcho(title: string): boolean {
+  const lower = title.toLowerCase();
+  if (/^(voce|você|bud)\b/.test(lower)) {
+    return true;
+  }
+  return /\b(descreveu|perfeitamente|testando|funcionalidades|tebe)\b/.test(lower);
+}
+
+function looksLikeExtractedFragment(title: string): boolean {
+  const lower = title.toLowerCase();
+  const badStarts = [
+    "acha ",
+    "tebe ",
+    "verdade ",
+    "conversou ",
+    "queee ",
+    "busca por ",
+  ];
+  return badStarts.some((start) => lower.startsWith(start));
+}
+
+function looksLikeLiteralExtraction(title: string): boolean {
+  const lower = title.toLowerCase();
+  if (/(.)\1{2,}/i.test(title)) {
+    return true;
+  }
+  if (/^(cara|mano|tipo|nossa|ajude|quero|preciso|tive|senti|estou|estava)\b/.test(lower)) {
+    return true;
+  }
+  if (/\b(tooo|porqueee|sucedido)\b/.test(lower)) {
+    return true;
+  }
+  return false;
+}
+
+function hasWeakQualifierPattern(title: string): boolean {
+  const match = title.match(/^(.+?)\s+e\s+(\S+)$/i);
+  if (!match?.[1] || !match[2]) {
+    return false;
+  }
+
+  const [, head, tail] = match;
+  if (isWeakQualifier(tail)) {
+    return true;
+  }
+
+  if (
+    (BARE_THEME_LABELS.has(head) || SPECIFIC_SUBTYPE_LABELS.has(head)) &&
+    tail.length < 5
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 export function isPlaceholderConversationTitle(title: string | null | undefined): boolean {
@@ -461,6 +643,22 @@ export function isLowQualityConversationTitle(title: string | null | undefined):
     return true;
   }
 
+  if (hasWeakQualifierPattern(trimmed)) {
+    return true;
+  }
+
+  if (looksLikeAssistantEcho(trimmed)) {
+    return true;
+  }
+
+  if (looksLikeExtractedFragment(trimmed)) {
+    return true;
+  }
+
+  if (looksLikeLiteralExtraction(trimmed)) {
+    return true;
+  }
+
   const words = trimmed.split(/\s+/).filter(Boolean);
   if (words.length < 2 && !SPECIFIC_SUBTYPE_LABELS.has(trimmed)) {
     return true;
@@ -481,9 +679,6 @@ export function needsConversationTitleRegeneration(title: string | null | undefi
     return true;
   }
   if (isPlaceholderConversationTitle(trimmed) || isLowQualityConversationTitle(trimmed)) {
-    return true;
-  }
-  if (titleHasMissingAccents(trimmed)) {
     return true;
   }
   if (trimmed.endsWith("...")) {
@@ -541,87 +736,133 @@ export function resolveConversationDisplayTitle(
 
 export async function generateConversationTitle(conversationId: string): Promise<string | null> {
   try {
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-conversation-title", {
-        body: { conversationId },
-      });
+    const { data, error } = await supabase.functions.invoke("generate-conversation-title", {
+      body: { conversationId },
+    });
 
-      if (!error && data?.title && !needsConversationTitleRegeneration(data.title)) {
-        return data.title;
+    if (!error && data?.title && typeof data.title === "string") {
+      const title = data.title.trim();
+      if (title && !needsConversationTitleRegeneration(title)) {
+        return title;
       }
-    } catch {
-      console.log("Edge Function not available, using local title generation");
     }
 
-    const { data: messages, error: messagesError } = await supabase
-      .from("messages")
-      .select("content, role")
-      .eq("conversation_id", conversationId)
-      .eq("role", "user")
-      .order("created_at", { ascending: false })
-      .limit(12);
-
-    if (messagesError || !messages || messages.length === 0) {
-      console.error("Error fetching messages for title generation:", messagesError);
-      return null;
+    if (error) {
+      console.warn("AI title generation failed:", error.message);
+    } else if (data?.error) {
+      console.warn("AI title generation failed:", data.error);
     }
-
-    const userMessagesNewestFirst = messages.map((message) => message.content);
-    return buildTitleFromUserMessages(userMessagesNewestFirst);
-  } catch (error) {
-    console.error("Error generating conversation title:", error);
-    return null;
+  } catch (invokeError) {
+    console.warn("Edge Function not available for title generation:", invokeError);
   }
+
+  return null;
 }
 
-const titleUpdateInFlight = new Set<string>();
+const TITLE_SYNC_CONCURRENCY = 3;
 
-export async function updateConversationTitleIfNeeded(conversationId: string): Promise<void> {
-  if (titleUpdateInFlight.has(conversationId)) {
-    return;
+async function runWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function runWorker() {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await worker(items[currentIndex]);
+    }
   }
 
-  titleUpdateInFlight.add(conversationId);
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    () => runWorker(),
+  );
 
-  try {
-    const { data: conversation, error: convError } = await supabase
-      .from("conversations")
-      .select("title")
-      .eq("id", conversationId)
-      .single();
+  await Promise.all(workers);
+  return results;
+}
 
-    if (convError) {
-      console.error("Error checking conversation title:", convError);
-      return;
+export async function prepareHistoryConversationTitles<
+  T extends { id: string; title: string | null },
+>(conversations: T[]): Promise<T[]> {
+  if (conversations.length === 0) {
+    return conversations;
+  }
+
+  return runWithConcurrency(conversations, TITLE_SYNC_CONCURRENCY, async (conversation) => {
+    if (conversation.title && !needsConversationTitleRegeneration(conversation.title)) {
+      return conversation;
     }
 
-    const title = await generateConversationTitle(conversationId);
-
+    const title = await updateConversationTitleIfNeeded(conversation.id);
     if (!title) {
-      return;
+      return conversation;
     }
 
-    const storedTitle = conversation?.title?.trim();
-    const shouldUpdate =
-      !storedTitle ||
-      needsConversationTitleRegeneration(storedTitle) ||
-      storedTitle !== title;
+    return { ...conversation, title };
+  });
+}
 
-    if (!shouldUpdate) {
-      return;
-    }
+const titleUpdatePromises = new Map<string, Promise<string | null>>();
 
-    const { error: updateError } = await supabase
-      .from("conversations")
-      .update({ title })
-      .eq("id", conversationId);
-
-    if (updateError) {
-      console.error("Error updating conversation title:", updateError);
-    }
-  } catch (error) {
-    console.error("Error in updateConversationTitleIfNeeded:", error);
-  } finally {
-    titleUpdateInFlight.delete(conversationId);
+export async function updateConversationTitleIfNeeded(conversationId: string): Promise<string | null> {
+  const inFlight = titleUpdatePromises.get(conversationId);
+  if (inFlight) {
+    return inFlight;
   }
+
+  const promise = (async () => {
+    try {
+      const { data: conversation, error: convError } = await supabase
+        .from("conversations")
+        .select("title")
+        .eq("id", conversationId)
+        .single();
+
+      if (convError) {
+        console.error("Error checking conversation title:", convError);
+        return null;
+      }
+
+      const title = await generateConversationTitle(conversationId);
+
+      if (!title) {
+        return null;
+      }
+
+      const storedTitle = conversation?.title?.trim();
+      const shouldUpdate =
+        !storedTitle ||
+        needsConversationTitleRegeneration(storedTitle) ||
+        storedTitle !== title;
+
+      if (!shouldUpdate) {
+        return storedTitle ?? title;
+      }
+
+      const { error: updateError } = await supabase
+        .from("conversations")
+        .update({ title })
+        .eq("id", conversationId);
+
+      if (updateError) {
+        console.error("Error updating conversation title:", updateError);
+        return title;
+      }
+
+      return title;
+    } catch (error) {
+      console.error("Error in updateConversationTitleIfNeeded:", error);
+      return null;
+    } finally {
+      titleUpdatePromises.delete(conversationId);
+    }
+  })();
+
+  titleUpdatePromises.set(conversationId, promise);
+  return promise;
 }

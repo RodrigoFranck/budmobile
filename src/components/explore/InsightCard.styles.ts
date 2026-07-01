@@ -31,6 +31,26 @@ export const insightCardStyles = StyleSheet.create({
   contentGap: {
     gap: 12,
   },
+  progressWrap: {
+    marginTop: 4,
+    gap: 8,
+  },
+  progressLabel: {
+    fontFamily: frauncesFont,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.75)',
+  },
+  progressTrack: {
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+  },
   secondaryButtonWrap: {
     marginTop: 16,
   },

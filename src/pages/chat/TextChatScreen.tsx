@@ -1,7 +1,7 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { KeyboardAvoidingView, Pressable, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { ChevronLeft } from 'lucide-react-native';
 
 import { ChatContainer } from '@/components/chat/ChatContainer';
@@ -31,6 +31,8 @@ export default function TextChatScreen() {
     setIsVoiceModeActive,
     isVoiceConnecting,
     setIsVoiceConnecting,
+    isVoiceSessionBusy,
+    setIsVoiceSessionBusy,
     voiceTranscript,
     setVoiceTranscript,
     isBudSpeaking,
@@ -43,7 +45,20 @@ export default function TextChatScreen() {
     handleVoiceAssistantMessage,
     handleEndVoiceSession,
     handleAssistantRevealComplete,
+    bootstrapInsightSession,
   } = useChatSession();
+
+  useFocusEffect(
+    useCallback(() => {
+      if (tabLoading) return;
+      bootstrapInsightSession();
+    }, [bootstrapInsightSession, tabLoading]),
+  );
+
+  useEffect(() => {
+    if (tabLoading) return;
+    bootstrapInsightSession();
+  }, [bootstrapInsightSession, tabLoading]);
 
   const handleBack = useCallback(() => {
     if (navigation.canGoBack()) {
@@ -91,6 +106,7 @@ export default function TextChatScreen() {
             voiceInterfaceRef={voiceInterfaceRef}
             onVoiceModeChange={setIsVoiceModeActive}
             onVoiceConnectingChange={setIsVoiceConnecting}
+            onVoiceSessionBusyChange={setIsVoiceSessionBusy}
             onVoiceUserMessage={handleVoiceUserMessage}
             onVoiceAssistantMessage={handleVoiceAssistantMessage}
             onVoiceTranscript={setVoiceTranscript}
@@ -108,6 +124,7 @@ export default function TextChatScreen() {
           transcript={voiceTranscript}
           isBudSpeaking={isBudSpeaking}
           isConnecting={isVoiceConnecting}
+          isSessionBusy={isVoiceSessionBusy}
         />
       </View>
     </ScreenLoadingGate>
