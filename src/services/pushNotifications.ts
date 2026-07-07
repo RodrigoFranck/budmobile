@@ -179,6 +179,10 @@ export async function syncPushTokenForUser(userId: string): Promise<string | nul
 
 export type PushNotificationData = {
   screen?: string;
+  tab?: string;
+  notificationType?: string;
+  notification_type?: string;
+  openDeepInsight?: boolean | string;
   conversationId?: string;
   [key: string]: unknown;
 };

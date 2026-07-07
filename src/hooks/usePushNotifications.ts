@@ -17,24 +17,15 @@ import {
   type PushNotificationData,
 } from '@/services/pushNotifications';
 import type { RootStackParamList } from '@/types/navigation';
-
-function navigateFromPushData(
-  navigationRef: NavigationContainerRefWithCurrent<RootStackParamList>,
-  data: PushNotificationData | undefined
-): void {
-  if (!navigationRef.isReady() || !data?.screen) {
-    return;
-  }
-
-  if (data.screen === 'MainTabs') {
-    navigationRef.navigate('MainTabs');
-  }
-}
+import {
+  flushPendingMainTabsNavigation,
+  navigateFromPushNotification,
+} from '@/utils/pushNotificationNavigation';
 
 export function usePushNotifications(
   navigationRef: NavigationContainerRefWithCurrent<RootStackParamList>
 ) {
-  const { user } = useAuth();
+  const { user, onboardingCompleted } = useAuth();
 
   useEffect(() => {
     if (Platform.OS === 'web' || !user?.id) {
@@ -79,6 +70,14 @@ export function usePushNotifications(
   }, [user?.id]);
 
   useEffect(() => {
+    if (Platform.OS === 'web' || !user?.id || !onboardingCompleted) {
+      return;
+    }
+
+    flushPendingMainTabsNavigation(navigationRef);
+  }, [navigationRef, onboardingCompleted, user?.id]);
+
+  useEffect(() => {
     if (Platform.OS === 'web') {
       return;
     }
@@ -90,11 +89,11 @@ export function usePushNotifications(
           return;
         }
 
-        navigateFromPushData(navigationRef, getPushDataFromRemoteMessage(remoteMessage));
+        navigateFromPushNotification(navigationRef, getPushDataFromRemoteMessage(remoteMessage));
       });
 
     const openedAppUnsubscribe = messaging().onNotificationOpenedApp((remoteMessage) => {
-      navigateFromPushData(navigationRef, getPushDataFromRemoteMessage(remoteMessage));
+      navigateFromPushNotification(navigationRef, getPushDataFromRemoteMessage(remoteMessage));
     });
 
     const foregroundUnsubscribe = messaging().onMessage(async (remoteMessage) => {
@@ -106,7 +105,7 @@ export function usePushNotifications(
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
         const data = response.notification.request.content.data as PushNotificationData;
-        navigateFromPushData(navigationRef, data);
+        navigateFromPushNotification(navigationRef, data);
       }
     );
 

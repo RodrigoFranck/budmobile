@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight, Lock, MessageSquare, Sparkles } from 'lucide-react-native';
 
@@ -27,11 +28,16 @@ import {
   updateConversationTitleIfNeeded,
 } from '@/utils/generateConversationTitle';
 import { createHistoryStyles } from '@/pages/History.styles';
+import type { MainTabNavigationProp, MainTabParamList } from '@/types/navigation';
 
 const inspiredBg = require('@/assets/inspired-bg.png');
 
+type HistoryRouteProp = RouteProp<MainTabParamList, 'History'>;
+
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<MainTabNavigationProp>();
+  const route = useRoute<HistoryRouteProp>();
   const colors = useAppColors();
   const styles = useMemo(() => createHistoryStyles(colors), [colors]);
   const tabLoading = useTabScreenLoading('History');
@@ -47,6 +53,7 @@ export default function HistoryScreen() {
   } | null>(null);
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
   const [deepInsightOpen, setDeepInsightOpen] = useState(false);
+  const [pendingDeepInsightOpen, setPendingDeepInsightOpen] = useState(false);
 
   const conversationsForDisplay = useMemo(
     () =>
@@ -157,6 +164,24 @@ export default function HistoryScreen() {
   const canGoOlder = selectedMonthIndex < monthGroups.length - 1;
 
   const canOpenDeepInsight = !insightsLoading && !generalInsight.locked;
+
+  useEffect(() => {
+    if (!route.params?.openDeepInsight) {
+      return;
+    }
+
+    setPendingDeepInsightOpen(true);
+    navigation.setParams({ openDeepInsight: undefined });
+  }, [navigation, route.params?.openDeepInsight]);
+
+  useEffect(() => {
+    if (!pendingDeepInsightOpen || !canOpenDeepInsight) {
+      return;
+    }
+
+    setDeepInsightOpen(true);
+    setPendingDeepInsightOpen(false);
+  }, [canOpenDeepInsight, pendingDeepInsightOpen]);
 
   if (selectedConversation) {
     return (

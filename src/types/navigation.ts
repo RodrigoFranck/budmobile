@@ -1,6 +1,8 @@
+import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
+import type { ActivitiesStackParamList } from '@/types/activitiesNavigation.types';
 import type { ChatInsightParam } from '@/types/chatInsight';
 import type { ChatStackParamList } from '@/types/chatNavigation.types';
 
@@ -14,7 +16,7 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   ResetPassword: { token: string } | undefined;
   VerifyEmail: undefined;
-  MainTabs: undefined;
+  MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   // Legacy routes used in some screens
   Home: undefined;
   Chat: undefined;
@@ -46,8 +48,8 @@ export type ChatTabParams = {
 export type MainTabParamList = {
   Chat: ChatTabParams | undefined;
   Explore: undefined;
-  Activities: undefined;
-  History: undefined;
+  Activities: NavigatorScreenParams<ActivitiesStackParamList> | undefined;
+  History: { openDeepInsight?: boolean } | undefined;
 };
 
 /**
