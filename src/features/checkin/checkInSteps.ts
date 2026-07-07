@@ -55,7 +55,7 @@ export const MORNING_CHECKIN_STEPS: CheckInStepConfig[] = [
   {
     key: 'mind_focus',
     category: 'MENTE',
-    question: 'Sua cabeça hoje?',
+    question: 'Como está sua cabeça hoje?',
     inputType: 'chips',
     options: ['Focada', 'Dispersa', 'Travada', 'Cheia', 'Quieta'],
     gradientColors: ['rgba(139,92,246,0.22)', 'rgba(168,85,247,0.1)', '#1D1916'],
@@ -86,7 +86,7 @@ export const POST_TRAINING_CHECKIN_STEPS: CheckInStepConfig[] = [
   {
     key: 'physical_state_after',
     category: 'CORPO PÓS',
-    question: 'Como o corpo ficou?',
+    question: 'Como o seu corpo ficou depois do treino?',
     inputType: 'chips',
     options: ['Forte', 'Pesado', 'Cansado', 'Dolorido', 'Solto', 'Travado', 'Vazio'],
     gradientColors: ['rgba(37,99,235,0.2)', 'rgba(20,184,166,0.1)', '#1D1916'],
@@ -94,7 +94,7 @@ export const POST_TRAINING_CHECKIN_STEPS: CheckInStepConfig[] = [
   {
     key: 'mental_state',
     category: 'MENTE',
-    question: 'E a cabeça durante?',
+    question: 'Como estava sua cabeça durante o treino?',
     inputType: 'chips',
     options: ['Presente', 'Distraída', 'Determinada', 'Frustrada', 'Em dúvida', 'Acelerada'],
     gradientColors: ['rgba(99,102,241,0.22)', 'rgba(59,130,246,0.1)', '#1D1916'],
@@ -102,7 +102,7 @@ export const POST_TRAINING_CHECKIN_STEPS: CheckInStepConfig[] = [
   {
     key: 'emotional_state',
     category: 'EMOÇÃO',
-    question: 'Que emoção predominou?',
+    question: 'Que emoção predominou durante o treino?',
     inputType: 'chips',
     options: ['Alegria', 'Raiva', 'Ansiedade', 'Calma', 'Tristeza', 'Orgulho', 'Vergonha', 'Vazio'],
     gradientColors: ['rgba(225,29,72,0.2)', 'rgba(249,115,22,0.1)', '#1D1916'],

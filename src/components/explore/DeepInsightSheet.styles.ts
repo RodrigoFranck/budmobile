@@ -5,10 +5,23 @@ import { frauncesFont } from '@/constants/onboardingTheme';
 export const deepInsightSheetStyles = StyleSheet.create({
   modalRoot: {
     flex: 1,
+    backgroundColor: '#4A6572',
   },
-  gradient: {
+  stateContainer: {
     flex: 1,
     backgroundColor: '#4A6572',
+  },
+  contentRoot: {
+    flex: 1,
+    backgroundColor: '#4A6572',
+  },
+  headerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    paddingHorizontal: 16,
   },
   loadingContainer: {
     flex: 1,
@@ -24,22 +37,19 @@ export const deepInsightSheetStyles = StyleSheet.create({
     textAlign: 'center',
   },
   backButton: {
-    position: 'absolute',
-    top: 56,
-    left: 16,
-    zIndex: 10,
     width: 44,
     height: 44,
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
   },
   centerContent: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
+    paddingBottom: 32,
   },
   centerTitle: {
     fontFamily: frauncesFont,
@@ -95,11 +105,8 @@ export const deepInsightSheetStyles = StyleSheet.create({
     flex: 1,
   },
   hero: {
-    height: 280,
+    minHeight: 240,
     justifyContent: 'flex-end',
-  },
-  heroImage: {
-    borderRadius: 0,
   },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -107,34 +114,38 @@ export const deepInsightSheetStyles = StyleSheet.create({
   },
   heroTitleBlock: {
     paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingBottom: 28,
   },
   heroSubtitle: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.6)',
+    lineHeight: 18,
+    color: 'rgba(255, 255, 255, 0.7)',
     marginBottom: 12,
   },
   heroHeadline: {
     fontFamily: frauncesFont,
-    fontSize: 26,
+    fontSize: 24,
     color: '#ffffff',
     lineHeight: 32,
   },
+  body: {
+    backgroundColor: '#4A6572',
+    paddingTop: 8,
+  },
   introCard: {
     marginHorizontal: 16,
-    marginTop: -16,
     marginBottom: 24,
     padding: 20,
     borderRadius: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   introText: {
     fontFamily: frauncesFont,
     fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.8)',
-    lineHeight: 22,
+    color: 'rgba(255, 255, 255, 0.85)',
+    lineHeight: 24,
   },
   introSignature: {
     fontFamily: frauncesFont,
@@ -154,23 +165,24 @@ export const deepInsightSheetStyles = StyleSheet.create({
     fontWeight: '700',
     color: '#ffffff',
     marginBottom: 16,
+    lineHeight: 28,
   },
   sectionBody: {
     fontFamily: frauncesFont,
     fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.7)',
-    lineHeight: 22,
+    color: 'rgba(255, 255, 255, 0.75)',
+    lineHeight: 24,
   },
   takeawayCard: {
     marginHorizontal: 24,
-    marginVertical: 32,
+    marginBottom: 32,
     borderRadius: 16,
     overflow: 'hidden',
     minHeight: 120,
   },
   takeawayOverlay: {
     padding: 24,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
   },
   takeawayLabel: {
     fontSize: 11,
@@ -184,11 +196,11 @@ export const deepInsightSheetStyles = StyleSheet.create({
     fontFamily: frauncesFont,
     fontSize: 15,
     color: '#ffffff',
-    lineHeight: 22,
+    lineHeight: 24,
   },
   ctaSection: {
     paddingHorizontal: 24,
-    paddingBottom: 32,
+    paddingBottom: 8,
   },
   ctaButton: {
     marginTop: 24,
@@ -206,7 +218,8 @@ export const deepInsightSheetStyles = StyleSheet.create({
   },
   feedbackSection: {
     paddingHorizontal: 24,
-    paddingVertical: 32,
+    paddingTop: 32,
+    paddingBottom: 16,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },

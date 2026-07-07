@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -17,6 +16,7 @@ import { CheckInFlowHeader } from '@/components/checkin/CheckInFlowHeader';
 import { CheckInSliderInput } from '@/components/checkin/CheckInSliderInput';
 import { CheckInTextInput } from '@/components/checkin/CheckInTextInput';
 import { useCheckInFlowStyles } from '@/components/checkin/checkInFlow.styles';
+import { useAppAlert } from '@/contexts/AppAlertContext';
 import type { PsychologicalAssessmentStepConfig } from '@/features/psychologicalAssessment/psychologicalAssessment.types';
 import {
   PSYCHOLOGICAL_ASSESSMENT_TOTAL_QUESTIONS,
@@ -41,6 +41,7 @@ export default function PsychologicalAssessmentFlowScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const { submitAssessment } = usePsychologicalAssessment();
+  const { showAlert } = useAppAlert();
   const theme = useActivitiesTheme();
   const styles = useCheckInFlowStyles();
 
@@ -76,15 +77,19 @@ export default function PsychologicalAssessmentFlowScreen() {
   );
 
   const handleClose = useCallback(() => {
-    Alert.alert('Sair da avaliação?', 'Suas respostas desta sessão serão perdidas.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Sair',
-        style: 'destructive',
-        onPress: () => navigation.getParent()?.goBack(),
-      },
-    ]);
-  }, [navigation]);
+    showAlert({
+      title: 'Sair da avaliação?',
+      message: 'Suas respostas desta sessão serão perdidas.',
+      buttons: [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sair',
+          style: 'destructive',
+          onPress: () => navigation.getParent()?.goBack(),
+        },
+      ],
+    });
+  }, [navigation, showAlert]);
 
   const handleBack = useCallback(() => {
     if (currentStep === 0) {
@@ -99,27 +104,31 @@ export default function PsychologicalAssessmentFlowScreen() {
     try {
       const saved = await submitAssessment(responses);
       if (!saved) {
-        Alert.alert('Erro', 'Não foi possível salvar a avaliação. Tente novamente.');
+        showAlert({
+          title: 'Erro',
+          message: 'Não foi possível salvar a avaliação. Tente novamente.',
+        });
         return;
       }
 
-      Alert.alert(
-        'Avaliação concluída',
-        'Suas respostas foram salvas. O Bud vai usar isso para personalizar nossas conversas.',
-        [
+      showAlert({
+        title: 'Avaliação concluída',
+        message:
+          'Suas respostas foram salvas. O Bud vai usar isso para personalizar nossas conversas.',
+        buttons: [
           {
             text: 'OK',
             onPress: () => navigation.getParent()?.goBack(),
           },
         ],
-      );
+      });
     } catch (err) {
       console.error(err);
-      Alert.alert('Erro', 'Não foi possível concluir a avaliação.');
+      showAlert({ title: 'Erro', message: 'Não foi possível concluir a avaliação.' });
     } finally {
       setSubmitting(false);
     }
-  }, [navigation, responses, submitAssessment]);
+  }, [navigation, responses, showAlert, submitAssessment]);
 
   const handleNext = useCallback(() => {
     if (!answered || submitting) return;

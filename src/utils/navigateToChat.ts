@@ -20,6 +20,7 @@ function findTabNavigator(navigation: NavigationProp<ParamListBase>): Navigation
 }
 
 let pendingChatInsight: ChatInsightParam | null = null;
+let chatInsightConsumer: ((insight: ChatInsightParam) => void) | null = null;
 
 /** Fallback se os params da rota não chegarem ao focar o Chat (navegação aninhada). */
 export function stashPendingChatInsight(insight: ChatInsightParam) {
@@ -36,12 +37,28 @@ export function clearPendingChatInsight() {
   pendingChatInsight = null;
 }
 
+export function registerChatInsightConsumer(
+  consumer: ((insight: ChatInsightParam) => void) | null,
+) {
+  chatInsightConsumer = consumer;
+}
+
+export function consumePendingChatInsight() {
+  const insight = takePendingChatInsight();
+  if (!insight) return;
+  chatInsightConsumer?.(insight);
+}
+
 export function navigateToChatTab(
   navigation: NavigationProp<ParamListBase>,
   params: ChatTabParams,
 ) {
   if (params.chatInsight) {
-    stashPendingChatInsight(params.chatInsight);
+    if (chatInsightConsumer) {
+      chatInsightConsumer(params.chatInsight);
+    } else {
+      stashPendingChatInsight(params.chatInsight);
+    }
   }
 
   const tabNav = findTabNavigator(navigation);

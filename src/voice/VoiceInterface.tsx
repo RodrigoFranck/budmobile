@@ -8,7 +8,6 @@ import {
 } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   PermissionsAndroid,
   Platform,
@@ -17,13 +16,17 @@ import {
 import { Audio } from 'expo-av';
 import { Mic, MicOff } from 'lucide-react-native';
 import { useConversation } from '@elevenlabs/react-native';
+import { appAlert } from '@/contexts/AppAlertContext';
 import { supabase } from '@/integrations/supabase/client';
 import { isSafetyResponse } from '@/utils/safetyDetection';
 import {
-  buildVoicePrompt,
-  enrichVoicePrompt,
-  type UserContext,
-} from '@/voice/voicePrompt';
+  assembleVoicePrompt,
+  cloneVoiceMessages,
+  createVoiceContextRefresher,
+  fetchVoiceServerContext,
+  type VoiceChatMessage,
+} from '@/voice/voiceClinicalContext';
+import type { UserContext } from '@/voice/voicePrompt';
 import { useAppColors } from '@/lib/colors';
 import { useVoiceSessionKeepAwake } from '@/hooks/useVoiceSessionKeepAwake';
 import {
@@ -35,28 +38,26 @@ import { ProminentVoiceButton } from '@/voice/ProminentVoiceButton';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
 import { buildVoiceSessionStartOptions, type VoiceSessionStartOptions } from '@/voice/voiceElevenLabsSession';
 
-async function resolveVoiceFunctionError(
-  error: unknown,
-  response?: Response,
-): Promise<string> {
-  if (response) {
-    try {
-      const body = (await response.json()) as { error?: string };
-      if (body.error) return body.error;
-    } catch {
-      // response body may be empty or non-JSON
-    }
+type VoiceSessionPhase = 'idle' | 'connecting' | 'connected' | 'disconnecting';
+
+async function releaseVoiceAudioSession() {
+  if (Platform.OS === 'web') return;
+  try {
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    });
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: true,
+      playsInSilentModeIOS: true,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    });
+  } catch {
+    // ignore audio mode reset failures
   }
-  if (error instanceof Error) {
-    if (error.message.includes('Failed to send a request')) {
-      return 'Sem conexão com o servidor de voz. Verifique sua internet e tente novamente.';
-    }
-    if (error.message.includes('non-2xx')) {
-      return 'Serviço de voz temporariamente indisponível. Tente novamente em instantes.';
-    }
-    return error.message;
-  }
-  return 'Erro ao obter token de voz';
 }
 
 interface ElevenLabsMessage {
@@ -80,6 +81,7 @@ export interface VoiceInterfaceProps {
   onTranscript?: (text: string) => void;
   onVoiceModeChange?: (active: boolean) => void;
   onConnectingChange?: (connecting: boolean) => void;
+  onSessionBusyChange?: (busy: boolean) => void;
   onUserMessage?: (text: string) => void;
   onAssistantMessage?: (text: string) => void;
   onAssistantTranscript?: (text: string) => void;
@@ -165,6 +167,7 @@ function VoiceInterfaceNativeInner(
     onTranscript,
     onVoiceModeChange,
     onConnectingChange,
+    onSessionBusyChange,
     onUserMessage,
     onAssistantMessage,
     onAssistantTranscript,
@@ -177,6 +180,8 @@ function VoiceInterfaceNativeInner(
   }: VoiceInterfaceProps,
   ref: React.Ref<VoiceInterfaceRef>,
 ) {
+  const [sessionPhase, setSessionPhase] = useState<VoiceSessionPhase>('idle');
+  const startSessionPromiseRef = useRef<Promise<unknown> | null>(null);
   const processedRef = useRef<Set<string>>(new Set());
   const noResponseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastUserMsgAtRef = useRef<number | null>(null);
@@ -202,22 +207,33 @@ function VoiceInterfaceNativeInner(
   });
   const voiceSessionActiveRef = useRef(false);
   const startGenerationRef = useRef(0);
+  const sessionMessagesRef = useRef<VoiceChatMessage[]>([]);
+  const refreshClinicalContextRef = useRef<
+    ReturnType<typeof createVoiceContextRefresher> | null
+  >(null);
+  const processVoiceUserTurnRef = useRef<(text: string) => void>(() => {});
+  const processVoiceAssistantTurnRef = useRef<(text: string) => void>(() => {});
+  const isSessionLocked =
+    sessionPhase === 'connecting' || sessionPhase === 'disconnecting';
+
+  useEffect(() => {
+    onSessionBusyChange?.(isSessionLocked);
+  }, [isSessionLocked, onSessionBusyChange]);
 
   const conversation = useConversation({
     onStatusChange: (event: { status: string }) => {
       statusRef.current = event.status;
     },
     onConnect: () => {
+      // Ignore connects for instances that did not start this session. Another
+      // mounted VoiceInterface must not tear down a live room (see Chat stack).
       if (!voiceSessionActiveRef.current) {
-        try {
-          void conversation.endSession();
-        } catch {
-          // session may already be ended
-        }
         return;
       }
 
       onConnectingChange?.(false);
+      setSessionPhase('connected');
+      setIsLoading(false);
       restartGuardRef.current = { inFlight: false, lastAt: 0, attempts: 0 };
 
       if (micArmTimerRef.current) {
@@ -254,8 +270,12 @@ function VoiceInterfaceNativeInner(
     },
     onDisconnect: () => {
       voiceSessionActiveRef.current = false;
+      startSessionPromiseRef.current = null;
       onConnectingChange?.(false);
+      setSessionPhase('idle');
+      setIsLoading(false);
       onVoiceModeChange?.(false);
+      void releaseVoiceAudioSession();
       if (noResponseTimerRef.current) {
         clearTimeout(noResponseTimerRef.current);
         noResponseTimerRef.current = null;
@@ -333,7 +353,7 @@ function VoiceInterfaceNativeInner(
               });
           }, 20000);
         }
-        onUserMessage?.(text);
+        processVoiceUserTurnRef.current(text);
       }
       if (props.source === 'ai') {
         lastAiMsgAtRef.current = Date.now();
@@ -343,18 +363,19 @@ function VoiceInterfaceNativeInner(
         }
         if (isSafetyResponse(text)) {
           onAssistantMessage?.(text);
-          conversation.endSession();
-          onVoiceModeChange?.(false);
+          voiceSessionActiveRef.current = false;
+          setSessionPhase('disconnecting');
+          void conversation.endSession();
           onTranscript?.('');
           processedRef.current.clear();
           onSafetyTriggered?.();
-          Alert.alert(
-            'Apoio disponível',
-            'Se precisar de ajuda, o CVV está disponível 24h pelo 188.',
-          );
+          appAlert({
+            title: 'Apoio disponível',
+            message: 'Se precisar de ajuda, o CVV está disponível 24h pelo 188.',
+          });
           return;
         }
-        onAssistantMessage?.(text);
+        processVoiceAssistantTurnRef.current(text);
         onAssistantTranscript?.(text);
         // Only show assistant text in the on-screen transcript.
         onTranscript?.(text);
@@ -391,11 +412,37 @@ function VoiceInterfaceNativeInner(
     },
     onError: (message: string) => {
       voiceSessionActiveRef.current = false;
+      startSessionPromiseRef.current = null;
       onConnectingChange?.(false);
-      Alert.alert('Erro', message || 'Erro na conexão de voz');
+      setSessionPhase('idle');
+      setIsLoading(false);
+      appAlert({ title: 'Erro', message: message || 'Erro na conexão de voz' });
       onVoiceModeChange?.(false);
+      void releaseVoiceAudioSession();
     },
   });
+
+  useEffect(() => {
+    refreshClinicalContextRef.current = createVoiceContextRefresher((text) => {
+      try {
+        conversation.sendContextualUpdate(text);
+      } catch {
+        // session may not be ready yet
+      }
+    });
+  }, [conversation]);
+
+  useEffect(() => {
+    processVoiceUserTurnRef.current = (text: string) => {
+      sessionMessagesRef.current.push({ role: 'user', content: text });
+      void refreshClinicalContextRef.current?.(sessionMessagesRef.current);
+      onUserMessage?.(text);
+    };
+    processVoiceAssistantTurnRef.current = (text: string) => {
+      sessionMessagesRef.current.push({ role: 'assistant', content: text });
+      onAssistantMessage?.(text);
+    };
+  }, [onAssistantMessage, onUserMessage]);
 
   useEffect(() => {
     return () => {
@@ -406,17 +453,50 @@ function VoiceInterfaceNativeInner(
     };
   }, []);
 
-  const endConversation = useCallback(async () => {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const endConversation = useCallback(async (options?: { force?: boolean }) => {
+    const force = options?.force ?? false;
+    if (!force && (sessionPhase === 'connecting' || sessionPhase === 'disconnecting')) {
+      return;
+    }
+    if (!force && sessionPhase !== 'connected') {
+      return;
+    }
+
     startGenerationRef.current += 1;
     voiceSessionActiveRef.current = false;
-    onConnectingChange?.(false);
-    await conversation.endSession();
-    onVoiceModeChange?.(false);
+    setSessionPhase('disconnecting');
+
+    try {
+      await conversation.endSession();
+    } catch {
+      // endSession may throw if already disconnected
+    }
+
+    const pendingStart = startSessionPromiseRef.current;
+    if (pendingStart) {
+      try {
+        await pendingStart;
+      } catch {
+        // start may fail if session was cancelled
+      }
+    }
+
+    if (force) {
+      voiceSessionActiveRef.current = false;
+      startSessionPromiseRef.current = null;
+      setSessionPhase('idle');
+      setIsLoading(false);
+      onConnectingChange?.(false);
+      onVoiceModeChange?.(false);
+      void releaseVoiceAudioSession();
+    }
+
     onTranscript?.('');
     processedRef.current.clear();
-  }, [conversation, onConnectingChange, onVoiceModeChange, onTranscript]);
-
-  const [isLoading, setIsLoading] = useState(false);
+    sessionMessagesRef.current = [];
+  }, [conversation, onConnectingChange, onTranscript, onVoiceModeChange, sessionPhase]);
 
   const ensureMicrophonePermission = useCallback(async () => {
     if (Platform.OS === 'android') {
@@ -445,10 +525,10 @@ function VoiceInterfaceNativeInner(
       const requested = await Audio.requestPermissionsAsync();
       if (requested.status === 'granted') return true;
 
-      Alert.alert(
-        'Permissão necessária',
-        'Ative o microfone do Bud em Ajustes para usar conversas por voz.',
-        [
+      appAlert({
+        title: 'Permissão necessária',
+        message: 'Ative o microfone do Bud em Ajustes para usar conversas por voz.',
+        buttons: [
           { text: 'Cancelar', style: 'cancel' },
           {
             text: 'Abrir Ajustes',
@@ -457,7 +537,7 @@ function VoiceInterfaceNativeInner(
             },
           },
         ],
-      );
+      });
       return false;
     }
 
@@ -465,8 +545,13 @@ function VoiceInterfaceNativeInner(
   }, []);
 
   const startConversation = useCallback(async () => {
+    if (sessionPhase !== 'idle') {
+      return;
+    }
+
     const generation = ++startGenerationRef.current;
     voiceSessionActiveRef.current = true;
+    setSessionPhase('connecting');
     onVoiceModeChange?.(true);
     onConnectingChange?.(true);
     setIsLoading(true);
@@ -477,13 +562,14 @@ function VoiceInterfaceNativeInner(
         return;
       }
       voiceSessionActiveRef.current = false;
+      setSessionPhase('idle');
       onConnectingChange?.(false);
       onVoiceModeChange?.(false);
       setIsLoading(false);
-      Alert.alert(
-        'Permissão necessária',
-        'Sem permissão de microfone, o modo por voz não consegue transcrever sua fala.',
-      );
+      appAlert({
+        title: 'Permissão necessária',
+        message: 'Sem permissão de microfone, o modo por voz não consegue transcrever sua fala.',
+      });
       return;
     }
 
@@ -496,40 +582,40 @@ function VoiceInterfaceNativeInner(
       });
 
       if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
+        voiceSessionActiveRef.current = false;
+        setSessionPhase('idle');
+        onConnectingChange?.(false);
+        onVoiceModeChange?.(false);
+        setIsLoading(false);
         return;
       }
 
-      const { data, error, response } = await supabase.functions.invoke(
-        'chat-voice',
-        {
-          body: { messages: messageHistory ?? [] },
-        },
+      sessionMessagesRef.current = cloneVoiceMessages(messageHistory);
+
+      const serverContext = await fetchVoiceServerContext(
+        sessionMessagesRef.current,
+        'full',
       );
-      if (error) {
-        throw new Error(await resolveVoiceFunctionError(error, response));
-      }
 
       if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
+        voiceSessionActiveRef.current = false;
+        setSessionPhase('idle');
+        onConnectingChange?.(false);
+        onVoiceModeChange?.(false);
+        setIsLoading(false);
         return;
       }
 
-      const token = data?.token as string | undefined;
+      const token = serverContext.token ?? undefined;
       if (!token) throw new Error('Token de voz não retornado');
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      const serverProfile =
-        (data?.internal_profile as string | undefined) ?? internalProfile;
-      const prompt = enrichVoicePrompt(
-        buildVoicePrompt(
-          userContext,
-          messageHistory,
-          recentInsights,
-          serverProfile,
-        ),
-        {
-          clinicalContext: data?.clinical_context as string | undefined,
-        },
+      const prompt = assembleVoicePrompt(
+        userContext,
+        recentInsights,
+        internalProfile,
+        serverContext,
       );
       const sessionOptions = buildVoiceSessionStartOptions({
         conversationToken: token,
@@ -538,16 +624,23 @@ function VoiceInterfaceNativeInner(
         userContext,
       });
       lastSessionConfigRef.current = sessionOptions;
-      await conversation.startSession(sessionOptions);
+      const startPromise = Promise.resolve(conversation.startSession(sessionOptions));
+      startSessionPromiseRef.current = startPromise;
+      await startPromise;
+      startSessionPromiseRef.current = null;
     } catch (e) {
+      startSessionPromiseRef.current = null;
       if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
         return;
       }
       voiceSessionActiveRef.current = false;
+      setSessionPhase('idle');
       onConnectingChange?.(false);
       onVoiceModeChange?.(false);
+      setIsLoading(false);
       const msg = e instanceof Error ? e.message : 'Falha ao iniciar conversa';
-      Alert.alert('Erro', msg);
+      appAlert({ title: 'Erro', message: msg });
+      void releaseVoiceAudioSession();
     } finally {
       if (generation === startGenerationRef.current) {
         setIsLoading(false);
@@ -561,6 +654,7 @@ function VoiceInterfaceNativeInner(
     onConnectingChange,
     onVoiceModeChange,
     recentInsights,
+    sessionPhase,
     userContext,
   ]);
 
@@ -570,17 +664,17 @@ function VoiceInterfaceNativeInner(
     [startConversation, endConversation],
   );
 
-  const isConnected = conversation.status === 'connected';
-  useVoiceSessionKeepAwake(isConnected || isLoading);
+  const isConnected = sessionPhase === 'connected';
+  useVoiceSessionKeepAwake(isConnected || isSessionLocked);
 
   return (
     <VoiceButtonVisual
       appearance={appearance}
       prominentSize={prominentSize}
       isConnected={isConnected}
-      isLoading={isLoading}
+      isLoading={isLoading || sessionPhase === 'disconnecting'}
       onPress={isConnected ? endConversation : startConversation}
-      disabled={isLoading}
+      disabled={isSessionLocked}
     />
   );
 }
@@ -609,6 +703,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
       onTranscript,
       onVoiceModeChange,
       onConnectingChange,
+      onSessionBusyChange,
       onUserMessage,
       onAssistantMessage,
       onAssistantTranscript,
@@ -621,67 +716,116 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
     },
     ref,
   ) {
-    const [isConnected, setIsConnected] = useState(false);
+    const [sessionPhase, setSessionPhase] = useState<VoiceSessionPhase>('idle');
     const [isLoading, setIsLoading] = useState(false);
     const conversationRef = useRef<ElevenLabsConversation | null>(null);
     const lastSessionConfigRef = useRef<VoiceSessionStartOptions | null>(null);
     const processedMessagesRef = useRef<Set<string>>(new Set());
     const voiceSessionActiveRef = useRef(false);
     const startGenerationRef = useRef(0);
+    const sessionMessagesRef = useRef<VoiceChatMessage[]>([]);
+    const refreshClinicalContextRef = useRef<
+      ReturnType<typeof createVoiceContextRefresher> | null
+    >(null);
+    const processVoiceUserTurnRef = useRef<(text: string) => void>(() => {});
+    const processVoiceAssistantTurnRef = useRef<(text: string) => void>(() => {});
+    const isSessionLocked =
+      sessionPhase === 'connecting' || sessionPhase === 'disconnecting';
 
-    const endConversation = useCallback(async () => {
+    useEffect(() => {
+      onSessionBusyChange?.(isSessionLocked);
+    }, [isSessionLocked, onSessionBusyChange]);
+
+    useEffect(() => {
+      refreshClinicalContextRef.current = createVoiceContextRefresher((text) => {
+        conversationRef.current?.sendContextualUpdate?.(text);
+      });
+    }, []);
+
+    useEffect(() => {
+      processVoiceUserTurnRef.current = (text: string) => {
+        sessionMessagesRef.current.push({ role: 'user', content: text });
+        void refreshClinicalContextRef.current?.(sessionMessagesRef.current);
+        onUserMessage?.(text);
+      };
+      processVoiceAssistantTurnRef.current = (text: string) => {
+        sessionMessagesRef.current.push({ role: 'assistant', content: text });
+        onAssistantMessage?.(text);
+      };
+    }, [onAssistantMessage, onUserMessage]);
+
+    const endConversation = useCallback(async (options?: { force?: boolean }) => {
+      const force = options?.force ?? false;
+      if (!force && (sessionPhase === 'connecting' || sessionPhase === 'disconnecting')) {
+        return;
+      }
+      if (!force && sessionPhase !== 'connected') {
+        return;
+      }
+
       startGenerationRef.current += 1;
       voiceSessionActiveRef.current = false;
-      onConnectingChange?.(false);
+      setSessionPhase('disconnecting');
+
       if (conversationRef.current) {
-        await conversationRef.current.endSession();
+        try {
+          await conversationRef.current.endSession();
+        } catch {
+          // session may already be ended
+        }
         conversationRef.current = null;
       }
-      setIsConnected(false);
-      setIsLoading(false);
-      onVoiceModeChange?.(false);
+
+      if (force) {
+        setSessionPhase('idle');
+        setIsLoading(false);
+        onConnectingChange?.(false);
+        onVoiceModeChange?.(false);
+      }
+
       onTranscript?.('');
       processedMessagesRef.current.clear();
-    }, [onConnectingChange, onVoiceModeChange, onTranscript]);
+      sessionMessagesRef.current = [];
+    }, [onConnectingChange, onVoiceModeChange, onTranscript, sessionPhase]);
 
     const startConversation = useCallback(async () => {
+      if (sessionPhase !== 'idle') {
+        return;
+      }
+
       const generation = ++startGenerationRef.current;
       voiceSessionActiveRef.current = true;
+      setSessionPhase('connecting');
       onVoiceModeChange?.(true);
       onConnectingChange?.(true);
       setIsLoading(true);
       try {
-        const { data, error, response } = await supabase.functions.invoke(
-          'chat-voice',
-          {
-            body: { messages: messageHistory ?? [] },
-          },
+        sessionMessagesRef.current = cloneVoiceMessages(messageHistory);
+
+        const serverContext = await fetchVoiceServerContext(
+          sessionMessagesRef.current,
+          'full',
         );
-        if (error) {
-          throw new Error(await resolveVoiceFunctionError(error, response));
-        }
 
         if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
+          voiceSessionActiveRef.current = false;
+          setSessionPhase('idle');
+          onConnectingChange?.(false);
+          onVoiceModeChange?.(false);
+          setIsLoading(false);
           return;
         }
 
-        const signedUrl = data?.signed_url as string | undefined;
+        const signedUrl = serverContext.signed_url ?? undefined;
         if (!signedUrl) throw new Error('Failed to get signed URL');
         const {
           data: { user },
         } = await supabase.auth.getUser();
-        const serverProfile =
-          (data?.internal_profile as string | undefined) ?? internalProfile;
-        const prompt = enrichVoicePrompt(
-          buildVoicePrompt(
-            userContext,
-            messageHistory,
-            recentInsights,
-            serverProfile,
-          ),
-          {
-            clinicalContext: data?.clinical_context as string | undefined,
-          },
+        const prompt = assembleVoicePrompt(
+          userContext,
+          recentInsights,
+          internalProfile,
+          serverContext,
         );
         const sessionOptions = buildVoiceSessionStartOptions({
           signedUrl,
@@ -695,16 +839,16 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
           ...sessionOptions,
           onConnect: () => {
             if (!voiceSessionActiveRef.current) {
-              void conversationRef.current?.endSession();
               return;
             }
-            setIsConnected(true);
+            setSessionPhase('connected');
             setIsLoading(false);
             onConnectingChange?.(false);
           },
           onDisconnect: () => {
             voiceSessionActiveRef.current = false;
-            setIsConnected(false);
+            setSessionPhase('idle');
+            setIsLoading(false);
             onConnectingChange?.(false);
             onVoiceModeChange?.(false);
           },
@@ -721,27 +865,27 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
             );
             if (source === 'user') {
               onTranscript?.(text);
-              onUserMessage?.(text);
+              processVoiceUserTurnRef.current(text);
             }
             if (source === 'ai') {
               if (isSafetyResponse(text)) {
                 onAssistantMessage?.(text);
+                voiceSessionActiveRef.current = false;
+                setSessionPhase('disconnecting');
                 if (conversationRef.current) {
-                  conversationRef.current.endSession();
+                  void conversationRef.current.endSession();
                   conversationRef.current = null;
-                  setIsConnected(false);
-                  onVoiceModeChange?.(false);
-                  onTranscript?.('');
-                  processedMessagesRef.current.clear();
                 }
+                onTranscript?.('');
+                processedMessagesRef.current.clear();
                 onSafetyTriggered?.();
-                Alert.alert(
-                  'Apoio disponível',
-                  'Se precisar de ajuda, o CVV está disponível 24h pelo 188.',
-                );
+                appAlert({
+                  title: 'Apoio disponível',
+                  message: 'Se precisar de ajuda, o CVV está disponível 24h pelo 188.',
+                });
                 return;
               }
-              onAssistantMessage?.(text);
+              processVoiceAssistantTurnRef.current(text);
               onAssistantTranscript?.(text);
             }
           },
@@ -752,9 +896,9 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
           },
           onError: () => {
             voiceSessionActiveRef.current = false;
+            setSessionPhase('idle');
             onConnectingChange?.(false);
-            Alert.alert('Erro', 'Erro na conexão de voz');
-            setIsConnected(false);
+            appAlert({ title: 'Erro', message: 'Erro na conexão de voz' });
             setIsLoading(false);
             onVoiceModeChange?.(false);
           },
@@ -764,11 +908,12 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
           return;
         }
         voiceSessionActiveRef.current = false;
+        setSessionPhase('idle');
         onConnectingChange?.(false);
         onVoiceModeChange?.(false);
         const msg =
           e instanceof Error ? e.message : 'Falha ao iniciar conversa';
-        Alert.alert('Erro', msg);
+        appAlert({ title: 'Erro', message: msg });
         setIsLoading(false);
       }
     }, [
@@ -784,6 +929,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
       onAssistantTranscript,
       onSpeakingChange,
       onSafetyTriggered,
+      sessionPhase,
     ]);
 
     useImperativeHandle(
@@ -794,20 +940,21 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
 
     useEffect(() => {
       return () => {
-        conversationRef.current?.endSession();
+        void conversationRef.current?.endSession();
       };
     }, []);
 
-    useVoiceSessionKeepAwake(isConnected || isLoading);
+    const isConnected = sessionPhase === 'connected';
+    useVoiceSessionKeepAwake(isConnected || isSessionLocked);
 
     return (
       <VoiceButtonVisual
         appearance={appearance}
         prominentSize={prominentSize}
         isConnected={isConnected}
-        isLoading={isLoading}
+        isLoading={isLoading || sessionPhase === 'disconnecting'}
         onPress={isConnected ? endConversation : startConversation}
-        disabled={isLoading}
+        disabled={isSessionLocked}
       />
     );
   },

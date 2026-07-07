@@ -24,7 +24,7 @@ type Nav = NativeStackNavigationProp<ActivitiesStackParamList, 'CheckInActivitie
 function getCtaLabel(done: boolean, hasReport: boolean): string {
   if (!done) return 'Começar →';
   if (hasReport) return 'Ver relatório →';
-  return 'Concluído';
+  return 'Gerar relatório →';
 }
 
 export default function CheckInActivities() {
@@ -47,7 +47,14 @@ export default function CheckInActivities() {
         return;
       }
       if (existing) {
-        navigation.navigate('CheckInFlow', { type });
+        navigation.navigate('CheckInResult', {
+          type,
+          checkinId: existing.id,
+          report: null,
+          pendingReport: true,
+          responses: existing.responses as Record<string, unknown>,
+          checkinResponses: existing.responses as Record<string, unknown>,
+        });
         return;
       }
       navigation.navigate('CheckInFlow', { type });

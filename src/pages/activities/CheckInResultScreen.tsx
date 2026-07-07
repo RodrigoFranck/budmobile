@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -42,7 +42,8 @@ export default function CheckInResultScreen() {
   const [loading, setLoading] = useState(Boolean(pendingReport && !initialReport));
   const [loadingIdx, setLoadingIdx] = useState(0);
   const [generateFailed, setGenerateFailed] = useState(false);
-  const didGenerateRef = useRef(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const generateInFlightRef = useRef(false);
 
   const gradient = useMemo(
     () =>
@@ -65,49 +66,73 @@ export default function CheckInResultScreen() {
     return () => clearInterval(id);
   }, [loading, loadingMessages.length]);
 
-  useEffect(() => {
-    if (!pendingReport || initialReport || didGenerateRef.current || !responses) return;
-    didGenerateRef.current = true;
+  const generateReport = useCallback(async () => {
+    if (!responses || generateInFlightRef.current || report) return;
 
-    const generate = async () => {
-      setLoading(true);
-      setGenerateFailed(false);
-      try {
-        const { data, error, response } = await supabase.functions.invoke('generate-checkin-report', {
-          body: {
-            checkin_type: type,
-            responses,
-            user_name: profile?.name ?? null,
-          },
+    generateInFlightRef.current = true;
+    setLoading(true);
+    setGenerateFailed(false);
+
+    try {
+      const { data, error, response } = await supabase.functions.invoke('generate-checkin-report', {
+        body: {
+          checkin_type: type,
+          responses,
+          user_name: profile?.name ?? null,
+        },
+      });
+
+      if (error || !data?.report) {
+        const responseBody = response ? await response.text().catch(() => null) : null;
+        console.error('generate-checkin-report failed', {
+          status: response?.status,
+          body: responseBody,
+          error: error?.message,
         });
-
-        if (error || !data?.report) {
-          const responseBody = response ? await response.text().catch(() => null) : null;
-          console.error('generate-checkin-report failed', {
-            status: response?.status,
-            body: responseBody,
-            error: error?.message,
-          });
-          throw new Error(error?.message ?? 'Falha ao gerar relatório');
-        }
-
-        await updateReport(checkinId, data.report);
-        const nextReport = data.report as CheckinReport;
-        setReport(nextReport);
-        navigation.setParams({
-          report: nextReport,
-          checkinResponses: responses ?? checkinResponses,
-        });
-      } catch (err) {
-        console.error(err);
-        setGenerateFailed(true);
-      } finally {
-        setLoading(false);
+        throw new Error(error?.message ?? 'Falha ao gerar relatório');
       }
-    };
 
-    generate();
-  }, [checkinId, initialReport, pendingReport, profile?.name, responses, type, updateReport]);
+      await updateReport(checkinId, data.report);
+      const nextReport = data.report as CheckinReport;
+      setReport(nextReport);
+      navigation.setParams({
+        report: nextReport,
+        pendingReport: false,
+        checkinResponses: responses ?? checkinResponses,
+      });
+    } catch (err) {
+      console.error(err);
+      setGenerateFailed(true);
+    } finally {
+      setLoading(false);
+      generateInFlightRef.current = false;
+    }
+  }, [
+    checkinId,
+    checkinResponses,
+    navigation,
+    profile?.name,
+    report,
+    responses,
+    type,
+    updateReport,
+  ]);
+
+  useEffect(() => {
+    if (!pendingReport || initialReport || report || !responses) return;
+    void generateReport();
+  }, [generateReport, initialReport, pendingReport, report, responses, retryKey]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState !== 'active') return;
+      if (report || loading || !responses) return;
+      if (!pendingReport && !generateFailed) return;
+      setRetryKey((key) => key + 1);
+    });
+
+    return () => subscription.remove();
+  }, [generateFailed, loading, pendingReport, report, responses]);
 
   const handleTalkAbout = (question?: string) => {
     if (!report) return;
@@ -141,39 +166,46 @@ export default function CheckInResultScreen() {
         </Pressable>
       </View>
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: Math.max(insets.bottom, 20) + 16 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingMessage} accessibilityLiveRegion="polite">
-              {loadingMessages[loadingIdx]}
-            </Text>
-          </View>
-        ) : null}
+      {loading ? (
+        <View style={[styles.loadingContainer, { paddingBottom: insets.bottom }]}>
+          <Text style={styles.loadingMessage} accessibilityLiveRegion="polite">
+            {loadingMessages[loadingIdx]}
+          </Text>
+        </View>
+      ) : null}
 
-        {!loading && generateFailed && !report ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.errorText}>
-              Não foi possível gerar o relatório agora. Suas respostas foram salvas.
-            </Text>
-            <Pressable
-              style={styles.errorButton}
-              onPress={() => navigation.navigate('CheckInActivities')}
-              accessibilityRole="button"
-              accessibilityLabel="Fechar"
-            >
-              <Text style={styles.errorButtonLabel}>Fechar</Text>
-            </Pressable>
-          </View>
-        ) : null}
+      {!loading && generateFailed && !report ? (
+        <View style={[styles.loadingContainer, { paddingBottom: insets.bottom }]}>
+          <Text style={styles.errorText}>
+            Não foi possível gerar o relatório agora. Suas respostas foram salvas.
+          </Text>
+          <Pressable
+            style={styles.ctaButton}
+            onPress={() => setRetryKey((key) => key + 1)}
+            accessibilityRole="button"
+            accessibilityLabel="Tentar novamente"
+          >
+            <Text style={styles.ctaLabel}>Tentar novamente</Text>
+          </Pressable>
+          <Pressable
+            style={styles.errorButton}
+            onPress={() => navigation.navigate('CheckInActivities')}
+            accessibilityRole="button"
+            accessibilityLabel="Fechar"
+          >
+            <Text style={styles.errorButtonLabel}>Fechar</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
-        {!loading && report ? (
-          <>
+      {!loading && report ? (
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Math.max(insets.bottom, 20) + 16 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
             <Text style={styles.headline} accessibilityRole="header">
               {report.headline}
             </Text>
@@ -209,9 +241,8 @@ export default function CheckInResultScreen() {
             >
               <Text style={styles.ctaLabel}>Vamos conversar sobre isso</Text>
             </Pressable>
-          </>
-        ) : null}
-      </ScrollView>
+        </ScrollView>
+      ) : null}
     </View>
   );
 }

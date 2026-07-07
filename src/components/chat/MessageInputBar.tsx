@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import {
   View,
   TextInput,
@@ -28,6 +29,7 @@ interface MessageInputBarProps {
   voiceInterfaceRef?: React.RefObject<VoiceInterfaceRef | null>;
   onVoiceModeChange?: (active: boolean) => void;
   onVoiceConnectingChange?: (connecting: boolean) => void;
+  onVoiceSessionBusyChange?: (busy: boolean) => void;
   onVoiceUserMessage?: (text: string) => void;
   onVoiceAssistantMessage?: (text: string) => void;
   onVoiceTranscript?: (text: string) => void;
@@ -53,6 +55,7 @@ export function MessageInputBar({
   voiceInterfaceRef,
   onVoiceModeChange,
   onVoiceConnectingChange,
+  onVoiceSessionBusyChange,
   onVoiceUserMessage,
   onVoiceAssistantMessage,
   onVoiceTranscript,
@@ -65,6 +68,7 @@ export function MessageInputBar({
   voiceAppearance,
 }: MessageInputBarProps) {
   const colors = useAppColors();
+  const isFocused = useIsFocused();
   const layout = useMessageInputBarLayout();
   const [message, setMessage] = useState('');
   const messageRef = useRef('');
@@ -108,7 +112,7 @@ export function MessageInputBar({
     [colors, insets.bottom, isProminentVoice, layout],
   );
 
-  const voiceInterface = voiceInterfaceRef ? (
+  const voiceInterface = voiceInterfaceRef && isFocused ? (
     <VoiceInterface
       ref={voiceInterfaceRef}
       appearance={voiceAppearance ?? (mode === 'trigger' ? 'prominent' : 'companion')}
@@ -120,6 +124,7 @@ export function MessageInputBar({
       }}
       onVoiceModeChange={onVoiceModeChange}
       onConnectingChange={onVoiceConnectingChange}
+      onSessionBusyChange={onVoiceSessionBusyChange}
       onUserMessage={onVoiceUserMessage}
       onAssistantMessage={onVoiceAssistantMessage}
       onAssistantTranscript={onVoiceTranscript}

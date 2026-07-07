@@ -560,6 +560,42 @@ export type Database = {
         }
         Relationships: []
       }
+      insight_unlock_rules: {
+        Row: {
+          count_scope: string
+          created_at: string
+          display_order: number
+          insight_type: string
+          is_active: boolean
+          locked_description: string
+          locked_title: string
+          required_conversations: number
+          updated_at: string
+        }
+        Insert: {
+          count_scope?: string
+          created_at?: string
+          display_order?: number
+          insight_type: string
+          is_active?: boolean
+          locked_description: string
+          locked_title: string
+          required_conversations?: number
+          updated_at?: string
+        }
+        Update: {
+          count_scope?: string
+          created_at?: string
+          display_order?: number
+          insight_type?: string
+          is_active?: boolean
+          locked_description?: string
+          locked_title?: string
+          required_conversations?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_insights: {
         Row: {
           content_json: Json | null

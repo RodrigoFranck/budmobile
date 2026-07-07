@@ -13,6 +13,7 @@ import type { OnboardingNavigationProp } from '@/types/onboardingNavigation';
 const H_PAD = 24;
 
 const OPTIONS: { key: AgeRangeOption; label: string }[] = [
+  { key: 'under-18', label: 'Menor de 18 anos' },
   { key: '18-24', label: '18-24' },
   { key: '25-34', label: '25-34' },
   { key: '35-44', label: '35-44' },
@@ -51,19 +52,10 @@ export default function OnboardingAgeScreen() {
             fontSize: 28,
             lineHeight: 36,
             color: onboardingColors.white,
-            marginBottom: 12,
-          }}
-        >
-          Qual a sua idade?
-        </Text>
-        <Text
-          style={{
-            fontSize: 15,
-            color: onboardingColors.textMuted,
             marginBottom: 28,
           }}
         >
-          O Bud foi projetado apenas para adultos
+          Qual a sua idade?
         </Text>
         <View style={{ gap: 12 }}>
           {OPTIONS.map((opt) => {

@@ -20,6 +20,8 @@ interface InsightCardProps {
   loading?: boolean;
   locked?: boolean;
   remaining?: number;
+  cycleProgress?: number;
+  cycleRequired?: number;
   lockedMessage?: string;
   onMicClick?: () => void;
   micDisabled?: boolean;
@@ -39,6 +41,8 @@ export function InsightCard({
   loading = false,
   locked = false,
   remaining = 0,
+  cycleProgress = 0,
+  cycleRequired = 0,
   lockedMessage,
   onMicClick,
   micDisabled = false,
@@ -62,6 +66,10 @@ export function InsightCard({
 
   const isUpgradeLocked = locked && !!lockedMessage;
   const isButtonDisabled = locked && !lockedMessage;
+  const showProgress = locked && cycleRequired > 0 && cycleProgress < cycleRequired;
+  const progressPercent = cycleRequired > 0
+    ? Math.min((cycleProgress / cycleRequired) * 100, 100)
+    : 0;
 
   const CardContent = (
     <View style={insightCardStyles.contentContainer}>
@@ -100,6 +108,22 @@ export function InsightCard({
         >
           {description}
         </Text>
+
+        {showProgress ? (
+          <View style={insightCardStyles.progressWrap}>
+            <Text style={insightCardStyles.progressLabel}>
+              {cycleProgress}/{cycleRequired} conversas
+            </Text>
+            <View style={insightCardStyles.progressTrack}>
+              <View
+                style={[
+                  insightCardStyles.progressFill,
+                  { width: `${progressPercent}%` },
+                ]}
+              />
+            </View>
+          </View>
+        ) : null}
       </View>
 
       {!!secondaryButtonText && !!onSecondaryButtonClick && (

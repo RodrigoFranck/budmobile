@@ -37,7 +37,12 @@ export default function OnboardingVoiceScreen() {
 
   return (
     <LinearGradient
-      colors={[onboardingColors.linearTop, onboardingColors.linearBottom]}
+      colors={[
+        onboardingColors.linearTop,
+        onboardingColors.linearMid,
+        onboardingColors.linearBottom,
+      ]}
+      locations={[0, 0.55, 1]}
       style={{ flex: 1, paddingTop: insets.top }}
     >
       <View style={{ paddingHorizontal: H_PAD, paddingTop: 8, paddingBottom: 8 }}>
@@ -63,7 +68,7 @@ export default function OnboardingVoiceScreen() {
           style={{
             fontSize: 15,
             lineHeight: 22,
-            color: onboardingColors.textSecondary,
+            color: onboardingColors.textOnGradient,
             marginBottom: 32,
           }}
         >
@@ -77,7 +82,7 @@ export default function OnboardingVoiceScreen() {
                 width: 44,
                 height: 44,
                 borderRadius: 22,
-                backgroundColor: onboardingColors.card,
+                backgroundColor: onboardingColors.gradientIconSurface,
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
@@ -100,7 +105,7 @@ export default function OnboardingVoiceScreen() {
                 style={{
                   fontSize: 14,
                   lineHeight: 20,
-                  color: onboardingColors.textSecondary,
+                  color: onboardingColors.textOnGradient,
                 }}
               >
                 {description}
