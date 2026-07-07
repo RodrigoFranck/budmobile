@@ -7,6 +7,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Crypto from 'expo-crypto';
 import { CodedError } from 'expo-modules-core';
 import { supabase } from '@/integrations/supabase/client';
+import { unregisterPushNotificationsForUser } from '@/hooks/usePushNotifications';
 import { MOBILE_OAUTH_WEB_CALLBACK } from '@/constants/auth';
 import { z } from 'zod';
 
@@ -530,7 +531,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    const userId = user?.id;
+
     try {
+      if (userId) {
+        await unregisterPushNotificationsForUser(userId);
+      }
+
       const { error } = await supabase.auth.signOut({ scope: 'global' });
 
       // Se a sessão já não existir mais, tratamos como "já está deslogado"

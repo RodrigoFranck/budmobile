@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -5,6 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import { OnboardingBackButton } from '@/components/onboarding/OnboardingBackButton';
 import { OnboardingPrimaryButton } from '@/components/onboarding/OnboardingPrimaryButton';
 import { frauncesFont, useOnboardingColors } from '@/constants/onboardingTheme';
+import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
 import type { OnboardingNavigationProp } from '@/types/onboardingNavigation';
 
 const H_PAD = 24;
@@ -90,6 +92,28 @@ export default function OnboardingNotificationsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<OnboardingNavigationProp>();
   const onboardingColors = useOnboardingColors();
+  const { setNotificationsEnabled } = useNotificationPreferences();
+  const [activating, setActivating] = useState(false);
+
+  const goToVoice = () => navigation.navigate('OnboardingVoice');
+
+  const onActivate = async () => {
+    setActivating(true);
+    try {
+      await setNotificationsEnabled(true);
+    } finally {
+      setActivating(false);
+      goToVoice();
+    }
+  };
+
+  const onSkip = async () => {
+    try {
+      await setNotificationsEnabled(false);
+    } finally {
+      goToVoice();
+    }
+  };
 
   return (
     <LinearGradient
@@ -136,19 +160,12 @@ export default function OnboardingNotificationsScreen() {
         }}
       >
         <OnboardingPrimaryButton
-          label="Ativar notificações"
-          onPress={() => {}}
-          disabled
-          labelColor={onboardingColors.textSecondary}
-          style={{
-            backgroundColor: onboardingColors.card,
-            borderWidth: 1,
-            borderColor: onboardingColors.borderDark,
-            opacity: 1,
-          }}
+          label={activating ? 'Ativando...' : 'Ativar notificações'}
+          onPress={onActivate}
+          disabled={activating}
         />
         <View style={{ height: 12 }} />
-        <OnboardingPrimaryButton label="Continuar" onPress={() => navigation.navigate('OnboardingVoice')} />
+        <OnboardingPrimaryButton label="Continuar" onPress={onSkip} />
       </View>
     </LinearGradient>
   );

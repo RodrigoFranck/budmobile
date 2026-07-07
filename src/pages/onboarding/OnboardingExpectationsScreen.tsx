@@ -27,8 +27,7 @@ export default function OnboardingExpectationsScreen() {
 
   const onContinue = () => {
     setConversationGoal(text.trim());
-    // navigation.navigate('OnboardingCommitment');
-    navigation.navigate('OnboardingVoice');
+    navigation.navigate('OnboardingNotifications');
   };
 
   return (
