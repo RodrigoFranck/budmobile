@@ -5,6 +5,7 @@ import {
 } from '@/types/insightUnlock.types';
 import type { InsightUnlockProgress } from '@/types/insightUnlock.types';
 import { getTodayInBrasilia, getYesterdayInBrasilia } from '@/utils/dateUtils';
+import { insightNeedsVoiceRefresh } from '@/utils/insightVoice';
 
 let syncInFlight: Promise<void> | null = null;
 let lastSyncedAt = 0;
@@ -12,6 +13,8 @@ const MIN_SYNC_INTERVAL_MS = 4_000;
 
 export interface StoredExploreInsight {
   insight_type: string;
+  title?: string | null;
+  description?: string | null;
   locked: boolean | null;
   generated_at: string | null;
   insight_date: string | null;
@@ -38,6 +41,14 @@ export function shouldSyncExploreInsights(
 
     const stored = storedByType.get(insightType);
     if (!stored || stored.locked !== false) {
+      return true;
+    }
+
+    if (
+      stored.title &&
+      stored.description &&
+      insightNeedsVoiceRefresh(stored.title, stored.description, insightType)
+    ) {
       return true;
     }
 

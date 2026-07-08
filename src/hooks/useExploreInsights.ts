@@ -187,7 +187,14 @@ export function useExploreInsights(refreshToken = 0) {
     setHabitInsight(buildForType('habit'));
 
     return {
-      storedRows: storedRows as StoredExploreInsight[],
+      storedRows: storedRows.map((row) => ({
+        insight_type: row.insight_type,
+        title: row.title,
+        description: row.description,
+        locked: row.locked,
+        generated_at: row.generated_at,
+        insight_date: row.insight_date,
+      })) as StoredExploreInsight[],
       progressMap,
     };
   }, [isDeveloper, user]);

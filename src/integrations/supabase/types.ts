@@ -240,6 +240,36 @@ export type Database = {
         }
         Relationships: []
       }
+      insight_feedback: {
+        Row: {
+          created_at: string
+          feedback_type: string
+          id: string
+          insight_content: Json | null
+          insight_headline: string | null
+          insight_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          feedback_type: string
+          id?: string
+          insight_content?: Json | null
+          insight_headline?: string | null
+          insight_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          feedback_type?: string
+          id?: string
+          insight_content?: Json | null
+          insight_headline?: string | null
+          insight_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       insight_unlock_rules: {
         Row: {
           count_scope: string
@@ -557,42 +587,6 @@ export type Database = {
           tracking_enabled?: boolean | null
           updated_at?: string | null
           user_id?: string
-        }
-        Relationships: []
-      }
-      insight_unlock_rules: {
-        Row: {
-          count_scope: string
-          created_at: string
-          display_order: number
-          insight_type: string
-          is_active: boolean
-          locked_description: string
-          locked_title: string
-          required_conversations: number
-          updated_at: string
-        }
-        Insert: {
-          count_scope?: string
-          created_at?: string
-          display_order?: number
-          insight_type: string
-          is_active?: boolean
-          locked_description: string
-          locked_title: string
-          required_conversations?: number
-          updated_at?: string
-        }
-        Update: {
-          count_scope?: string
-          created_at?: string
-          display_order?: number
-          insight_type?: string
-          is_active?: boolean
-          locked_description?: string
-          locked_title?: string
-          required_conversations?: number
-          updated_at?: string
         }
         Relationships: []
       }

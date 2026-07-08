@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ImageBackground,
   Modal,
@@ -13,8 +13,9 @@ import { useNavigation } from '@react-navigation/native';
 
 import { deepInsightSheetStyles as styles } from '@/components/explore/DeepInsightSheet.styles';
 import { useAppAlert } from '@/contexts/AppAlertContext';
-import { useDeepInsight } from '@/hooks/useDeepInsight';
+import { useDeepInsight, getDeepInsightWeekStart } from '@/hooks/useDeepInsight';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { navigateToChatTab } from '@/utils/navigateToChat';
 import type { MainTabNavigationProp } from '@/types/navigation';
 
@@ -28,15 +29,6 @@ const loadingMessages = [
   'Acho que encontrei algo importante...',
 ];
 
-function getWeekStart(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
 interface DeepInsightSheetProps {
   visible: boolean;
   onClose: () => void;
@@ -47,7 +39,7 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
   const navigation = useNavigation<MainTabNavigationProp>();
   const { showAlert } = useAppAlert();
   const {
-    loading,
+    showLoadingUI,
     status,
     insight,
     weeklyConversationCount,
@@ -58,15 +50,25 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
 
   const [feedbackGiven, setFeedbackGiven] = useState<'negative' | 'positive' | 'love' | null>(null);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
-  const [selectedWeekStart] = useState<Date>(() => getWeekStart(new Date()));
+  const selectedWeekStart = useMemo(() => getDeepInsightWeekStart(), []);
 
   useEffect(() => {
-    if (visible && status === 'idle') {
-      generateDeepInsight(selectedWeekStart).catch((err) => {
-        console.error('Error generating deep insight:', err);
-      });
+    if (!visible) {
+      return;
     }
-  }, [visible, status, generateDeepInsight, selectedWeekStart]);
+
+    if (status === 'loaded' && insight) {
+      return;
+    }
+
+    if (status === 'loading' || status === 'insufficient_conversations' || status === 'no_insight_for_week' || status === 'error') {
+      return;
+    }
+
+    generateDeepInsight(selectedWeekStart).catch((err) => {
+      console.error('Error generating deep insight:', err);
+    });
+  }, [visible, status, insight, generateDeepInsight, selectedWeekStart]);
 
   useEffect(() => {
     if (!visible) {
@@ -75,7 +77,7 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
   }, [visible]);
 
   useEffect(() => {
-    if (!loading) {
+    if (!showLoadingUI) {
       setCurrentMessageIndex(0);
       return;
     }
@@ -85,7 +87,7 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
       );
     }, 2500);
     return () => clearInterval(interval);
-  }, [loading]);
+  }, [showLoadingUI]);
 
   useEffect(() => {
     if (status !== 'loaded' || !insight?.headline) return;
@@ -146,8 +148,7 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
         insight_type: 'deep_insight',
         feedback_type: type,
         insight_headline: insight?.headline,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        insight_content: insight as any,
+        insight_content: (insight ?? null) as Json,
       });
       showAlert({ title: 'Obrigado', message: 'Obrigado pelo feedback!' });
     } catch (err) {
@@ -327,7 +328,7 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
   };
 
   let body: React.ReactNode = null;
-  if (loading) {
+  if (showLoadingUI) {
     body = renderLoading();
   } else if (status === 'insufficient_conversations') {
     body = renderInsufficient();
