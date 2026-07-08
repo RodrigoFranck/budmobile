@@ -11,7 +11,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight, Lock, MessageSquare, Sparkles } from 'lucide-react-native';
 
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 
 import ConversationDetail from '@/components/history/ConversationDetail';
 import { DeepInsightSheet } from '@/components/explore/DeepInsightSheet';
