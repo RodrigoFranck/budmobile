@@ -13,10 +13,15 @@ import {
   fetchInsightUnlockRules,
 } from '@/utils/insightUnlock';
 import {
+  formatDateBrasilia,
+  getWeekStartBrasilia,
+} from '@/utils/dateUtils';
+import {
   shouldSyncExploreInsights,
   syncExploreInsights,
   type StoredExploreInsight,
 } from '@/utils/syncExploreInsights';
+import type { DeepInsight } from '@/hooks/useDeepInsight';
 
 export interface Insight {
   title: string;
@@ -48,6 +53,23 @@ const LOGIN_MESSAGE: Insight = {
   description: 'Entre na sua conta para acessar insights personalizados.',
   loading: false,
 };
+
+const DEEP_UNLOCKED_PLACEHOLDER: Insight = {
+  title: 'Inspirado em você',
+  description: 'Toque para ler seu insight semanal.',
+  locked: false,
+  remaining: 0,
+  loading: false,
+};
+
+function isDeepInsightContent(value: unknown): value is DeepInsight {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const content = value as Partial<DeepInsight>;
+  return typeof content.headline === 'string' && typeof content.intro === 'string';
+}
 
 function applyDeveloperAccess(insight: Insight, cycleRequired?: number): Insight {
   return {
@@ -113,6 +135,8 @@ export function useExploreInsights(refreshToken = 0) {
   const [generalInsight, setGeneralInsight] = useState<Insight>(EMPTY_INSIGHT);
   const [frequencyInsight, setFrequencyInsight] = useState<Insight>(EMPTY_INSIGHT);
   const [habitInsight, setHabitInsight] = useState<Insight>(EMPTY_INSIGHT);
+  const [deepInsight, setDeepInsight] = useState<Insight>(EMPTY_INSIGHT);
+  const [deepInsightContent, setDeepInsightContent] = useState<DeepInsight | null>(null);
   const [deepInsightProgress, setDeepInsightProgress] = useState<InsightUnlockProgress>({
     conversationCount: 0,
     required: 5,
@@ -120,18 +144,21 @@ export function useExploreInsights(refreshToken = 0) {
     progress: 0,
     locked: true,
   });
+  const deepSyncInFlightRef = useRef(false);
 
   const applyInsightsFromDb = useCallback(async () => {
     if (!user) {
       return null;
     }
 
+    const weekStartStr = formatDateBrasilia(getWeekStartBrasilia());
+
     const [rules, insightsResult] = await Promise.all([
       fetchInsightUnlockRules(),
       supabase
         .from('user_insights')
         .select(
-          'insight_type, title, description, locked, context_summary, internal_context, conversation_id, generated_at, insight_date',
+          'insight_type, title, description, locked, context_summary, internal_context, conversation_id, generated_at, insight_date, week_start, content_json',
         )
         .eq('user_id', user.id)
         .in('insight_type', [...EXPLORE_INSIGHT_TYPES, DEEP_INSIGHT_TYPE]),
@@ -139,7 +166,11 @@ export function useExploreInsights(refreshToken = 0) {
 
     const progressMap = await buildInsightProgressMap(user.id, rules);
     const storedRows = insightsResult.data ?? [];
-    const storedByType = new Map(storedRows.map((row) => [row.insight_type, row]));
+    const storedByType = new Map(
+      storedRows
+        .filter((row) => row.insight_type !== DEEP_INSIGHT_TYPE)
+        .map((row) => [row.insight_type, row]),
+    );
 
     const ruleByType = new Map(rules.map((rule) => [rule.insight_type, rule]));
     const deepRule = ruleByType.get(DEEP_INSIGHT_TYPE);
@@ -151,16 +182,63 @@ export function useExploreInsights(refreshToken = 0) {
       locked: true,
     };
 
-    setDeepInsightProgress(
-      isDeveloper
-        ? {
-            ...deepProgress,
-            locked: false,
-            remaining: 0,
-            progress: deepProgress.required,
-          }
-        : deepProgress,
-    );
+    const effectiveDeepProgress = isDeveloper
+      ? {
+          ...deepProgress,
+          locked: false,
+          remaining: 0,
+          progress: deepProgress.required,
+        }
+      : deepProgress;
+
+    setDeepInsightProgress(effectiveDeepProgress);
+
+    const deepStored =
+      storedRows.find(
+        (row) =>
+          row.insight_type === DEEP_INSIGHT_TYPE &&
+          row.week_start === weekStartStr &&
+          row.locked === false &&
+          !!row.title,
+      ) ?? null;
+
+    if (deepStored && isDeepInsightContent(deepStored.content_json)) {
+      setDeepInsightContent(deepStored.content_json);
+    } else {
+      setDeepInsightContent(null);
+    }
+
+    if (effectiveDeepProgress.locked) {
+      setDeepInsight({
+        title: deepRule?.locked_title ?? 'Inspirado em você',
+        description:
+          deepRule?.locked_description ??
+          'Continue conversando comigo para desbloquear seu insight semanal.',
+        locked: true,
+        remaining: effectiveDeepProgress.remaining,
+        cycleProgress: effectiveDeepProgress.progress,
+        cycleRequired: effectiveDeepProgress.required,
+        loading: false,
+      });
+    } else if (deepStored) {
+      setDeepInsight({
+        title: deepStored.title,
+        description: deepStored.description,
+        locked: false,
+        remaining: 0,
+        cycleProgress: effectiveDeepProgress.progress,
+        cycleRequired: effectiveDeepProgress.required,
+        contextSummary: deepStored.context_summary ?? undefined,
+        internalContext: deepStored.internal_context ?? undefined,
+        loading: false,
+      });
+    } else {
+      setDeepInsight({
+        ...DEEP_UNLOCKED_PLACEHOLDER,
+        cycleProgress: effectiveDeepProgress.progress,
+        cycleRequired: effectiveDeepProgress.required,
+      });
+    }
 
     const buildForType = (insightType: ExploreInsightType) => {
       const rule = ruleByType.get(insightType);
@@ -189,8 +267,38 @@ export function useExploreInsights(refreshToken = 0) {
     return {
       storedRows: storedRows as StoredExploreInsight[],
       progressMap,
+      weekStartStr,
+      deepUnlocked: !effectiveDeepProgress.locked,
+      hasDeepContent: !!deepStored,
     };
   }, [isDeveloper, user]);
+
+  const syncDeepInsightIfNeeded = useCallback(
+    async (weekStartStr: string) => {
+      if (deepSyncInFlightRef.current) {
+        return;
+      }
+
+      deepSyncInFlightRef.current = true;
+      try {
+        const { error } = await supabase.functions.invoke('generate-deep-insight', {
+          body: { week_start: weekStartStr },
+        });
+
+        if (error) {
+          console.warn('Deep insight sync failed:', error.message);
+          return;
+        }
+
+        await applyInsightsFromDb();
+      } catch (error) {
+        console.warn('Deep insight sync failed:', error);
+      } finally {
+        deepSyncInFlightRef.current = false;
+      }
+    },
+    [applyInsightsFromDb],
+  );
 
   const loadInsights = useCallback(
     async (options: LoadExploreInsightsOptions = {}) => {
@@ -200,6 +308,8 @@ export function useExploreInsights(refreshToken = 0) {
         setGeneralInsight(LOGIN_MESSAGE);
         setFrequencyInsight(LOGIN_MESSAGE);
         setHabitInsight(LOGIN_MESSAGE);
+        setDeepInsight(LOGIN_MESSAGE);
+        setDeepInsightContent(null);
         setDeepInsightProgress({
           conversationCount: 0,
           required: 5,
@@ -216,13 +326,22 @@ export function useExploreInsights(refreshToken = 0) {
         setGeneralInsight((prev) => ({ ...prev, loading: true }));
         setFrequencyInsight((prev) => ({ ...prev, loading: true }));
         setHabitInsight((prev) => ({ ...prev, loading: true }));
+        setDeepInsight((prev) => ({ ...prev, loading: true }));
       }
 
       try {
         const snapshot = await applyInsightsFromDb();
         hasLoadedOnceRef.current = true;
 
-        if (options.cacheOnly || !snapshot) {
+        if (!snapshot) {
+          return;
+        }
+
+        if (snapshot.deepUnlocked && !snapshot.hasDeepContent) {
+          void syncDeepInsightIfNeeded(snapshot.weekStartStr);
+        }
+
+        if (options.cacheOnly) {
           return;
         }
 
@@ -253,9 +372,11 @@ export function useExploreInsights(refreshToken = 0) {
         setGeneralInsight(errorInsight);
         setFrequencyInsight(errorInsight);
         setHabitInsight(errorInsight);
+        setDeepInsight(errorInsight);
+        setDeepInsightContent(null);
       }
     },
-    [applyInsightsFromDb, user],
+    [applyInsightsFromDb, syncDeepInsightIfNeeded, user],
   );
 
   useEffect(() => {
@@ -268,12 +389,15 @@ export function useExploreInsights(refreshToken = 0) {
     generalInsight,
     frequencyInsight,
     habitInsight,
+    deepInsight,
+    deepInsightContent,
     deepInsightProgress,
     isLoading:
       yesterdayInsight.loading ||
       generalInsight.loading ||
       frequencyInsight.loading ||
-      habitInsight.loading,
+      habitInsight.loading ||
+      deepInsight.loading,
     refreshInsights: loadInsights,
   };
 }

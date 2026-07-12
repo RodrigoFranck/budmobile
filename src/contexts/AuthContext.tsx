@@ -27,6 +27,8 @@ interface AuthContextType {
   loading: boolean;
   onboardingCompleted: boolean;
   onboardingStatusLoaded: boolean;
+  passwordRecoveryPending: boolean;
+  clearPasswordRecovery: () => void;
   signUp: (
     email: string,
     password: string,
@@ -97,6 +99,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean>(false);
   const [onboardingStatusLoaded, setOnboardingStatusLoaded] = useState(false);
   const [isAppleSignInAvailable, setIsAppleSignInAvailable] = useState(false);
+  const [passwordRecoveryPending, setPasswordRecoveryPending] = useState(false);
+
+  const clearPasswordRecovery = () => {
+    setPasswordRecoveryPending(false);
+  };
 
   useEffect(() => {
     if (Platform.OS !== 'ios') {
@@ -173,6 +180,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          setPasswordRecoveryPending(true);
+        }
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
@@ -201,13 +211,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       });
 
-    const applySessionFromOAuthUrl = async (url: string): Promise<{ error: Error | null }> => {
+    const applySessionFromOAuthUrl = async (
+      url: string
+    ): Promise<{ error: Error | null; isRecovery: boolean }> => {
       if (!url.includes('access_token') && !url.includes('error=')) {
-        return { error: null };
+        return { error: null, isRecovery: false };
       }
       const hashIndex = url.indexOf('#');
       if (hashIndex === -1) {
-        return { error: null };
+        return { error: null, isRecovery: false };
       }
       const fragment = url.slice(hashIndex + 1);
       const params = new URLSearchParams(fragment);
@@ -218,31 +230,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           error: new Error(
             errorDescription ? decodeURIComponent(errorDescription.replace(/\+/g, ' ')) : errorParam
           ),
+          isRecovery: false,
         };
       }
       const access_token = params.get('access_token');
       const refresh_token = params.get('refresh_token');
+      const isRecovery = params.get('type') === 'recovery';
       if (!access_token || !refresh_token) {
-        return { error: null };
+        return { error: null, isRecovery };
       }
       const { error } = await supabase.auth.setSession({ access_token, refresh_token });
       if (error) {
-        return { error: new Error(error.message) };
+        return { error: new Error(error.message), isRecovery };
       }
-      return { error: null };
+      return { error: null, isRecovery };
     };
 
     const handleDeepLink = async (url: string) => {
-      if (!url.includes('auth/callback') && !url.includes('access_token')) {
+      if (
+        !url.includes('auth/callback') &&
+        !url.includes('access_token') &&
+        !url.includes('reset-password')
+      ) {
         return;
       }
       try {
-        const { error } = await applySessionFromOAuthUrl(url);
+        const { error, isRecovery } = await applySessionFromOAuthUrl(url);
+        if (isRecovery) {
+          setPasswordRecoveryPending(true);
+        }
         if (error) {
-          console.error('OAuth callback error:', error);
+          console.error('Auth deep link error:', error);
         }
       } catch (e) {
-        console.error('Error processing OAuth callback:', e);
+        console.error('Error processing auth deep link:', e);
       }
     };
 
@@ -559,6 +580,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Unexpected sign out error:', error);
     } finally {
+      setPasswordRecoveryPending(false);
       setSession(null);
       setUser(null);
     }
@@ -577,6 +599,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading: normalizedLoading,
       onboardingCompleted: normalizedOnboardingCompleted,
       onboardingStatusLoaded,
+      passwordRecoveryPending,
+      clearPasswordRecovery,
       signUp,
       signIn,
       signInWithGoogle,
@@ -586,7 +610,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut,
       refreshOnboardingStatus
     };
-  }, [session, user, loading, onboardingCompleted, onboardingStatusLoaded, isAppleSignInAvailable, signUp, signIn, signInWithGoogle, signInWithApple, deleteAccount, signOut, refreshOnboardingStatus]);
+  }, [session, user, loading, onboardingCompleted, onboardingStatusLoaded, passwordRecoveryPending, isAppleSignInAvailable, signUp, signIn, signInWithGoogle, signInWithApple, deleteAccount, signOut, refreshOnboardingStatus]);
 
   return (
     <AuthContext.Provider value={contextValue}>

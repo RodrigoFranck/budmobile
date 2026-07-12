@@ -51,6 +51,8 @@ interface TabScreenContextValue {
   generalInsight: ReturnType<typeof useExploreInsights>['generalInsight'];
   frequencyInsight: ReturnType<typeof useExploreInsights>['frequencyInsight'];
   habitInsight: ReturnType<typeof useExploreInsights>['habitInsight'];
+  deepInsight: ReturnType<typeof useExploreInsights>['deepInsight'];
+  deepInsightContent: ReturnType<typeof useExploreInsights>['deepInsightContent'];
   deepInsightProgress: ReturnType<typeof useExploreInsights>['deepInsightProgress'];
   refreshExploreInsights: ReturnType<typeof useExploreInsights>['refreshInsights'];
 }
@@ -81,6 +83,8 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
     generalInsight,
     frequencyInsight,
     habitInsight,
+    deepInsight,
+    deepInsightContent,
     deepInsightProgress,
     isLoading: insightsLoading = false,
     refreshInsights,
@@ -232,6 +236,8 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
       generalInsight,
       frequencyInsight,
       habitInsight,
+      deepInsight,
+      deepInsightContent,
       deepInsightProgress,
       refreshExploreInsights: refreshInsights,
     }),
@@ -260,6 +266,8 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
       generalInsight,
       frequencyInsight,
       habitInsight,
+      deepInsight,
+      deepInsightContent,
       deepInsightProgress,
       refreshInsights,
     ],

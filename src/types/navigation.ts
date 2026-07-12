@@ -14,7 +14,7 @@ export type RootStackParamList = {
   Auth: undefined;
   Bootstrap: undefined;
   ForgotPassword: undefined;
-  ResetPassword: { token: string } | undefined;
+  ResetPassword: undefined;
   VerifyEmail: undefined;
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   // Legacy routes used in some screens
