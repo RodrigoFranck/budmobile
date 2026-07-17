@@ -160,3 +160,45 @@ export const mapPasswordResetError = (rawMessage: string): AuthAlert => {
     message: 'Não foi possível enviar o link de recuperação agora. Tente novamente em instantes.',
   };
 };
+
+export const passwordTooShortAlert = (minLength: number): AuthAlert => ({
+  title: 'Senha muito curta',
+  message: `A senha precisa ter no mínimo ${minLength} caracteres.`,
+});
+
+export const passwordMismatchAlert = (): AuthAlert => ({
+  title: 'Senhas diferentes',
+  message: 'Digite a mesma senha nos dois campos e tente novamente.',
+});
+
+export const passwordUpdatedAlert = (): AuthAlert => ({
+  title: 'Senha atualizada',
+  message: 'Sua senha foi redefinida. Entre com o e-mail e a nova senha.',
+});
+
+export const mapPasswordUpdateError = (rawMessage: string): AuthAlert => {
+  const message = normalizeAuthError(rawMessage);
+
+  if (message.includes('password') && message.includes('6')) {
+    return passwordTooShortAlert(6);
+  }
+
+  if (message.includes('same password') || message.includes('different from the old')) {
+    return {
+      title: 'Senha igual à atual',
+      message: 'Escolha uma senha diferente da que você usa hoje.',
+    };
+  }
+
+  if (message.includes('network') || message.includes('fetch')) {
+    return {
+      title: 'Sem conexão',
+      message: 'Não foi possível atualizar a senha. Verifique sua internet e tente novamente.',
+    };
+  }
+
+  return {
+    title: 'Não foi possível atualizar a senha',
+    message: 'Algo deu errado ao salvar a nova senha. Tente novamente em instantes.',
+  };
+};

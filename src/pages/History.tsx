@@ -39,7 +39,7 @@ export default function HistoryScreen() {
   const tabLoading = useTabScreenLoading('History');
   const {
     conversations,
-    generalInsight,
+    deepInsight,
     deepInsightProgress,
     insightsLoading,
     refreshExploreInsights,
@@ -157,14 +157,10 @@ export default function HistoryScreen() {
               ) : canOpenDeepInsight ? (
                 <>
                   <Text style={styles.inspiredTitle} numberOfLines={2}>
-                    {generalInsight.locked
-                      ? 'Inspirado em você'
-                      : generalInsight.title}
+                    {deepInsight.title || 'Inspirado em você'}
                   </Text>
                   <Text style={styles.inspiredDescription} numberOfLines={2}>
-                    {generalInsight.locked
-                      ? 'Toque para ler seu insight semanal.'
-                      : generalInsight.description}
+                    {deepInsight.description || 'Toque para ler seu insight semanal.'}
                   </Text>
                   <View style={styles.inspiredHintRow}>
                     <Text style={styles.inspiredHint}>Toque para ler</Text>

@@ -13,8 +13,10 @@ import { useNavigation } from '@react-navigation/native';
 
 import { deepInsightSheetStyles as styles } from '@/components/explore/DeepInsightSheet.styles';
 import { useAppAlert } from '@/contexts/AppAlertContext';
+import { useTabScreenContext } from '@/contexts/TabScreenContext';
 import { useDeepInsight } from '@/hooks/useDeepInsight';
 import { supabase } from '@/integrations/supabase/client';
+import { formatDateBrasilia, getWeekStartBrasilia } from '@/utils/dateUtils';
 import { navigateToChatTab } from '@/utils/navigateToChat';
 import type { MainTabNavigationProp } from '@/types/navigation';
 
@@ -28,15 +30,6 @@ const loadingMessages = [
   'Acho que encontrei algo importante...',
 ];
 
-function getWeekStart(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
 interface DeepInsightSheetProps {
   visible: boolean;
   onClose: () => void;
@@ -46,6 +39,7 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainTabNavigationProp>();
   const { showAlert } = useAppAlert();
+  const { deepInsightContent, refreshExploreInsights } = useTabScreenContext();
   const {
     loading,
     status,
@@ -54,19 +48,49 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
     requiredConversations,
     error,
     generateDeepInsight,
+    hydrateInsight,
   } = useDeepInsight();
 
   const [feedbackGiven, setFeedbackGiven] = useState<'negative' | 'positive' | 'love' | null>(null);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
-  const [selectedWeekStart] = useState<Date>(() => getWeekStart(new Date()));
+  const [selectedWeekStart] = useState(() => formatDateBrasilia(getWeekStartBrasilia()));
 
   useEffect(() => {
-    if (visible && status === 'idle') {
-      generateDeepInsight(selectedWeekStart).catch((err) => {
-        console.error('Error generating deep insight:', err);
-      });
+    if (!deepInsightContent) {
+      return;
     }
-  }, [visible, status, generateDeepInsight, selectedWeekStart]);
+
+    hydrateInsight(deepInsightContent, selectedWeekStart);
+  }, [deepInsightContent, hydrateInsight, selectedWeekStart]);
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+
+    if (status === 'loaded' && insight) {
+      return;
+    }
+
+    if (status === 'idle' || status === 'error') {
+      generateDeepInsight(selectedWeekStart)
+        .then((generated) => {
+          if (generated) {
+            void refreshExploreInsights({ cacheOnly: true });
+          }
+        })
+        .catch((err) => {
+          console.error('Error generating deep insight:', err);
+        });
+    }
+  }, [
+    visible,
+    status,
+    insight,
+    generateDeepInsight,
+    refreshExploreInsights,
+    selectedWeekStart,
+  ]);
 
   useEffect(() => {
     if (!visible) {

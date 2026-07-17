@@ -9,6 +9,7 @@ import { InteractionManager, View } from 'react-native';
 import { SplashScreen } from '@/components/SplashScreen';
 import AuthScreen from '@/pages/Auth/Auth';
 import ForgotPasswordScreen from '@/pages/ForgotPassword';
+import ResetPasswordScreen from '@/pages/ResetPassword';
 import OnboardingNavigator from '@/navigation/OnboardingNavigator';
 import SettingsScreen from '@/pages/Settings';
 import CrisisResourcesScreen from '@/pages/CrisisResources';
@@ -24,12 +25,18 @@ function BootstrapScreen() {
 }
 
 export default function AppNavigator() {
-  const { user, loading, onboardingCompleted, onboardingStatusLoaded } = useAuth();
+  const {
+    user,
+    loading,
+    onboardingCompleted,
+    onboardingStatusLoaded,
+    passwordRecoveryPending,
+  } = useAuth();
   const { mode } = useTheme();
   const navigationRef = useNavigationContainerRef<RootStackParamList>();
   usePushNotifications(navigationRef);
   const isLoading = Boolean(loading);
-  const waitOnboarding = Boolean(user && !onboardingStatusLoaded);
+  const waitOnboarding = Boolean(user && !onboardingStatusLoaded && !passwordRecoveryPending);
   const [minSplashElapsed, setMinSplashElapsed] = useState(false);
   const [interactionsDone, setInteractionsDone] = useState(false);
   const splashStartMsRef = useRef<number>(Date.now());
@@ -63,7 +70,9 @@ export default function AppNavigator() {
             headerShown: false,
           }}
         >
-          {!user ? (
+          {passwordRecoveryPending ? (
+            <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+          ) : !user ? (
             <>
               <Stack.Screen name="Auth" component={AuthScreen} />
               <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />

@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { formatDateBrasilia, getWeekStartBrasilia } from "@/utils/dateUtils";
 
 export interface DeepInsight {
   headline: string;
@@ -39,14 +40,14 @@ export interface DeepInsightState {
   error: string | null;
 }
 
-// Helper: Calcula segunda-feira da semana (seg-dom) - mantido para compatibilidade
-function getWeekStart(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
+function resolveWeekStartStr(weekStart?: Date | string): string {
+  if (typeof weekStart === 'string' && weekStart) {
+    return weekStart;
+  }
+
+  return formatDateBrasilia(
+    weekStart instanceof Date ? getWeekStartBrasilia(weekStart) : getWeekStartBrasilia(),
+  );
 }
 
 export function useDeepInsight() {
@@ -61,11 +62,22 @@ export function useDeepInsight() {
 
   const [cachedInsights, setCachedInsights] = useState<Map<string, DeepInsight>>(new Map());
 
-  const generateDeepInsight = useCallback(async (weekStart?: Date): Promise<DeepInsight | null> => {
-    const targetWeekStart = weekStart || getWeekStart(new Date());
-    const weekStartStr = targetWeekStart.toISOString().split('T')[0];
+  const hydrateInsight = useCallback((insight: DeepInsight, weekStart?: Date | string) => {
+    const weekStartStr = resolveWeekStartStr(weekStart);
+    setCachedInsights((prev) => new Map(prev).set(weekStartStr, insight));
+    setState({
+      status: 'loaded',
+      insight,
+      weeklyConversationCount: 5,
+      requiredConversations: 5,
+      message: null,
+      error: null,
+    });
+  }, []);
 
-    // Verificar cache
+  const generateDeepInsight = useCallback(async (weekStart?: Date | string): Promise<DeepInsight | null> => {
+    const weekStartStr = resolveWeekStartStr(weekStart);
+
     if (cachedInsights.has(weekStartStr)) {
       const cached = cachedInsights.get(weekStartStr)!;
       setState({
@@ -94,7 +106,6 @@ export function useDeepInsight() {
         throw new Error(functionError.message || 'Erro ao gerar insight aprofundado');
       }
 
-      // Handle different response statuses
       if (functionData?.status === 'insufficient_conversations') {
         setState({
           status: 'insufficient_conversations',
@@ -123,12 +134,10 @@ export function useDeepInsight() {
         throw new Error(functionData.message || 'Erro ao gerar insight');
       }
 
-      // Success - got a full insight
       const insight = functionData as DeepInsight;
-      
-      // Cache the insight
+
       setCachedInsights(prev => new Map(prev).set(weekStartStr, insight));
-      
+
       setState({
         status: 'loaded',
         insight,
@@ -137,7 +146,7 @@ export function useDeepInsight() {
         message: null,
         error: null,
       });
-      
+
       return insight;
 
     } catch (err) {
@@ -168,6 +177,7 @@ export function useDeepInsight() {
     loading: state.status === 'loading',
     data: state.insight,
     generateDeepInsight,
+    hydrateInsight,
     clearCache,
   };
 }
