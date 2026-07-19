@@ -78,7 +78,7 @@ export default function PsychologicalAssessmentFlowScreen() {
 
   const handleClose = useCallback(() => {
     showAlert({
-      title: 'Sair da avaliação?',
+      title: 'Sair do questionário?',
       message: 'Suas respostas desta sessão serão perdidas.',
       buttons: [
         { text: 'Cancelar', style: 'cancel' },
@@ -106,13 +106,13 @@ export default function PsychologicalAssessmentFlowScreen() {
       if (!saved) {
         showAlert({
           title: 'Erro',
-          message: 'Não foi possível salvar a avaliação. Tente novamente.',
+          message: 'Não foi possível salvar o questionário. Tente novamente.',
         });
         return;
       }
 
       showAlert({
-        title: 'Avaliação concluída',
+        title: 'Questionário concluído',
         message:
           'Suas respostas foram salvas. O Bud vai usar isso para personalizar nossas conversas.',
         buttons: [
@@ -124,7 +124,7 @@ export default function PsychologicalAssessmentFlowScreen() {
       });
     } catch (err) {
       console.error(err);
-      showAlert({ title: 'Erro', message: 'Não foi possível concluir a avaliação.' });
+      showAlert({ title: 'Erro', message: 'Não foi possível concluir o questionário.' });
     } finally {
       setSubmitting(false);
     }
@@ -200,7 +200,7 @@ export default function PsychologicalAssessmentFlowScreen() {
             onPress={handleNext}
             disabled={!answered || submitting}
             accessibilityRole="button"
-            accessibilityLabel={isLastStep ? 'Finalizar avaliação' : 'Próximo passo'}
+            accessibilityLabel={isLastStep ? 'Finalizar questionário' : 'Próximo passo'}
           >
             {submitting ? (
               <ActivityIndicator color={theme.ctaText} />

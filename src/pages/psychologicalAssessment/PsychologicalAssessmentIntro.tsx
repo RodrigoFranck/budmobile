@@ -25,7 +25,7 @@ export default function PsychologicalAssessmentIntro() {
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.content}>
         <Text style={styles.title} accessibilityRole="header">
-          Avaliação Psicológica
+          Questionário Psicológico
         </Text>
         <Text style={styles.description}>
           {PSYCHOLOGICAL_ASSESSMENT_TOTAL_QUESTIONS} perguntas rápidas pra eu te conhecer melhor
@@ -43,7 +43,7 @@ export default function PsychologicalAssessmentIntro() {
           style={styles.primaryButton}
           onPress={() => navigation.navigate('PsychologicalAssessmentFlow')}
           accessibilityRole="button"
-          accessibilityLabel="Começar avaliação psicológica"
+          accessibilityLabel="Começar questionário psicológico"
         >
           <Text style={styles.primaryButtonLabel}>Começar</Text>
         </Pressable>

@@ -272,9 +272,9 @@ export default function SettingsScreen() {
           activeOpacity={0.8}
           style={styles.row}
           accessibilityRole="button"
-          accessibilityLabel="Avaliação psicológica"
+          accessibilityLabel="Questionário psicológico"
         >
-          <Text style={styles.rowText}>Avaliação psicológica</Text>
+          <Text style={styles.rowText}>Questionário psicológico</Text>
         </TouchableOpacity>
 
         <View style={styles.row}>

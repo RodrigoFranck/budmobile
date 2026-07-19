@@ -22,7 +22,7 @@ export function usePsychologicalAssessment() {
         .single();
 
       if (error) {
-        console.error('Erro ao salvar avaliação psicológica:', error);
+        console.error('Erro ao salvar questionário psicológico:', error);
         return null;
       }
 
