@@ -79,14 +79,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         if (error) {
           setPreferenceState('system');
+        } else if (data?.dark_mode === true) {
+          setPreferenceState('dark');
         } else {
-          const pref: ThemePreference =
-            data?.dark_mode === null || data?.dark_mode === undefined
-              ? 'system'
-              : data.dark_mode
-                ? 'dark'
-                : 'light';
-          setPreferenceState(pref);
+          // null / false / missing → follow system (Appearance API).
+          // Legacy DEFAULT false incorrectly forced light for every profile.
+          setPreferenceState('system');
+          if (data?.dark_mode === false) {
+            void supabase
+              .from('profiles')
+              .update({ dark_mode: null })
+              .eq('user_id', user.id);
+          }
         }
       } catch {
         if (!cancelled) setPreferenceState('system');
@@ -102,23 +106,23 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setPreference = useCallback(
     async (nextPreference: ThemePreference) => {
-      setPreferenceState(nextPreference);
+      // Light is not persisted as an override — follow the device instead.
+      const normalized: ThemePreference =
+        nextPreference === 'light' ? 'system' : nextPreference;
+      setPreferenceState(normalized);
       if (!user?.id) return;
       try {
-        const nextDark =
-          nextPreference === 'system'
-            ? null
-            : nextPreference === 'dark';
+        const nextDark = normalized === 'dark' ? true : null;
         const { error } = await supabase
           .from('profiles')
           .update({ dark_mode: nextDark })
           .eq('user_id', user.id);
         if (error) {
-          setPreferenceState((current) => (current === 'dark' ? 'light' : 'dark'));
+          setPreferenceState((current) => (current === 'dark' ? 'system' : 'dark'));
           appAlert({ title: 'Erro', message: 'Não foi possível salvar sua preferência de tema.' });
         }
       } catch {
-        setPreferenceState((current) => (current === 'dark' ? 'light' : 'dark'));
+        setPreferenceState((current) => (current === 'dark' ? 'system' : 'dark'));
         appAlert({ title: 'Erro', message: 'Não foi possível salvar sua preferência de tema.' });
       }
     },
@@ -127,7 +131,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setMode = useCallback(
     async (nextMode: ThemeMode) => {
-      await setPreference(nextMode);
+      await setPreference(nextMode === 'light' ? 'system' : nextMode);
     },
     [setPreference],
   );

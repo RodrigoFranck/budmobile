@@ -15,4 +15,11 @@ export const CHECKIN_LOADING_MESSAGES: Record<CheckinType, string[]> = {
     'Conectando o esforço com o que ficou em você...',
     'Quase lá, só amarrando o último fio...',
   ],
+  post_game: [
+    'Okay, deixa eu olhar com calma o que rolou no jogo...',
+    'Revisitando como você entrou e o que ficou depois...',
+    'Tem coisa interessante no que você trouxe do jogo...',
+    'Conectando expectativa, emoção e julgamento...',
+    'Quase pronto, só fechando uma ideia...',
+  ],
 };

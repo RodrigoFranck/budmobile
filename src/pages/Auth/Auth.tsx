@@ -2,15 +2,14 @@ import { useState, useEffect } from "react";
 import {
   View,
   Text,
-  Image,
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
   Linking,
-  ImageBackground,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
 import { Apple, ChevronLeft, Eye, EyeOff } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,12 +24,7 @@ import { SITE_ORIGIN } from "@/constants/auth";
 import {
   PRIVACY_POLICY_URL,
   TERMS_OF_SERVICE_URL,
-  HEALTH_DISCLAIMER,
 } from "@/constants/healthSafety";
-import {
-  ELEVEN_LABS_GRANTS_BADGE_LIGHT_URI,
-  ELEVEN_LABS_STARTUP_GRANTS_URL,
-} from "@/constants/partnerships";
 import {
   mapLoginError,
   mapSignupError,
@@ -38,6 +32,7 @@ import {
   signupPasswordMismatchAlert,
   signupSuccessAlert,
 } from "@/utils/auth/authMessages";
+import { GoogleLogo } from "@/components/icons/GoogleLogo";
 
 const backgroundLogin = require("@/assets/background-login.png");
 
@@ -153,13 +148,12 @@ export default function AuthScreen({ navigation }: Props) {
     }
   };
 
+  const isSocialLoading = isLoadingGoogle || isLoadingApple;
+  const isEmailLoading = isLoadingLogin || isLoadingSignup;
+  const isAnyLoading = isSocialLoading || isEmailLoading;
+
   const handleAppleSignIn = async () => {
-    if (
-      isLoadingApple ||
-      isSocialLoading ||
-      isLoadingLogin ||
-      isLoadingSignup
-    ) {
+    if (isLoadingApple || isSocialLoading || isLoadingLogin || isLoadingSignup) {
       return;
     }
 
@@ -173,10 +167,6 @@ export default function AuthScreen({ navigation }: Props) {
       setIsLoadingApple(false);
     }
   };
-
-  const isSocialLoading = isLoadingGoogle || isLoadingApple;
-  const isEmailLoading = isLoadingLogin || isLoadingSignup;
-  const isAnyLoading = isSocialLoading || isEmailLoading;
 
   const handleForgotPassword = () => {
     navigation.navigate("ForgotPassword");
@@ -197,6 +187,8 @@ export default function AuthScreen({ navigation }: Props) {
           onPress={handleAppleSignIn}
           disabled={isAnyLoading}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Continuar com Apple"
         >
           {isLoadingApple ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
@@ -226,20 +218,20 @@ export default function AuthScreen({ navigation }: Props) {
         onPress={handleGoogleSignIn}
         disabled={isAnyLoading}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Continue com o Google"
       >
         {isLoadingGoogle ? (
-          <ActivityIndicator size="small" color="#000" />
+          <ActivityIndicator size="small" color="rgba(0,0,0,0.54)" />
         ) : (
           <>
             <View style={styles.socialIconContainer}>
-              <View style={styles.googleIcon}>
-                <Text style={styles.googleIconText}>G</Text>
-              </View>
+              <GoogleLogo size={24} />
             </View>
             <Text
               style={[styles.socialButtonText, styles.socialButtonTextGoogle]}
             >
-              Continuar com Google
+              Continue com o Google
             </Text>
           </>
         )}
@@ -301,7 +293,7 @@ export default function AuthScreen({ navigation }: Props) {
         activeOpacity={0.7}
       >
         {isLoadingLogin ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
+          <ActivityIndicator size="small" color="#1D1916" />
         ) : (
           <Text style={styles.buttonText}>Entrar</Text>
         )}
@@ -402,7 +394,7 @@ export default function AuthScreen({ navigation }: Props) {
         activeOpacity={0.7}
       >
         {isLoadingSignup ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
+          <ActivityIndicator size="small" color="#1D1916" />
         ) : (
           <Text style={styles.buttonText}>Criar conta</Text>
         )}
@@ -418,7 +410,7 @@ export default function AuthScreen({ navigation }: Props) {
         disabled={isAnyLoading}
         activeOpacity={0.7}
       >
-        <ChevronLeft size={20} color="#1E3A5F" />
+        <ChevronLeft size={20} color="#FFFFFF" />
         <Text style={styles.backButtonText}>Voltar</Text>
       </TouchableOpacity>
 
@@ -457,8 +449,8 @@ export default function AuthScreen({ navigation }: Props) {
     </View>
   );
 
-  const topInset = 80;
-  const bottomInset = 40;
+  const topInset = 40;
+  const bottomInset = 24;
 
   if (authLoading) {
     return (
@@ -469,11 +461,13 @@ export default function AuthScreen({ navigation }: Props) {
   }
 
   return (
-    <ImageBackground
-      source={backgroundLogin}
-      style={styles.container}
-      resizeMode="cover"
-    >
+    <View style={styles.root}>
+      <Image
+        source={backgroundLogin}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+        accessibilityIgnoresInvertColors
+      />
       <KeyboardAvoidingView
         behavior={PlatformConstants.keyboardBehavior}
         style={styles.container}
@@ -505,77 +499,63 @@ export default function AuthScreen({ navigation }: Props) {
             ]}
           >
             <View style={styles.header}>
-              <Text style={styles.budWordmark}>Bud.</Text>
-              <TouchableOpacity
-                style={styles.partnershipRow}
-                onPress={() =>
-                  Linking.openURL(ELEVEN_LABS_STARTUP_GRANTS_URL)
-                }
-                activeOpacity={0.7}
-                accessibilityRole="link"
-                accessibilityLabel="Apoiado por ElevenLabs Startup Grants"
-              >
-                <Text style={styles.supportedByText}>APOIADO POR</Text>
-                <Image
-                  source={{ uri: ELEVEN_LABS_GRANTS_BADGE_LIGHT_URI }}
-                  style={styles.elevenLabsBadge}
-                  resizeMode="contain"
-                  accessibilityLabel="ElevenLabs Grants"
-                />
-              </TouchableOpacity>
+              <Text style={styles.budWordmark} accessible={false}>
+                Bud.
+              </Text>
               <Text style={styles.subtitle}>Você está no lugar certo.</Text>
             </View>
 
-            <View style={styles.mainSection}>
-              {authMethod === "social" ? (
-                <>
-                  {renderSocialButtons()}
+            <View>
+              <View style={styles.mainSection}>
+                {authMethod === "social" ? (
+                  <>
+                    {renderSocialButtons()}
 
-                  <View style={styles.divider}>
-                    <View style={styles.dividerLine} />
-                    <Text style={styles.dividerText}>ou</Text>
-                    <View style={styles.dividerLine} />
-                  </View>
+                    <View style={styles.divider}>
+                      <View style={styles.dividerLine} />
+                      <Text style={styles.dividerText}>ou</Text>
+                      <View style={styles.dividerLine} />
+                    </View>
 
-                  <TouchableOpacity
-                    style={styles.emailAuthToggle}
-                    onPress={() => setAuthMethod("email")}
-                    disabled={isAnyLoading}
-                    activeOpacity={0.7}
+                    <TouchableOpacity
+                      style={styles.emailAuthToggle}
+                      onPress={() => setAuthMethod("email")}
+                      disabled={isAnyLoading}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.emailAuthToggleText}>
+                        Entrar ou criar conta com e-mail
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  renderEmailAuth()
+                )}
+              </View>
+
+              <View style={styles.footerSection}>
+                <Text style={styles.termsText}>
+                  Ao se cadastrar e utilizar o Bud, você concorda com os{" "}
+                  <Text
+                    style={styles.termsLink}
+                    onPress={() => Linking.openURL(TERMS_OF_SERVICE_URL)}
                   >
-                    <Text style={styles.emailAuthToggleText}>
-                      Entrar ou criar conta com e-mail
-                    </Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                renderEmailAuth()
-              )}
-            </View>
-
-            <View style={styles.footerSection}>
-              <Text style={styles.disclaimerText}>{HEALTH_DISCLAIMER}</Text>
-              <Text style={styles.termsText}>
-                Ao se cadastrar e utilizar o Bud, você concorda com os{" "}
-                <Text
-                  style={styles.termsLink}
-                  onPress={() => Linking.openURL(TERMS_OF_SERVICE_URL)}
-                >
-                  Termos de Serviço
-                </Text>{" "}
-                e{" "}
-                <Text
-                  style={styles.termsLink}
-                  onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
-                >
-                  Políticas de Privacidade
+                    Termos de Serviço
+                  </Text>{" "}
+                  e{" "}
+                  <Text
+                    style={styles.termsLink}
+                    onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+                  >
+                    Políticas de Privacidade
+                  </Text>
+                  .
                 </Text>
-                .
-              </Text>
+              </View>
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </ImageBackground>
+    </View>
   );
 }

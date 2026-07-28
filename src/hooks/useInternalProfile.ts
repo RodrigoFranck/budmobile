@@ -61,10 +61,9 @@ export function useInternalProfile() {
           .from("user_internal_profile")
           .select("*")
           .eq("user_id", user.id)
-          .single();
+          .maybeSingle();
 
-        if (error && error.code !== "PGRST116") {
-          // PGRST116 = no rows returned (perfil ainda não existe)
+        if (error) {
           console.error("Error fetching internal profile:", error);
         }
 

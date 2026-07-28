@@ -49,6 +49,7 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
     error,
     generateDeepInsight,
     hydrateInsight,
+    resetTransientState,
   } = useDeepInsight();
 
   const [feedbackGiven, setFeedbackGiven] = useState<'negative' | 'positive' | 'love' | null>(null);
@@ -65,30 +66,26 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
 
   useEffect(() => {
     if (!visible) {
+      resetTransientState();
       return;
     }
 
-    if (status === 'loaded' && insight) {
+    if (deepInsightContent || status !== 'idle') {
       return;
     }
 
-    if (status === 'idle' || status === 'error') {
-      generateDeepInsight(selectedWeekStart)
-        .then((generated) => {
-          if (generated) {
-            void refreshExploreInsights({ cacheOnly: true });
-          }
-        })
-        .catch((err) => {
-          console.error('Error generating deep insight:', err);
-        });
-    }
+    void generateDeepInsight(selectedWeekStart).then((generated) => {
+      if (generated) {
+        void refreshExploreInsights({ cacheOnly: true });
+      }
+    });
   }, [
     visible,
     status,
-    insight,
+    deepInsightContent,
     generateDeepInsight,
     refreshExploreInsights,
+    resetTransientState,
     selectedWeekStart,
   ]);
 
@@ -211,11 +208,12 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
       <View style={styles.centerContent}>
         <Text style={styles.centerTitle}>Ainda estamos nos conhecendo...</Text>
         <Text style={styles.centerSubtitle}>
-          Continue conversando comigo para que eu possa preparar algo especial para você.
+          Converse ou faça check-ins em 2 dias nesta semana para que eu possa preparar algo especial
+          para você. Seu insight semanal é liberado todo domingo.
         </Text>
         <View style={styles.progressRow}>
           <Text style={styles.progressLabel}>
-            {weeklyConversationCount}/{requiredConversations} conversas
+            {weeklyConversationCount}/{requiredConversations} dias
           </Text>
           <View style={styles.progressTrack}>
             <View
@@ -229,7 +227,37 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
           </View>
         </View>
         <Pressable style={styles.outlineButton} onPress={onClose}>
-          <Text style={styles.outlineButtonText}>Continuar conversando</Text>
+          <Text style={styles.outlineButtonText}>Continuar</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+
+  const renderAvailableOnSunday = () => (
+    <View style={styles.stateContainer}>
+      {renderScreenHeader()}
+      <View style={styles.centerContent}>
+        <Text style={styles.centerTitle}>Quase lá...</Text>
+        <Text style={styles.centerSubtitle}>
+          Você já tem dias suficientes nesta semana. Seu insight semanal é liberado todo domingo.
+        </Text>
+        <View style={styles.progressRow}>
+          <Text style={styles.progressLabel}>
+            {weeklyConversationCount}/{requiredConversations} dias
+          </Text>
+          <View style={styles.progressTrack}>
+            <View
+              style={[
+                styles.progressFill,
+                {
+                  width: `${Math.min((weeklyConversationCount / requiredConversations) * 100, 100)}%`,
+                },
+              ]}
+            />
+          </View>
+        </View>
+        <Pressable style={styles.outlineButton} onPress={onClose}>
+          <Text style={styles.outlineButtonText}>Voltar</Text>
         </Pressable>
       </View>
     </View>
@@ -254,8 +282,18 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
     <View style={styles.stateContainer}>
       {renderScreenHeader()}
       <View style={styles.centerContent}>
-        <Text style={styles.centerTitle}>{error}</Text>
-        <Pressable style={styles.outlineButton} onPress={onClose}>
+        <Text style={styles.centerTitle}>
+          {error || 'Não foi possível gerar o insight agora.'}
+        </Text>
+        <Pressable
+          style={styles.outlineButton}
+          onPress={() => {
+            void generateDeepInsight(selectedWeekStart);
+          }}
+        >
+          <Text style={styles.outlineButtonText}>Tentar novamente</Text>
+        </Pressable>
+        <Pressable style={[styles.outlineButton, styles.outlineButtonSpaced]} onPress={onClose}>
           <Text style={styles.outlineButtonText}>Fechar</Text>
         </Pressable>
       </View>
@@ -355,6 +393,8 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
     body = renderLoading();
   } else if (status === 'insufficient_conversations') {
     body = renderInsufficient();
+  } else if (status === 'available_on_sunday') {
+    body = renderAvailableOnSunday();
   } else if (status === 'no_insight_for_week') {
     body = renderNoInsight();
   } else if (status === 'error') {

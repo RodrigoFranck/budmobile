@@ -107,6 +107,15 @@ export function isSundayInBrasilia(): boolean {
 }
 
 /**
+ * Check-in pós-jogo: disponível todo domingo a partir das 8h (Brasília)
+ */
+export function isPostGameCheckInAvailable(from: Date = new Date()): boolean {
+  const parts = getBrasiliaDateTimeParts(from);
+  const date = new Date(parts.year, parts.month - 1, parts.day);
+  return date.getDay() === 0 && parts.hour >= 8;
+}
+
+/**
  * Formata um Date para string YYYY-MM-DD (componentes locais do Date passado)
  */
 export function formatDateBrasilia(date: Date): string {

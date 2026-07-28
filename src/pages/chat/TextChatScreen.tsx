@@ -1,7 +1,10 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import { KeyboardAvoidingView, Pressable, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import {
+  useFocusEffect,
+  useNavigation,
+} from '@react-navigation/native';
 import { ChevronLeft } from 'lucide-react-native';
 
 import { ChatContainer } from '@/components/chat/ChatContainer';
@@ -54,11 +57,6 @@ export default function TextChatScreen() {
       bootstrapInsightSession();
     }, [bootstrapInsightSession, tabLoading]),
   );
-
-  useEffect(() => {
-    if (tabLoading) return;
-    bootstrapInsightSession();
-  }, [bootstrapInsightSession, tabLoading]);
 
   const handleBack = useCallback(() => {
     if (navigation.canGoBack()) {

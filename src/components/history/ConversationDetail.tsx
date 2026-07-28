@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
@@ -10,10 +10,6 @@ import type { InsightContextBackgroundType } from '@/components/chat/InsightCont
 import { useMessages } from '@/hooks/useMessages';
 import { useOnboardingColors } from '@/constants/onboardingTheme';
 import { useConversationDetailStyles } from '@/components/history/ConversationDetail.styles';
-import {
-  generateConversationTitle,
-  needsConversationTitleRegeneration,
-} from '@/utils/generateConversationTitle';
 
 interface ConversationDetailProps {
   conversationId: string;
@@ -34,9 +30,15 @@ function parseContextBackgroundType(value: unknown): InsightContextBackgroundTyp
   return 'inspired';
 }
 
+function capitalizeFirst(value: string): string {
+  if (!value) {
+    return value;
+  }
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 export default function ConversationDetail({
   conversationId,
-  conversationTitle,
   conversationDate,
   onBack,
 }: ConversationDetailProps) {
@@ -44,42 +46,15 @@ export default function ConversationDetail({
   const insets = useSafeAreaInsets();
   const onboardingColors = useOnboardingColors();
   const styles = useConversationDetailStyles();
-  const [generatedTitle, setGeneratedTitle] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!needsConversationTitleRegeneration(conversationTitle)) {
-      setGeneratedTitle(null);
-      return;
-    }
+  const weekdayLabel = useMemo(() => {
+    const raw = format(new Date(conversationDate), 'EEEE', { locale: ptBR });
+    return capitalizeFirst(raw);
+  }, [conversationDate]);
 
-    let cancelled = false;
-
-    generateConversationTitle(conversationId)
-      .then((title) => {
-        if (!cancelled && title) {
-          setGeneratedTitle(title);
-        }
-      })
-      .catch(() => {
-        // Mantém fallback de data enquanto a IA não responde.
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [conversationId, conversationTitle]);
-
-  const displayTitle = useMemo(() => {
-    if (!needsConversationTitleRegeneration(conversationTitle)) {
-      return conversationTitle;
-    }
-
-    if (generatedTitle) {
-      return generatedTitle;
-    }
-
+  const dateLabel = useMemo(() => {
     return format(new Date(conversationDate), "d 'de' MMMM", { locale: ptBR });
-  }, [conversationTitle, conversationDate, generatedTitle]);
+  }, [conversationDate]);
 
   if (loading) {
     return (
@@ -91,10 +66,6 @@ export default function ConversationDetail({
     );
   }
 
-  const formattedDate = format(new Date(conversationDate), "EEEE, d 'de' MMMM", {
-    locale: ptBR,
-  });
-
   return (
     <View style={styles.screen}>
       <View style={[styles.headerRow, { paddingTop: insets.top + 18 }]}>
@@ -105,19 +76,20 @@ export default function ConversationDetail({
           onPress={onBack}
           style={styles.backButton}
         >
-          <ChevronLeft size={18} color={onboardingColors.textTaupe} />
-          <Text style={styles.backLabel}>Voltar</Text>
+          <ChevronLeft size={20} color="rgba(255,255,255,0.7)" />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.titleBlock}>
-        <Text style={styles.title} accessibilityRole="header">
-          {displayTitle}
-        </Text>
-        <Text style={styles.subtitle}>{formattedDate}</Text>
-      </View>
+      <View style={styles.headerDivider} />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.titleBlock}>
+          <Text style={styles.weekday} accessibilityRole="header">
+            {weekdayLabel}
+          </Text>
+          <Text style={styles.dateLabel}>{dateLabel}</Text>
+        </View>
+
         {messages.length === 0 ? (
           <View style={styles.emptyState}>
             <MessageSquare size={48} color={onboardingColors.textSecondary} />
@@ -154,24 +126,12 @@ export default function ConversationDetail({
                   })()
                 ) : message.role === 'user' ? (
                   <View style={styles.userWrap}>
-                    <View style={styles.userMeta}>
-                      <Text style={styles.roleLabel}>Você</Text>
-                      <Text style={styles.timeLabel}>
-                        {format(new Date(message.created_at), 'HH:mm', { locale: ptBR })}
-                      </Text>
-                    </View>
-                    <View style={styles.userBubble}>
-                      <Text style={styles.userBody}>{message.content}</Text>
-                    </View>
+                    <Text style={styles.roleLabelUser}>Você</Text>
+                    <Text style={styles.userBody}>{message.content}</Text>
                   </View>
                 ) : message.role === 'assistant' ? (
                   <View style={styles.assistantWrap}>
-                    <View style={styles.assistantMeta}>
-                      <Text style={styles.roleLabel}>Bud.</Text>
-                      <Text style={styles.timeLabel}>
-                        {format(new Date(message.created_at), 'HH:mm', { locale: ptBR })}
-                      </Text>
-                    </View>
+                    <Text style={styles.roleLabelBud}>Bud.</Text>
                     <Text style={styles.assistantBody}>{message.content}</Text>
                   </View>
                 ) : null}

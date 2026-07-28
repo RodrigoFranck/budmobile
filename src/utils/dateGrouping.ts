@@ -1,11 +1,45 @@
 import { format, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { getNowInBrasilia, parseDateString } from "./dateUtils";
+import {
+  getNowInBrasilia,
+  getWeekEndBrasilia,
+  getWeekStartBrasilia,
+  parseDateString,
+} from "./dateUtils";
 import { resolveConversationDisplayTitle } from "./generateConversationTitle";
 
 function buildConversationFallbackTitle(date: Date): string {
   const label = format(date, "d 'de' MMMM", { locale: ptBR });
   return `Conversa de ${label}`;
+}
+
+function capitalizeFirst(value: string): string {
+  if (!value) {
+    return value;
+  }
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function formatDayMonth(date: Date): string {
+  const raw = format(date, 'd MMM', { locale: ptBR });
+  const [day, month] = raw.split(' ');
+  return `${day} ${capitalizeFirst(month)}`;
+}
+
+export function formatWeekRangeLabel(weekStart: Date, weekEnd: Date): string {
+  return `${formatDayMonth(weekStart)} - ${formatDayMonth(weekEnd)}`;
+}
+
+export function formatConversationWeekdayLabel(date: Date): string {
+  const weekday = format(date, 'EEEE', { locale: ptBR }).split('-')[0];
+  return `${capitalizeFirst(weekday)}, ${formatDayMonth(date)}`;
+}
+
+function resolveConversationDate(conv: ConversationWithDate): Date {
+  const dateSource = conv.conversation_date || conv.created_at;
+  return dateSource.includes('T')
+    ? new Date(dateSource)
+    : parseDateString(dateSource);
 }
 
 export interface ConversationWithDate {
@@ -34,14 +68,21 @@ export interface MonthGroup {
   count: number;
 }
 
+export interface WeekGroup {
+  weekKey: string;
+  weekLabel: string;
+  weekStart: Date;
+  weekEnd: Date;
+  conversations: ConversationWithDate[];
+  count: number;
+  isCurrent: boolean;
+}
+
 export function groupConversationsByMonth(conversations: ConversationWithDate[]): MonthGroup[] {
   const groups = new Map<string, MonthGroup>();
 
   conversations.forEach((conv) => {
-    const dateSource = conv.conversation_date || conv.created_at;
-    const convDate = dateSource.includes('T')
-      ? new Date(dateSource)
-      : parseDateString(dateSource);
+    const convDate = resolveConversationDate(conv);
 
     const monthKey = format(convDate, 'yyyy-MM');
     const rawLabel = format(convDate, 'MMMM yyyy', { locale: ptBR });
@@ -56,6 +97,50 @@ export function groupConversationsByMonth(conversations: ConversationWithDate[])
   });
 
   return Array.from(groups.values()).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+}
+
+export function groupConversationsByWeek(conversations: ConversationWithDate[]): WeekGroup[] {
+  const groups = new Map<string, WeekGroup>();
+  const currentWeekStart = getWeekStartBrasilia();
+  const currentWeekKey = format(currentWeekStart, 'yyyy-MM-dd');
+
+  conversations.forEach((conv) => {
+    const convDate = resolveConversationDate(conv);
+    const weekStart = getWeekStartBrasilia(convDate);
+    const weekEnd = getWeekEndBrasilia(weekStart);
+    const weekKey = format(weekStart, 'yyyy-MM-dd');
+
+    if (!groups.has(weekKey)) {
+      groups.set(weekKey, {
+        weekKey,
+        weekLabel: formatWeekRangeLabel(weekStart, weekEnd),
+        weekStart,
+        weekEnd,
+        conversations: [],
+        count: 0,
+        isCurrent: weekKey === currentWeekKey,
+      });
+    }
+
+    const group = groups.get(weekKey)!;
+    group.conversations.push(conv);
+    group.count += 1;
+  });
+
+  if (!groups.has(currentWeekKey)) {
+    const weekEnd = getWeekEndBrasilia(currentWeekStart);
+    groups.set(currentWeekKey, {
+      weekKey: currentWeekKey,
+      weekLabel: formatWeekRangeLabel(currentWeekStart, weekEnd),
+      weekStart: currentWeekStart,
+      weekEnd,
+      conversations: [],
+      count: 0,
+      isCurrent: true,
+    });
+  }
+
+  return Array.from(groups.values()).sort((a, b) => b.weekKey.localeCompare(a.weekKey));
 }
 
 export function groupConversationsByDate(conversations: ConversationWithDate[]): GroupedConversation[] {

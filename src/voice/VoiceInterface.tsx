@@ -14,7 +14,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Audio } from 'expo-av';
-import { Mic, MicOff } from 'lucide-react-native';
+import { MicOff } from 'lucide-react-native';
 import { useConversation } from '@elevenlabs/react-native';
 import { appAlert } from '@/contexts/AppAlertContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -35,6 +35,7 @@ import {
   type VoiceAppearance,
 } from '@/voice/VoiceInterface.styles';
 import { ProminentVoiceButton } from '@/voice/ProminentVoiceButton';
+import { WavesIcon } from '@/voice/WavesIcon';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
 import { buildVoiceSessionStartOptions, type VoiceSessionStartOptions } from '@/voice/voiceElevenLabsSession';
 
@@ -154,7 +155,7 @@ function VoiceButtonVisual({
       ) : isConnected ? (
         <MicOff size={iconSize} color={iconColor} />
       ) : (
-        <Mic size={iconSize} color={iconColor} strokeWidth={2.25} />
+        <WavesIcon size={iconSize} color={iconColor} />
       )}
     </TouchableOpacity>
   );

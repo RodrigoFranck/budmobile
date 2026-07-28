@@ -25,6 +25,19 @@ function splitParagraphs(text: string): string[] {
 
 const MORNING_GRADIENT = ['rgba(245,158,11,0.2)', 'rgba(244,63,94,0.1)', '#1D1916'] as const;
 const POST_TRAINING_GRADIENT = ['rgba(147,51,234,0.22)', 'rgba(59,130,246,0.1)', '#1D1916'] as const;
+const POST_GAME_GRADIENT = ['rgba(120,53,15,0.28)', 'rgba(180,83,9,0.12)', '#1D1916'] as const;
+
+function getResultGradient(type: string) {
+  if (type === 'morning') return MORNING_GRADIENT;
+  if (type === 'post_game') return POST_GAME_GRADIENT;
+  return POST_TRAINING_GRADIENT;
+}
+
+function getResultBadge(type: string) {
+  if (type === 'morning') return 'Check-in da Manhã';
+  if (type === 'post_game') return 'CHECK-IN PÓS-JOGO';
+  return 'Check-in Pós-Treino';
+}
 
 export default function CheckInResultScreen() {
   const navigation = useNavigation<Nav>();
@@ -46,15 +59,11 @@ export default function CheckInResultScreen() {
   const generateInFlightRef = useRef(false);
 
   const gradient = useMemo(
-    () =>
-      resolveCheckInGradient(
-        type === 'morning' ? MORNING_GRADIENT : POST_TRAINING_GRADIENT,
-        theme.surface,
-      ),
+    () => resolveCheckInGradient(getResultGradient(type), theme.surface),
     [theme.surface, type],
   );
 
-  const badge = type === 'morning' ? 'Check-in da Manhã' : 'Check-in Pós-Treino';
+  const badge = getResultBadge(type);
   const loadingMessages = CHECKIN_LOADING_MESSAGES[type];
 
   useEffect(() => {
@@ -237,9 +246,9 @@ export default function CheckInResultScreen() {
               style={styles.ctaButton}
               onPress={() => handleTalkAbout()}
               accessibilityRole="button"
-              accessibilityLabel="Vamos conversar sobre isso"
+              accessibilityLabel="Conversar sobre isso"
             >
-              <Text style={styles.ctaLabel}>Vamos conversar sobre isso</Text>
+              <Text style={styles.ctaLabel}>Conversar sobre isso</Text>
             </Pressable>
         </ScrollView>
       ) : null}

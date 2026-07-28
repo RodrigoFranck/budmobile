@@ -139,8 +139,8 @@ export function useExploreInsights(refreshToken = 0) {
   const [deepInsightContent, setDeepInsightContent] = useState<DeepInsight | null>(null);
   const [deepInsightProgress, setDeepInsightProgress] = useState<InsightUnlockProgress>({
     conversationCount: 0,
-    required: 5,
-    remaining: 5,
+    required: 2,
+    remaining: 2,
     progress: 0,
     locked: true,
   });
@@ -176,8 +176,8 @@ export function useExploreInsights(refreshToken = 0) {
     const deepRule = ruleByType.get(DEEP_INSIGHT_TYPE);
     const deepProgress = progressMap[DEEP_INSIGHT_TYPE] ?? {
       conversationCount: 0,
-      required: deepRule?.required_conversations ?? 5,
-      remaining: deepRule?.required_conversations ?? 5,
+      required: deepRule?.required_conversations ?? 2,
+      remaining: deepRule?.required_conversations ?? 2,
       progress: 0,
       locked: true,
     };
@@ -213,7 +213,7 @@ export function useExploreInsights(refreshToken = 0) {
         title: deepRule?.locked_title ?? 'Inspirado em você',
         description:
           deepRule?.locked_description ??
-          'Continue conversando comigo para desbloquear seu insight semanal.',
+          'Converse ou faça check-ins em 2 dias nesta semana. Seu insight semanal é liberado todo domingo.',
         locked: true,
         remaining: effectiveDeepProgress.remaining,
         cycleProgress: effectiveDeepProgress.progress,
@@ -312,8 +312,8 @@ export function useExploreInsights(refreshToken = 0) {
         setDeepInsightContent(null);
         setDeepInsightProgress({
           conversationCount: 0,
-          required: 5,
-          remaining: 5,
+          required: 2,
+          remaining: 2,
           progress: 0,
           locked: true,
         });

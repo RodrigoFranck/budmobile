@@ -9,6 +9,7 @@ import {
   getWeekEndBrasilia,
   getWeekStartBrasilia,
   getYesterdayInBrasilia,
+  isSundayInBrasilia,
 } from '@/utils/dateUtils';
 
 const DEFAULT_RULES: InsightUnlockRule[] = [
@@ -32,32 +33,93 @@ const DEFAULT_RULES: InsightUnlockRule[] = [
   },
   {
     insight_type: 'frequency',
-    required_conversations: 3,
-    count_scope: 'total_with_messages',
+    required_conversations: 2,
+    count_scope: 'total_active_days',
     locked_title: 'Vou observar sua frequência',
     locked_description:
-      'Continue conversando comigo que logo eu te trago um resumo de como você usa o Bud.',
+      'Converse comigo ou faça check-ins por 2 dias para eu te trazer um resumo de como você usa o Bud.',
     display_order: 3,
   },
   {
     insight_type: 'habit',
-    required_conversations: 3,
-    count_scope: 'total_with_messages',
+    required_conversations: 2,
+    count_scope: 'total_active_days',
     locked_title: 'Um hábito pra você',
     locked_description:
-      'Quanto mais a gente conversa, mais eu consigo sugerir algo que faça sentido pra sua rotina.',
+      'Converse comigo ou faça check-ins por 2 dias para eu sugerir algo que faça sentido pra sua rotina.',
     display_order: 4,
   },
   {
     insight_type: 'deep_insight',
-    required_conversations: 5,
-    count_scope: 'weekly_with_messages',
+    required_conversations: 2,
+    count_scope: 'weekly_active_days',
     locked_title: 'Inspirado em você',
     locked_description:
-      'Continue conversando comigo para desbloquear seu insight semanal.',
+      'Converse ou faça check-ins em 2 dias nesta semana. Seu insight semanal é liberado todo domingo.',
     display_order: 5,
   },
 ];
+
+function uniqueDateCount(dates: Array<string | null | undefined>): number {
+  return new Set(dates.filter((date): date is string => !!date)).size;
+}
+
+async function countConversationDays(
+  userId: string,
+  range?: { start: string; end: string },
+): Promise<string[]> {
+  let query = supabase
+    .from('conversations')
+    .select('conversation_date, messages!inner(id)')
+    .eq('user_id', userId)
+    .eq('is_archived', false);
+
+  if (range) {
+    query = query.gte('conversation_date', range.start).lte('conversation_date', range.end);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('Error fetching conversation days:', error);
+    return [];
+  }
+
+  return (data ?? []).map((row) => row.conversation_date);
+}
+
+async function countCheckInDays(
+  userId: string,
+  range?: { start: string; end: string },
+): Promise<string[]> {
+  let query = supabase
+    .from('daily_checkins')
+    .select('checkin_date')
+    .eq('user_id', userId);
+
+  if (range) {
+    query = query.gte('checkin_date', range.start).lte('checkin_date', range.end);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('Error fetching check-in days:', error);
+    return [];
+  }
+
+  return (data ?? []).map((row) => row.checkin_date);
+}
+
+async function countActiveDays(
+  userId: string,
+  range?: { start: string; end: string },
+): Promise<number> {
+  const [conversationDays, checkInDays] = await Promise.all([
+    countConversationDays(userId, range),
+    countCheckInDays(userId, range),
+  ]);
+
+  return uniqueDateCount([...conversationDays, ...checkInDays]);
+}
 
 export async function fetchInsightUnlockRules(): Promise<InsightUnlockRule[]> {
   const { data, error } = await supabase
@@ -95,9 +157,14 @@ export async function countConversationsForScope(
     return count ?? 0;
   }
 
-  if (scope === 'weekly_with_messages') {
+  if (scope === 'weekly_with_messages' || scope === 'weekly_active_days') {
     const weekStart = formatDateBrasilia(getWeekStartBrasilia());
     const weekEnd = formatDateBrasilia(getWeekEndBrasilia(getWeekStartBrasilia()));
+    const range = { start: weekStart, end: weekEnd };
+
+    if (scope === 'weekly_active_days') {
+      return countActiveDays(userId, range);
+    }
 
     const { count, error } = await supabase
       .from('conversations')
@@ -113,6 +180,10 @@ export async function countConversationsForScope(
     }
 
     return count ?? 0;
+  }
+
+  if (scope === 'total_active_days') {
+    return countActiveDays(userId);
   }
 
   const { count, error } = await supabase
@@ -147,13 +218,16 @@ export function computeInsightUnlockProgress(
   const required = rule.required_conversations;
   const progress = Math.min(conversationCount, required);
   const remaining = Math.max(0, required - conversationCount);
+  const meetsThreshold = conversationCount >= required;
+  const waitingForSunday =
+    rule.insight_type === 'deep_insight' && meetsThreshold && !isSundayInBrasilia();
 
   return {
     conversationCount,
     required,
     remaining,
     progress,
-    locked: conversationCount < required,
+    locked: !meetsThreshold || waitingForSunday,
   };
 }
 

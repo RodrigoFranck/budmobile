@@ -31,9 +31,17 @@ export default function App() {
   }, []);
 
   if (!fontsLoaded) {
+    // Match native / Figma splash (#1D1916) — do not flash light theme while fonts load.
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000000' }}>
-        <ActivityIndicator size="large" color="#466080" />
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: '#1D1916',
+        }}
+      >
+        <ActivityIndicator size="large" color="#77716C" />
       </View>
     );
   }

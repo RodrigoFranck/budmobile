@@ -7,7 +7,7 @@ import {
   KeyboardAvoidingView,
   TouchableOpacity,
   ActivityIndicator,
-  ImageBackground,
+  Image,
 } from "react-native";
 import { ChevronLeft } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
@@ -111,7 +111,7 @@ export default function ForgotPasswordScreen() {
           activeOpacity={0.7}
         >
           {isLoading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <ActivityIndicator size="small" color="#1D1916" />
           ) : (
             <Text style={styles.buttonText}>Enviar Link de Recuperação</Text>
           )}
@@ -121,11 +121,13 @@ export default function ForgotPasswordScreen() {
   );
 
   return (
-    <ImageBackground
-      source={backgroundLogin}
-      style={styles.container}
-      resizeMode="cover"
-    >
+    <View style={styles.root}>
+      <Image
+        source={backgroundLogin}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+        accessibilityIgnoresInvertColors
+      />
       <KeyboardAvoidingView
         behavior={PlatformConstants.keyboardBehavior}
         style={styles.container}
@@ -143,7 +145,7 @@ export default function ForgotPasswordScreen() {
             disabled={isLoading}
             activeOpacity={0.7}
           >
-            <ChevronLeft size={20} color="#1E3A5F" />
+            <ChevronLeft size={20} color="#FFFFFF" />
             <Text style={styles.backButtonText}>Voltar</Text>
           </TouchableOpacity>
         </View>
@@ -164,6 +166,7 @@ export default function ForgotPasswordScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </ImageBackground>
+    </View>
   );
 }
+

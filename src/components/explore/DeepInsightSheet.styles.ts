@@ -96,6 +96,9 @@ export const deepInsightSheetStyles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.2)',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
+  outlineButtonSpaced: {
+    marginTop: 12,
+  },
   outlineButtonText: {
     fontFamily: frauncesFont,
     fontSize: 16,

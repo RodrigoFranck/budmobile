@@ -1,5 +1,9 @@
 import { StyleSheet } from 'react-native';
-import { frauncesFont, useOnboardingColors } from '@/constants/onboardingTheme';
+import {
+  frauncesFont,
+  instrumentSansFont,
+  useOnboardingColors,
+} from '@/constants/onboardingTheme';
 
 export function useConversationDetailStyles() {
   const onboardingColors = useOnboardingColors();
@@ -15,46 +19,46 @@ export function useConversationDetailStyles() {
       justifyContent: 'center',
     },
     loadingText: {
-      fontFamily: frauncesFont,
+      fontFamily: instrumentSansFont,
       color: onboardingColors.textSecondary,
     },
     headerRow: {
-      paddingHorizontal: 16,
+      paddingHorizontal: 20,
       paddingBottom: 14,
     },
     backButton: {
-      flexDirection: 'row',
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: 'rgba(255,255,255,0.08)',
       alignItems: 'center',
-      gap: 4,
-      paddingVertical: 8,
-      paddingRight: 12,
+      justifyContent: 'center',
     },
-    backLabel: {
-      fontFamily: frauncesFont,
-      fontSize: 16,
-      color: onboardingColors.textTaupe,
+    headerDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: 'rgba(255,255,255,0.08)',
     },
     titleBlock: {
-      paddingHorizontal: 20,
-      paddingBottom: 12,
+      paddingTop: 24,
+      paddingBottom: 28,
     },
-    title: {
+    weekday: {
       fontFamily: frauncesFont,
-      fontSize: 30,
+      fontSize: 24,
       color: onboardingColors.white,
       marginBottom: 4,
     },
-    subtitle: {
-      fontFamily: frauncesFont,
-      fontSize: 16,
-      color: onboardingColors.textSecondary,
+    dateLabel: {
+      fontFamily: instrumentSansFont,
+      fontSize: 19,
+      color: onboardingColors.white,
     },
     scroll: {
       flex: 1,
     },
     scrollContent: {
-      paddingHorizontal: 16,
-      paddingBottom: 24,
+      paddingHorizontal: 30,
+      paddingBottom: 40,
     },
     emptyState: {
       paddingVertical: 48,
@@ -62,65 +66,51 @@ export function useConversationDetailStyles() {
       justifyContent: 'center',
     },
     emptyText: {
-      fontFamily: frauncesFont,
+      fontFamily: instrumentSansFont,
       color: onboardingColors.textSecondary,
       textAlign: 'center',
+      marginTop: 12,
     },
     messages: {
-      gap: 20,
+      gap: 28,
     },
     messageRow: {
       width: '100%',
-      paddingVertical: 8,
     },
     userWrap: {
       alignItems: 'flex-end',
     },
-    userMeta: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      marginBottom: 6,
-    },
-    userBubble: {
-      maxWidth: '78%',
-      backgroundColor: 'rgba(255, 255, 255, 0.08)',
-      borderRadius: 16,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-    },
-    userBody: {
-      fontFamily: frauncesFont,
-      fontSize: 15,
-      color: onboardingColors.white,
-      lineHeight: 22,
-    },
     assistantWrap: {
       alignItems: 'flex-start',
-      maxWidth: '88%',
     },
-    assistantMeta: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
+    roleLabelBud: {
+      fontFamily: frauncesFont,
+      fontSize: 20,
+      fontStyle: 'italic',
+      color: onboardingColors.grayMedium,
       marginBottom: 6,
     },
-    roleLabel: {
+    roleLabelUser: {
       fontFamily: frauncesFont,
-      fontSize: 12,
-      color: onboardingColors.textTaupe,
+      fontSize: 20,
+      fontStyle: 'italic',
+      color: onboardingColors.grayMedium,
+      marginBottom: 6,
     },
-    timeLabel: {
-      fontFamily: frauncesFont,
-      fontSize: 12,
-      color: onboardingColors.textSecondary,
-      opacity: 0.7,
+    userBody: {
+      fontFamily: instrumentSansFont,
+      fontSize: 20,
+      color: onboardingColors.white,
+      lineHeight: 28,
+      textAlign: 'right',
+      maxWidth: '92%',
     },
     assistantBody: {
-      fontFamily: frauncesFont,
-      fontSize: 15,
-      color: onboardingColors.white,
-      lineHeight: 22,
+      fontFamily: instrumentSansFont,
+      fontSize: 20,
+      color: onboardingColors.grayMedium,
+      lineHeight: 28,
+      maxWidth: '92%',
     },
     contextFallbackWrap: {
       justifyContent: 'center',
@@ -134,11 +124,10 @@ export function useConversationDetailStyles() {
       borderColor: 'rgba(255,255,255,0.10)',
     },
     contextFallbackText: {
-      fontFamily: frauncesFont,
+      fontFamily: instrumentSansFont,
       fontSize: 14,
       color: onboardingColors.textSecondary,
       textAlign: 'center',
     },
   });
 }
-

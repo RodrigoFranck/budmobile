@@ -24,9 +24,10 @@ import {
   registerChatInsightConsumer,
 } from '@/utils/navigateToChat';
 import {
+  clearMessageClientIds,
+  createStreamingMessageId,
   mergeDbAndStreamingMessages,
   registerMessageClientId,
-  clearMessageClientIds,
 } from '@/utils/mergeChatMessages';
 import { syncExploreInsights } from '@/utils/syncExploreInsights';
 import type { StreamingMessage } from '@/types/messages';
@@ -138,6 +139,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const bootstrapInsightSessionRef = useRef<() => void>(() => {});
   const handledInsightKeyRef = useRef<string | null>(null);
   const isVoiceAutoStartInFlightRef = useRef(false);
+  const sendInFlightRef = useRef(false);
 
   const applyChatInsight = useCallback(
     (insight: ChatInsightParam) => {
@@ -179,6 +181,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
 
     handledInsightKeyRef.current = null;
     isVoiceAutoStartInFlightRef.current = false;
+    sendInFlightRef.current = false;
     setStreamingMessages([]);
     setIsStreaming(false);
     streamingIdRef.current = null;
@@ -293,12 +296,14 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
 
   const handleSendMessage = useCallback(
     async (message: string, contextOverride?: InsightContext | null) => {
-      if (!currentConversationId || !user) return;
+      if (!currentConversationId || !user || sendInFlightRef.current) return;
+
+      sendInFlightRef.current = true;
 
       const activeInsightContext =
         contextOverride ?? insightContextRef.current ?? insightContext;
 
-      const userMessageId = `user-${Date.now()}`;
+      const userMessageId = createStreamingMessageId('user');
       registerMessageClientId(messageClientIdsRef.current, 'user', message, userMessageId);
       setStreamingMessages((prev) => [
         ...prev,
@@ -323,7 +328,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       ];
 
       setIsStreaming(true);
-      const assistantMessageId = `assistant-${Date.now()}`;
+      const assistantMessageId = createStreamingMessageId('assistant');
       streamingIdRef.current = assistantMessageId;
 
       setStreamingMessages((prev) => [
@@ -356,52 +361,60 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
             guidanceText: approachDecision.guidanceText,
           };
 
-      await streamChat({
-        messages: apiMessages,
-        userContext: streamUserContext,
-        insightContext: activeInsightContext ?? undefined,
-        memoryContext: memoryLoading ? undefined : memoryContext,
-        approachContext: streamApproachContext,
-        onDelta: (deltaText) => {
-          accumulatedContent += deltaText;
-          setStreamingMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === assistantMessageId
-                ? { ...msg, content: accumulatedContent }
-                : msg,
-            ),
-          );
-        },
-        onDone: async () => {
-          registerMessageClientId(
-            messageClientIdsRef.current,
-            'assistant',
-            accumulatedContent,
-            assistantMessageId,
-          );
-          setIsStreaming(false);
-          setStreamingMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === assistantMessageId
-                ? { ...msg, isStreaming: false, isRevealing: true }
-                : msg,
-            ),
-          );
-          streamingIdRef.current = null;
+      try {
+        await streamChat({
+          messages: apiMessages,
+          userContext: streamUserContext,
+          insightContext: activeInsightContext ?? undefined,
+          memoryContext: memoryLoading ? undefined : memoryContext,
+          approachContext: streamApproachContext,
+          onDelta: (deltaText) => {
+            accumulatedContent += deltaText;
+            setStreamingMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMessageId
+                  ? { ...msg, content: accumulatedContent }
+                  : msg,
+              ),
+            );
+          },
+          onDone: async () => {
+            registerMessageClientId(
+              messageClientIdsRef.current,
+              'assistant',
+              accumulatedContent,
+              assistantMessageId,
+            );
+            setIsStreaming(false);
+            sendInFlightRef.current = false;
+            setStreamingMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMessageId
+                  ? { ...msg, isStreaming: false, isRevealing: true }
+                  : msg,
+              ),
+            );
+            streamingIdRef.current = null;
 
-          await userMessagePromise;
-          await addMessage(accumulatedContent, 'assistant');
-          scheduleInsightSync();
-        },
-        onError: (error) => {
-          setIsStreaming(false);
-          alert(`Erro: ${error}`);
-          setStreamingMessages((prev) =>
-            prev.filter((msg) => msg.id !== assistantMessageId),
-          );
-          streamingIdRef.current = null;
-        },
-      });
+            await userMessagePromise;
+            await addMessage(accumulatedContent, 'assistant');
+            scheduleInsightSync();
+          },
+          onError: (error) => {
+            setIsStreaming(false);
+            sendInFlightRef.current = false;
+            alert(`Erro: ${error}`);
+            setStreamingMessages((prev) =>
+              prev.filter((msg) => msg.id !== assistantMessageId),
+            );
+            streamingIdRef.current = null;
+          },
+        });
+      } catch {
+        setIsStreaming(false);
+        sendInFlightRef.current = false;
+        streamingIdRef.current = null;
+      }
     },
     [
       currentConversationId,
@@ -425,7 +438,8 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       currentConversationId &&
       user &&
       !didAutoSendInsightRef.current &&
-      !isStreaming
+      !isStreaming &&
+      !sendInFlightRef.current
     ) {
       didAutoSendInsightRef.current = true;
       const message = pending.initialUserMessage.trim();

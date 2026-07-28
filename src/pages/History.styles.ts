@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 
-import { frauncesFont } from '@/constants/onboardingTheme';
+import { frauncesFont, instrumentSansFont } from '@/constants/onboardingTheme';
 import type { AppColors } from '@/lib/colors';
 
 export function createHistoryStyles(colors: AppColors) {
@@ -15,166 +15,206 @@ export function createHistoryStyles(colors: AppColors) {
     scrollContent: {
       paddingBottom: 24,
     },
-    center: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    pageTitle: {
-      fontFamily: frauncesFont,
-      fontSize: 32,
-      color: colors.foreground,
-      marginBottom: 16,
-    },
-    inspiredCard: {
-      borderRadius: 16,
-      overflow: 'hidden',
-      marginBottom: 24,
-      minHeight: 140,
-    },
-    inspiredOverlay: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    },
-    inspiredContent: {
-      padding: 24,
-    },
-    inspiredBadgeRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      marginBottom: 12,
-    },
-    inspiredBadge: {
-      fontSize: 11,
-      fontWeight: '600',
-      letterSpacing: 2,
-      color: 'rgba(255, 255, 255, 0.8)',
-      textTransform: 'uppercase',
-    },
-    inspiredTitle: {
-      fontFamily: frauncesFont,
-      fontSize: 18,
-      fontWeight: '600',
-      color: '#ffffff',
-      marginBottom: 4,
-    },
-    inspiredDescription: {
-      fontFamily: frauncesFont,
-      fontSize: 14,
-      color: 'rgba(255, 255, 255, 0.7)',
-      lineHeight: 20,
-    },
-    inspiredHintRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      marginTop: 12,
-    },
-    inspiredHint: {
-      fontSize: 12,
-      color: 'rgba(255, 255, 255, 0.5)',
-    },
-    inspiredLockedRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-    },
-    inspiredLockedText: {
-      flex: 1,
-      fontFamily: frauncesFont,
-      fontSize: 14,
-      color: 'rgba(255, 255, 255, 0.7)',
-      lineHeight: 20,
-    },
-    skeletonCard: {
-      height: 140,
-      borderRadius: 16,
-      backgroundColor: colors.muted,
-      marginBottom: 24,
-    },
-    skeletonLine: {
-      height: 16,
-      borderRadius: 8,
-      backgroundColor: colors.muted,
-      marginBottom: 8,
-    },
-    monthHeader: {
+    weekHeader: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginBottom: 20,
+      marginBottom: 16,
     },
-    monthNavButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+    weekNavButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: 'rgba(255,255,255,0.08)',
       alignItems: 'center',
       justifyContent: 'center',
     },
-    monthNavButtonDisabled: {
+    weekNavButtonDisabled: {
       opacity: 0.35,
     },
-    monthLabel: {
+    weekLabel: {
+      flex: 1,
       fontFamily: frauncesFont,
-      fontSize: 18,
+      fontSize: 22,
       color: colors.foreground,
       textAlign: 'center',
     },
-    monthCount: {
-      fontFamily: frauncesFont,
-      fontSize: 12,
-      color: colors['muted-foreground'],
+    headerDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: 'rgba(255,255,255,0.08)',
+      marginHorizontal: -16,
+      marginBottom: 16,
+    },
+    inspiredCard: {
+      borderRadius: 20,
+      overflow: 'hidden',
+      marginBottom: 24,
+    },
+    inspiredCardProgress: {
+      minHeight: 230,
+    },
+    inspiredCardAvailable: {
+      minHeight: 280,
+    },
+    inspiredImage: {
+      width: '100%',
+    },
+    inspiredImageRadius: {
+      borderRadius: 20,
+    },
+    inspiredOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(20, 18, 15, 0.35)',
+    },
+    inspiredContent: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 18,
+      paddingBottom: 20,
+      minHeight: 230,
+    },
+    inspiredContentAvailable: {
+      minHeight: 280,
+    },
+    inspiredBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      backgroundColor: 'rgba(255,255,255,0.1)',
+      borderRadius: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 9,
+      marginBottom: 16,
+    },
+    inspiredBadgeText: {
+      fontFamily: instrumentSansFont,
+      fontSize: 11,
+      fontWeight: '500',
+      letterSpacing: 1.5,
+      color: 'rgba(255,255,255,0.6)',
+      textTransform: 'uppercase',
       textAlign: 'center',
-      marginTop: 4,
+    },
+    inspiredBadgeTextAvailable: {
+      color: '#FFFFFF',
+    },
+    progressRingWrap: {
+      marginBottom: 14,
+    },
+    inspiredProgressMessage: {
+      fontFamily: instrumentSansFont,
+      fontSize: 14,
+      lineHeight: 20,
+      color: 'rgba(255,255,255,0.6)',
+      textAlign: 'center',
+      maxWidth: 260,
+      marginBottom: 12,
+    },
+    inspiredReleaseText: {
+      fontFamily: instrumentSansFont,
+      fontSize: 12,
+      fontWeight: '500',
+      color: 'rgba(190,227,219,0.8)',
+      textAlign: 'center',
+    },
+    inspiredTitle: {
+      fontFamily: frauncesFont,
+      fontSize: 20,
+      lineHeight: 28,
+      color: '#FFFFFF',
+      textAlign: 'center',
+      marginBottom: 16,
+      maxWidth: 330,
+    },
+    inspiredDescription: {
+      fontFamily: instrumentSansFont,
+      fontSize: 13,
+      lineHeight: 18,
+      color: 'rgba(255,255,255,0.55)',
+      textAlign: 'center',
+      maxWidth: 310,
+      marginBottom: 20,
+    },
+    inspiredCta: {
+      width: '100%',
+      maxWidth: 290,
+      height: 42,
+      borderRadius: 69,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.1)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    inspiredCtaText: {
+      fontFamily: instrumentSansFont,
+      fontSize: 15,
+      fontWeight: '500',
+      color: '#F0EBE5',
+    },
+    sectionTitle: {
+      fontFamily: frauncesFont,
+      fontSize: 22,
+      color: colors.foreground,
+      marginBottom: 16,
+    },
+    conversationRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(255,255,255,0.05)',
+      borderRadius: 12,
+      minHeight: 56,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      marginBottom: 16,
+    },
+    conversationTextWrap: {
+      flex: 1,
+      marginRight: 12,
+    },
+    conversationTitle: {
+      fontFamily: instrumentSansFont,
+      fontSize: 16,
+      fontWeight: '500',
+      color: 'rgba(255,255,255,0.9)',
+      marginBottom: 2,
+    },
+    conversationDate: {
+      fontFamily: instrumentSansFont,
+      fontSize: 13,
+      color: 'rgba(255,255,255,0.4)',
+    },
+    conversationChevron: {
+      fontFamily: instrumentSansFont,
+      fontSize: 22,
+      color: 'rgba(255,255,255,0.3)',
+      lineHeight: 28,
     },
     emptyCard: {
-      backgroundColor: colors.card,
+      backgroundColor: 'rgba(255,255,255,0.05)',
       borderRadius: 16,
       paddingVertical: 48,
       paddingHorizontal: 24,
       alignItems: 'center',
     },
     emptyText: {
-      fontFamily: frauncesFont,
+      fontFamily: instrumentSansFont,
       fontSize: 16,
       color: colors['muted-foreground'],
       textAlign: 'center',
       marginTop: 16,
     },
-    emptyMonth: {
-      paddingVertical: 48,
+    emptyWeek: {
+      paddingVertical: 32,
       alignItems: 'center',
     },
-    emptyMonthText: {
-      fontFamily: frauncesFont,
+    emptyWeekText: {
+      fontFamily: instrumentSansFont,
       fontSize: 14,
       color: colors['muted-foreground'],
-    },
-    dateGroup: {
-      marginBottom: 32,
-    },
-    dateGroupTitle: {
-      fontSize: 12,
-      fontWeight: '600',
-      letterSpacing: 1,
-      color: colors['muted-foreground'],
-      marginBottom: 12,
-    },
-    conversationRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingVertical: 14,
-      paddingHorizontal: 4,
-      borderRadius: 8,
-    },
-    conversationTitle: {
-      flex: 1,
-      fontFamily: frauncesFont,
-      fontSize: 17,
-      color: colors.foreground,
-      marginRight: 12,
+      textAlign: 'center',
     },
   });
 }

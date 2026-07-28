@@ -80,5 +80,11 @@ export function createCheckInActivitiesStyles(t: ActivitiesThemeTokens) {
       fontSize: 13,
       color: 'rgba(255,255,255,0.9)',
     },
+    cardLocked: {
+      opacity: 0.72,
+    },
+    cardOverlayLocked: {
+      backgroundColor: 'rgba(0,0,0,0.35)',
+    },
   });
 }

@@ -25,6 +25,7 @@ import type { CheckInStepConfig } from '@/features/checkin/checkInFlow.types';
 import { useCheckIns, type CheckinType } from '@/hooks/useCheckIns';
 import { resolveCheckInGradient, useActivitiesTheme } from '@/lib/activitiesTheme';
 import type { ActivitiesStackParamList } from '@/types/activitiesNavigation.types';
+import { isPostGameCheckInAvailable } from '@/utils/dateUtils';
 
 type Route = RouteProp<ActivitiesStackParamList, 'CheckInFlow'>;
 type Nav = NativeStackNavigationProp<ActivitiesStackParamList, 'CheckInFlow'>;
@@ -104,6 +105,14 @@ export default function CheckInFlowScreen() {
   }, [currentStep, handleClose]);
 
   const finishFlow = useCallback(async () => {
+    if (checkinType === 'post_game' && !isPostGameCheckInAvailable()) {
+      showAlert({
+        title: 'Ainda não disponível',
+        message: 'O check-in pós-jogo libera todo domingo a partir das 8h.',
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
       const saved = await submitCheckin(checkinType, responses);

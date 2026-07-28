@@ -13,14 +13,17 @@ export interface MessageInputBarLayout {
   textLineHeight: number;
   voiceSlotWidth: number;
   prominentVoiceSize: number;
+  prominentVoiceWidth: number;
 }
 
 const ROW_GAP = 12;
 
 /** Compact single-line pill height as a share of screen height */
 const PILL_HEIGHT_SCREEN_RATIO = 0.065;
-/** Voice button column as a share of screen width */
+/** Companion voice button column as a share of screen width */
 const VOICE_SLOT_WIDTH_RATIO = 0.11;
+/** Prominent voice control is a circle matching pill height */
+const PROMINENT_VOICE_WIDTH_RATIO = 1;
 /** Send icon touch area as a share of screen width */
 const SEND_TOUCH_WIDTH_RATIO = 0.09;
 /** Inset from the right curve of the pill to the send icon */
@@ -56,6 +59,7 @@ export function getMessageInputBarLayout(
     textLineHeight,
     voiceSlotWidth,
     prominentVoiceSize: pillHeight,
+    prominentVoiceWidth: Math.round(pillHeight * PROMINENT_VOICE_WIDTH_RATIO),
   };
 }
 

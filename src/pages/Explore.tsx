@@ -57,12 +57,20 @@ export default function ExploreScreen() {
   }, [opacityAnim]);
 
   const navigateToChatText = (insightType: string, insight: Insight) => {
+    if (insight.locked) {
+      return;
+    }
+
     navigateToChatTab(navigation, {
       chatInsight: buildExploreChatInsight(insightType, insight, 'text'),
     });
   };
 
   const navigateToChatVoice = (insightType: string, insight: Insight) => {
+    if (insight.locked) {
+      return;
+    }
+
     navigateToChatTab(navigation, {
       chatInsight: buildExploreChatInsight(insightType, insight, 'voice'),
     });
@@ -135,10 +143,10 @@ export default function ExploreScreen() {
         <View
           style={{
             paddingHorizontal: LayoutSpacing.contentPadding.horizontal,
+            paddingTop: 16,
+            gap: 16,
           }}
         >
-
-        <View className="mb-6">
           <InsightCard
             badge="SUA JORNADA DE ONTEM"
             title={yesterdayInsight.title}
@@ -152,9 +160,7 @@ export default function ExploreScreen() {
             onMicClick={() => navigateToChatVoice('yesterday_journey', yesterdayInsight)}
             micDisabled={yesterdayInsight.locked}
           />
-        </View>
 
-        <View className="mb-6">
           <InsightCard
             badge="INSPIRADO EM VOCÊ"
             title={generalInsight.title}
@@ -168,9 +174,7 @@ export default function ExploreScreen() {
             onMicClick={() => navigateToChatVoice('general_insight', generalInsight)}
             micDisabled={generalInsight.locked}
           />
-        </View>
 
-        <View className="mb-6">
           <InsightCard
             badge="SUA FREQUÊNCIA"
             title={frequencyInsight.title}
@@ -184,9 +188,7 @@ export default function ExploreScreen() {
             onMicClick={() => navigateToChatVoice('frequency', frequencyInsight)}
             micDisabled={frequencyInsight.locked}
           />
-        </View>
 
-        <View className="mb-6">
           <InsightCard
             badge="CONSTRUA UM HÁBITO"
             title={habitInsight.title}
@@ -200,7 +202,6 @@ export default function ExploreScreen() {
             onMicClick={() => navigateToChatVoice('habit', habitInsight)}
             micDisabled={habitInsight.locked}
           />
-        </View>
         </View>
       </ScrollView>
       </View>
