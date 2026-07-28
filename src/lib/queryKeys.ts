@@ -3,5 +3,6 @@ export const queryKeys = {
   conversations: (userId: string) => ['conversations', userId] as const,
   userInsights: (userId: string) => ['userInsights', userId] as const,
   internalProfile: (userId: string) => ['internalProfile', userId] as const,
+  sessionMemoryExtras: (userId: string) => ['sessionMemoryExtras', userId] as const,
   insightUnlockRules: () => ['insightUnlockRules'] as const,
 };

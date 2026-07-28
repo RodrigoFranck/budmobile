@@ -40,6 +40,7 @@ export interface InternalProfile {
   communication_style: CommunicationStyle;
   blind_spots: BlindSpot[];
   journey_summary: string | null;
+  clinical_insights: string | null;
   effective_approaches: EffectiveApproach[];
   conversations_analyzed: number;
   last_consolidated_at: string | null;
@@ -66,6 +67,7 @@ async function fetchInternalProfile(userId: string): Promise<InternalProfile | n
     communication_style: (data.communication_style as unknown as CommunicationStyle) || {},
     blind_spots: (data.blind_spots as unknown as BlindSpot[]) || [],
     journey_summary: data.journey_summary,
+    clinical_insights: data.clinical_insights ?? null,
     effective_approaches: (data.effective_approaches as unknown as EffectiveApproach[]) || [],
     conversations_analyzed: data.conversations_analyzed || 0,
     last_consolidated_at: data.last_consolidated_at,

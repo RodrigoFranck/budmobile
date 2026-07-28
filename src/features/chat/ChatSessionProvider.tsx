@@ -30,6 +30,7 @@ import {
   registerMessageClientId,
 } from '@/utils/mergeChatMessages';
 import { syncExploreInsights } from '@/utils/syncExploreInsights';
+import { scheduleSessionMemory } from '@/utils/scheduleSessionMemory';
 import type { StreamingMessage } from '@/types/messages';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
 import { getResumableAssistantTranscript } from '@/voice/voiceTranscript';
@@ -292,8 +293,9 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       if (!currentConversationId || !text.trim()) return;
       await addMessage(text, 'assistant');
       scheduleInsightSync();
+      scheduleSessionMemory(currentConversationId, dbMessages.length + 1);
     },
-    [currentConversationId, addMessage, scheduleInsightSync],
+    [currentConversationId, addMessage, scheduleInsightSync, dbMessages.length],
   );
 
   const handleEndVoiceSession = useCallback(async () => {
@@ -423,6 +425,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
             await userMessagePromise;
             await addMessage(accumulatedContent, 'assistant');
             scheduleInsightSync();
+            scheduleSessionMemory(currentConversationId, dbMessages.length + 2);
           },
           onError: (error) => {
             setIsStreaming(false);

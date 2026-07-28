@@ -83,12 +83,33 @@ export function formatInternalProfileForPrompt(
   options?: {
     previousConversations?: PreviousConversationMemory[];
     recentInsights?: MemoryInsight[];
+    sessionSummaries?: string[];
+    biographicalNotes?: string | null;
   },
 ): string {
   const sections: string[] = [];
 
+  const sessionSummaries = options?.sessionSummaries ?? [];
+  if (sessionSummaries.length > 0) {
+    sections.push(
+      `RESUMOS DE SESSÕES RECENTES:\n${sessionSummaries
+        .map((item, index) => `${index + 1}. ${item}`)
+        .join('\n')}`,
+    );
+  }
+
+  if (profile?.clinical_insights) {
+    sections.push(`INSIGHTS CLÍNICOS ACUMULADOS:\n${profile.clinical_insights}`);
+  }
+
+  if (options?.biographicalNotes?.trim()) {
+    sections.push(`FATOS BIOGRÁFICOS APRENDIDOS:\n${options.biographicalNotes.trim()}`);
+  }
+
   if (!profile) {
-    sections.push(EMPTY_PROFILE_MESSAGE);
+    if (sections.length === 0) {
+      sections.push(EMPTY_PROFILE_MESSAGE);
+    }
   } else {
     if (profile.journey_summary) {
       sections.push(`RESUMO DA JORNADA:\n${profile.journey_summary}`);
@@ -168,11 +189,17 @@ export function buildChatMemoryContext(
   profile: InternalProfile | null,
   previousConversations: PreviousConversationMemory[],
   recentInsights: MemoryInsight[],
+  extras?: {
+    sessionSummaries?: string[];
+    biographicalNotes?: string | null;
+  },
 ): ChatMemoryContext {
   return {
     internalProfileText: formatInternalProfileForPrompt(profile, {
       previousConversations,
       recentInsights,
+      sessionSummaries: extras?.sessionSummaries,
+      biographicalNotes: extras?.biographicalNotes,
     }),
     approachGuidance: buildApproachGuidance(profile),
     recentInsights,
