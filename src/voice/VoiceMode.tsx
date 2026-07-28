@@ -318,6 +318,16 @@ export function VoiceMode({
     phase !== 'connecting' &&
     phase !== 'ending';
   const showHero = !showTranscript;
+  // Mute copy lives in the hero when it is on screen; avoid repeating it in the footer.
+  const muteCopyInHero = showHero && isMicMuted && Boolean(copy.hero);
+  const showFooterStatus = !muteCopyInHero;
+  const showFooterHint =
+    !muteCopyInHero &&
+    (phase === 'speaking' ||
+      phase === 'ending' ||
+      phase === 'paused' ||
+      isMicMuted ||
+      (phase === 'listening' && showTranscript));
   const canTogglePause = !isLocked && Boolean(onTogglePause);
   const canToggleMute = !isLocked && !isPaused && Boolean(onToggleMute);
   const muteIconColor = isMicMuted ? colors.destructive : colors['chat-body'];
@@ -406,18 +416,16 @@ export function VoiceMode({
         </ScrollView>
 
         <View style={styles.bottom}>
-          <Text
-            style={styles.status}
-            accessibilityLiveRegion="polite"
-            accessibilityRole="text"
-          >
-            {copy.status}
-          </Text>
-          {phase === 'speaking' ||
-          phase === 'ending' ||
-          phase === 'paused' ||
-          isMicMuted ||
-          (phase === 'listening' && showTranscript) ? (
+          {showFooterStatus ? (
+            <Text
+              style={styles.status}
+              accessibilityLiveRegion="polite"
+              accessibilityRole="text"
+            >
+              {copy.status}
+            </Text>
+          ) : null}
+          {showFooterHint ? (
             <Text style={styles.statusHint}>{copy.hint}</Text>
           ) : (
             <View style={styles.statusHintSpacer} />
