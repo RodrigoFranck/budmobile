@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import {
   ActivityIndicator,
-  Animated,
-  Easing,
   Platform,
   StyleSheet,
   TouchableOpacity,
@@ -34,10 +32,8 @@ export function ProminentVoiceButton({
 }: ProminentVoiceButtonProps) {
   const { mode } = useTheme();
   const isDark = mode === 'dark';
-  const breathe = useRef(new Animated.Value(0)).current;
   const height = Math.max(size, MIN_HEIGHT);
   const iconSize = Math.round(height * 0.42);
-  const showIdlePulse = !isConnected && !isLoading;
 
   const palette = useMemo(() => {
     if (isDark) {
@@ -55,38 +51,6 @@ export function ProminentVoiceButton({
       connectedBorder: colors.destructive,
     };
   }, [colors, isDark]);
-
-  useEffect(() => {
-    if (!showIdlePulse) {
-      breathe.setValue(0);
-      return;
-    }
-
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(breathe, {
-          toValue: 1,
-          duration: 1600,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(breathe, {
-          toValue: 0,
-          duration: 1600,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-
-    loop.start();
-    return () => loop.stop();
-  }, [breathe, showIdlePulse]);
-
-  const waveScale = breathe.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.06],
-  });
 
   if (isConnected) {
     return (
@@ -113,31 +77,29 @@ export function ProminentVoiceButton({
   }
 
   return (
-    <Animated.View style={{ transform: [{ scale: showIdlePulse ? waveScale : 1 }] }}>
-      <TouchableOpacity
-        onPress={onPress}
-        disabled={disabled}
-        activeOpacity={0.88}
-        accessibilityRole="button"
-        accessibilityLabel="Iniciar conversa por voz"
-        style={[
-          styles.waveCircle,
-          {
-            width: height,
-            height,
-            borderRadius: height / 2,
-            backgroundColor: palette.circleBg,
-          },
-          isDark ? styles.shadowDark : styles.shadowLight,
-        ]}
-      >
-        {isLoading ? (
-          <ActivityIndicator size="small" color={palette.waveColor} />
-        ) : (
-          <WavesIcon size={iconSize} color={palette.waveColor} />
-        )}
-      </TouchableOpacity>
-    </Animated.View>
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={disabled}
+      activeOpacity={0.88}
+      accessibilityRole="button"
+      accessibilityLabel="Iniciar conversa por voz"
+      style={[
+        styles.waveCircle,
+        {
+          width: height,
+          height,
+          borderRadius: height / 2,
+          backgroundColor: palette.circleBg,
+        },
+        isDark ? styles.shadowDark : styles.shadowLight,
+      ]}
+    >
+      {isLoading ? (
+        <ActivityIndicator size="small" color={palette.waveColor} />
+      ) : (
+        <WavesIcon size={iconSize} color={palette.waveColor} />
+      )}
+    </TouchableOpacity>
   );
 }
 

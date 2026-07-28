@@ -11,6 +11,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { AppAlertProvider } from '@/contexts/AppAlertContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import AppNavigator from '@/navigation/AppNavigator';
+import { AppQueryProvider } from '@/providers/AppQueryProvider';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -48,14 +49,16 @@ export default function App() {
 
   const content = (
     <SafeAreaProvider>
-      <AuthProvider>
-        <ThemeProvider>
-          <AppAlertProvider>
-            <AppNavigator />
-            <StatusBar style="auto" />
-          </AppAlertProvider>
-        </ThemeProvider>
-      </AuthProvider>
+      <AppQueryProvider>
+        <AuthProvider>
+          <ThemeProvider>
+            <AppAlertProvider>
+              <AppNavigator />
+              <StatusBar style="auto" />
+            </AppAlertProvider>
+          </ThemeProvider>
+        </AuthProvider>
+      </AppQueryProvider>
     </SafeAreaProvider>
   );
 

@@ -108,7 +108,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
   }, [getOrCreateTodayConversation]);
 
   useEffect(() => {
-    if (!user) {
+    if (!user?.id) {
       setChatConversationId(null);
       setChatConversationReady(true);
       return;
@@ -126,13 +126,13 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [user, getOrCreateTodayConversation]);
+  }, [user?.id, getOrCreateTodayConversation]);
 
   const { messages, loading: chatMessagesLoading, addMessage } =
     useMessages(chatConversationId);
 
   useEffect(() => {
-    if (!user) {
+    if (!user?.id) {
       setHistoryConversations([]);
       setHistoryTitlesLoading(false);
       return;
@@ -157,7 +157,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [user, conversations, conversationsLoading]);
+  }, [user?.id, conversations, conversationsLoading]);
 
   const chatReady =
     chatConversationReady &&
@@ -177,7 +177,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    if (!user) {
+    if (!user?.id) {
       setLatchedReady({
         Chat: false,
         Explore: false,
@@ -193,7 +193,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
       History: prev.History || historyReady,
       Activities: prev.Activities || activitiesReady,
     }));
-  }, [user, chatReady, exploreReady, historyReady, activitiesReady]);
+  }, [user?.id, chatReady, exploreReady, historyReady, activitiesReady]);
 
   const readiness = useMemo(
     () => ({

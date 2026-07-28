@@ -36,6 +36,10 @@ export default function ChatHome() {
     setVoiceTranscript,
     isBudSpeaking,
     setIsBudSpeaking,
+    isVoicePaused,
+    setIsVoicePaused,
+    isVoiceMicMuted,
+    setIsVoiceMicMuted,
     userContext,
     messageHistory,
     recentInsights,
@@ -44,6 +48,8 @@ export default function ChatHome() {
     handleVoiceUserMessage,
     handleVoiceAssistantMessage,
     handleEndVoiceSession,
+    handleToggleVoicePause,
+    handleToggleVoiceMute,
   } = useChatSession();
 
   const wasVoiceActiveRef = useRef(false);
@@ -93,6 +99,8 @@ export default function ChatHome() {
             onVoiceModeChange={handleVoiceModeChange}
             onVoiceConnectingChange={setIsVoiceConnecting}
             onVoiceSessionBusyChange={setIsVoiceSessionBusy}
+            onVoicePausedChange={setIsVoicePaused}
+            onVoiceMicMutedChange={setIsVoiceMicMuted}
             onVoiceUserMessage={handleVoiceUserMessage}
             onVoiceAssistantMessage={handleVoiceAssistantMessage}
             onVoiceTranscript={setVoiceTranscript}
@@ -107,10 +115,14 @@ export default function ChatHome() {
           visible={isVoiceModeActive}
           onClose={() => handleVoiceModeChange(false)}
           onEndVoice={handleEndVoiceSession}
+          onTogglePause={handleToggleVoicePause}
+          onToggleMute={handleToggleVoiceMute}
           transcript={voiceTranscript}
           isBudSpeaking={isBudSpeaking}
           isConnecting={isVoiceConnecting}
           isSessionBusy={isVoiceSessionBusy}
+          isPaused={isVoicePaused}
+          isMicMuted={isVoiceMicMuted}
         />
       </View>
     </ScreenLoadingGate>

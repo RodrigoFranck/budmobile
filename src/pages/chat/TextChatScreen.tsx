@@ -40,6 +40,10 @@ export default function TextChatScreen() {
     setVoiceTranscript,
     isBudSpeaking,
     setIsBudSpeaking,
+    isVoicePaused,
+    setIsVoicePaused,
+    isVoiceMicMuted,
+    setIsVoiceMicMuted,
     userContext,
     messageHistory,
     recentInsights,
@@ -47,6 +51,8 @@ export default function TextChatScreen() {
     handleVoiceUserMessage,
     handleVoiceAssistantMessage,
     handleEndVoiceSession,
+    handleToggleVoicePause,
+    handleToggleVoiceMute,
     handleAssistantRevealComplete,
     bootstrapInsightSession,
   } = useChatSession();
@@ -105,6 +111,8 @@ export default function TextChatScreen() {
             onVoiceModeChange={setIsVoiceModeActive}
             onVoiceConnectingChange={setIsVoiceConnecting}
             onVoiceSessionBusyChange={setIsVoiceSessionBusy}
+            onVoicePausedChange={setIsVoicePaused}
+            onVoiceMicMutedChange={setIsVoiceMicMuted}
             onVoiceUserMessage={handleVoiceUserMessage}
             onVoiceAssistantMessage={handleVoiceAssistantMessage}
             onVoiceTranscript={setVoiceTranscript}
@@ -119,10 +127,14 @@ export default function TextChatScreen() {
           visible={isVoiceModeActive}
           onClose={() => setIsVoiceModeActive(false)}
           onEndVoice={handleEndVoiceSession}
+          onTogglePause={handleToggleVoicePause}
+          onToggleMute={handleToggleVoiceMute}
           transcript={voiceTranscript}
           isBudSpeaking={isBudSpeaking}
           isConnecting={isVoiceConnecting}
           isSessionBusy={isVoiceSessionBusy}
+          isPaused={isVoicePaused}
+          isMicMuted={isVoiceMicMuted}
         />
       </View>
     </ScreenLoadingGate>

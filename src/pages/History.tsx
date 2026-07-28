@@ -149,7 +149,7 @@ export default function HistoryScreen() {
                 onPress={() => setSelectedWeekIndex((i) => i + 1)}
                 style={[styles.weekNavButton, !canGoOlder && styles.weekNavButtonDisabled]}
               >
-                <ChevronLeft size={20} color="rgba(255,255,255,0.7)" />
+                <ChevronLeft size={20} color={colors.foreground} />
               </Pressable>
 
               <Text style={styles.weekLabel}>{currentWeek.weekLabel}</Text>
@@ -161,7 +161,7 @@ export default function HistoryScreen() {
                 onPress={() => setSelectedWeekIndex((i) => i - 1)}
                 style={[styles.weekNavButton, !canGoNewer && styles.weekNavButtonDisabled]}
               >
-                <ChevronRight size={20} color="rgba(255,255,255,0.7)" />
+                <ChevronRight size={20} color={colors.foreground} />
               </Pressable>
             </View>
           ) : null}

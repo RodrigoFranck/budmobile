@@ -10,21 +10,29 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { ChevronLeft, Keyboard, MicOff } from 'lucide-react-native';
+import { ChevronLeft, Keyboard, Mic, MicOff, Pause, Play } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppColors } from '@/lib/colors';
 import { createVoiceModeStyles } from '@/voice/VoiceMode.styles';
+import {
+  joinTranscriptTokens,
+  tokenizeTranscriptPreservingBreaks,
+} from '@/voice/voiceTranscript';
 
-type VoiceUiPhase = 'ending' | 'connecting' | 'speaking' | 'listening';
+type VoiceUiPhase = 'ending' | 'connecting' | 'speaking' | 'listening' | 'paused';
 
 interface VoiceModeProps {
   visible: boolean;
   onClose: () => void;
   onEndVoice?: () => void | Promise<void>;
+  onTogglePause?: () => void;
+  onToggleMute?: () => void;
   transcript?: string;
   isBudSpeaking?: boolean;
   isConnecting?: boolean;
   isSessionBusy?: boolean;
+  isPaused?: boolean;
+  isMicMuted?: boolean;
 }
 
 function VoiceActivityBars({
@@ -61,20 +69,24 @@ function VoiceActivityBars({
   const scales = [0.38, 0.62, 1, 0.62, 0.38];
   const isActive = phase === 'speaking' || phase === 'listening';
   const isConnecting = phase === 'connecting';
+  const isPaused = phase === 'paused';
 
   return (
     <View
       style={[
         styles.activityBarsWrap,
         isConnecting && styles.activityBarsWrapConnecting,
+        isPaused && styles.activityBarsWrapPaused,
       ]}
       accessibilityRole="image"
       accessibilityLabel={
         phase === 'connecting'
           ? 'Conectando'
-          : phase === 'speaking'
-            ? 'Bud falando'
-            : 'Pronto para ouvir'
+          : phase === 'paused'
+            ? 'Conversa pausada'
+            : phase === 'speaking'
+              ? 'Bud falando'
+              : 'Pronto para ouvir'
       }
     >
       <View style={styles.activityBarsInner}>
@@ -99,7 +111,10 @@ function VoiceActivityBars({
   );
 }
 
-function getVoiceCopy(phase: VoiceUiPhase): {
+function getVoiceCopy(
+  phase: VoiceUiPhase,
+  isMicMuted: boolean,
+): {
   hero: string;
   status: string;
   hint: string;
@@ -116,6 +131,23 @@ function getVoiceCopy(phase: VoiceUiPhase): {
       hero: 'Conectando…',
       status: 'Bud está conectando',
       hint: 'Aguarde — em seguida você poderá falar',
+    };
+  }
+  if (phase === 'paused') {
+    return {
+      hero: 'Pausado',
+      status: 'Conversa pausada',
+      hint: 'Pense com calma e toque em retomar quando quiser',
+    };
+  }
+  if (isMicMuted) {
+    return {
+      hero: phase === 'speaking' ? '' : 'Microfone silenciado',
+      status: 'Microfone silenciado',
+      hint:
+        phase === 'speaking'
+          ? 'Escute com atenção; o microfone continua desligado'
+          : 'Toque no microfone para voltar a falar',
     };
   }
   if (phase === 'speaking') {
@@ -136,10 +168,14 @@ export function VoiceMode({
   visible,
   onClose,
   onEndVoice,
+  onTogglePause,
+  onToggleMute,
   transcript = '',
   isBudSpeaking = false,
   isConnecting = false,
   isSessionBusy = false,
+  isPaused = false,
+  isMicMuted = false,
 }: VoiceModeProps) {
   const colors = useAppColors();
   const insets = useSafeAreaInsets();
@@ -155,8 +191,12 @@ export function VoiceMode({
   const [displayedText, setDisplayedText] = useState('');
   const [hasConversationStarted, setHasConversationStarted] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
+  const [scrollViewHeight, setScrollViewHeight] = useState(0);
+  const [contentHeight, setContentHeight] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
   const heroPulse = useRef(new Animated.Value(1)).current;
+  const contentFits =
+    scrollViewHeight === 0 || contentHeight <= scrollViewHeight + 1;
 
   const isLocked = isSessionBusy || isConnecting || isEnding;
 
@@ -164,11 +204,13 @@ export function VoiceMode({
     ? 'ending'
     : isConnecting
       ? 'connecting'
-      : isBudSpeaking
-        ? 'speaking'
-        : 'listening';
+      : isPaused
+        ? 'paused'
+        : isBudSpeaking
+          ? 'speaking'
+          : 'listening';
 
-  const copy = getVoiceCopy(phase);
+  const copy = getVoiceCopy(phase, isMicMuted);
 
   const handleClose = async () => {
     if (isLocked) return;
@@ -180,6 +222,16 @@ export function VoiceMode({
       setIsEnding(false);
       onClose();
     }
+  };
+
+  const handleTogglePause = () => {
+    if (isLocked) return;
+    onTogglePause?.();
+  };
+
+  const handleToggleMute = () => {
+    if (isLocked || isPaused) return;
+    onToggleMute?.();
   };
 
   useEffect(() => {
@@ -223,15 +275,15 @@ export function VoiceMode({
     }
 
     setHasConversationStarted(true);
-    const words = transcript.trim().split(/\s+/);
+    const tokens = tokenizeTranscriptPreservingBreaks(transcript);
     let currentIndex = 1;
     // Reveal the first word immediately so we never blank the center.
-    setDisplayedText(words[0] ?? '');
-    if (words.length <= 1) return;
+    setDisplayedText(joinTranscriptTokens(tokens.slice(0, 1)));
+    if (tokens.length <= 1) return;
 
     const interval = setInterval(() => {
-      if (currentIndex < words.length) {
-        setDisplayedText(words.slice(0, currentIndex + 1).join(' '));
+      if (currentIndex < tokens.length) {
+        setDisplayedText(joinTranscriptTokens(tokens.slice(0, currentIndex + 1)));
         currentIndex += 1;
       } else {
         clearInterval(interval);
@@ -240,9 +292,15 @@ export function VoiceMode({
     return () => clearInterval(interval);
   }, [transcript]);
 
-  useEffect(() => {
+  const scrollTranscriptToEnd = () => {
     if (!displayedText) return;
-    scrollRef.current?.scrollToEnd({ animated: true });
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    });
+  };
+
+  useEffect(() => {
+    scrollTranscriptToEnd();
   }, [displayedText]);
 
   const actionButtonStyle = isLocked
@@ -252,7 +310,7 @@ export function VoiceMode({
     ? [styles.backButton, styles.actionButtonDisabled]
     : styles.backButton;
 
-  // Hero ("Pode falar" / connecting) only before the first transcript.
+  // Hero ("Pode falar" / connecting / paused) only before the first transcript.
   // Once conversation starts, keep the transcript visible — including turn changes.
   const showTranscript =
     hasConversationStarted &&
@@ -260,6 +318,9 @@ export function VoiceMode({
     phase !== 'connecting' &&
     phase !== 'ending';
   const showHero = !showTranscript;
+  const canTogglePause = !isLocked && Boolean(onTogglePause);
+  const canToggleMute = !isLocked && !isPaused && Boolean(onToggleMute);
+  const muteIconColor = isMicMuted ? colors.destructive : colors['chat-body'];
 
   return (
     <Modal
@@ -286,9 +347,19 @@ export function VoiceMode({
         <ScrollView
           ref={scrollRef}
           style={styles.main}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            !contentFits && styles.scrollContentOverflow,
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          onLayout={(event) => {
+            setScrollViewHeight(event.nativeEvent.layout.height);
+          }}
+          onContentSizeChange={(_, height) => {
+            setContentHeight(height);
+            scrollTranscriptToEnd();
+          }}
         >
           {showHero && copy.hero ? (
             <Animated.View
@@ -306,14 +377,31 @@ export function VoiceMode({
               >
                 {copy.hero}
               </Text>
-              {phase === 'listening' || phase === 'connecting' ? (
+              {phase === 'listening' ||
+              phase === 'connecting' ||
+              phase === 'paused' ? (
                 <Text style={styles.heroHint}>{copy.hint}</Text>
               ) : null}
             </Animated.View>
           ) : null}
 
           {showTranscript ? (
-            <Text style={styles.transcript}>{displayedText}</Text>
+            <View style={styles.transcriptBlock}>
+              {displayedText
+                .split(/\n+/)
+                .filter((stanza) => stanza.length > 0)
+                .map((stanza, index) => (
+                  <Text
+                    key={`stanza-${index}`}
+                    style={[
+                      styles.transcript,
+                      index > 0 && styles.transcriptStanza,
+                    ]}
+                  >
+                    {stanza}
+                  </Text>
+                ))}
+            </View>
           ) : null}
         </ScrollView>
 
@@ -327,6 +415,8 @@ export function VoiceMode({
           </Text>
           {phase === 'speaking' ||
           phase === 'ending' ||
+          phase === 'paused' ||
+          isMicMuted ||
           (phase === 'listening' && showTranscript) ? (
             <Text style={styles.statusHint}>{copy.hint}</Text>
           ) : (
@@ -334,23 +424,67 @@ export function VoiceMode({
           )}
           <View style={styles.actionsRow}>
             <TouchableOpacity
-              onPress={handleClose}
-              disabled={isLocked}
+              onPress={handleToggleMute}
+              disabled={!canToggleMute}
               accessibilityRole="button"
-              accessibilityLabel="Encerrar microfone"
-              accessibilityState={{ disabled: isLocked }}
-              style={actionButtonStyle}
+              accessibilityLabel={
+                isMicMuted ? 'Ativar microfone' : 'Silenciar microfone'
+              }
+              accessibilityState={{
+                disabled: !canToggleMute,
+                selected: isMicMuted,
+              }}
+              style={
+                !canToggleMute
+                  ? [styles.actionButton, styles.actionButtonDisabled]
+                  : isMicMuted
+                    ? [styles.actionButton, styles.actionButtonMuted]
+                    : styles.actionButton
+              }
             >
-              <MicOff size={22} color={colors['chat-body']} strokeWidth={2} />
+              {isMicMuted ? (
+                <MicOff size={22} color={muteIconColor} strokeWidth={2} />
+              ) : (
+                <Mic size={22} color={muteIconColor} strokeWidth={2} />
+              )}
             </TouchableOpacity>
 
-            <VoiceActivityBars styles={styles} phase={phase} />
+            <TouchableOpacity
+              onPress={handleTogglePause}
+              disabled={!canTogglePause}
+              accessibilityRole="button"
+              accessibilityLabel={isPaused ? 'Retomar conversa' : 'Pausar conversa'}
+              accessibilityState={{ disabled: !canTogglePause, selected: isPaused }}
+              style={!canTogglePause ? styles.actionButtonDisabled : undefined}
+            >
+              {phase === 'connecting' || phase === 'ending' ? (
+                <VoiceActivityBars styles={styles} phase={phase} />
+              ) : isPaused ? (
+                <View style={[styles.activityBarsWrap, styles.activityBarsWrapPaused]}>
+                  <Play
+                    size={26}
+                    color={colors['chat-warm-bg']}
+                    strokeWidth={2}
+                    fill={colors['chat-warm-bg']}
+                  />
+                </View>
+              ) : (
+                <View style={styles.activityBarsWrap}>
+                  <Pause
+                    size={26}
+                    color={colors['chat-warm-bg']}
+                    strokeWidth={2}
+                    fill={colors['chat-warm-bg']}
+                  />
+                </View>
+              )}
+            </TouchableOpacity>
 
             <TouchableOpacity
               onPress={handleClose}
               disabled={isLocked}
               accessibilityRole="button"
-              accessibilityLabel="Voltar ao teclado"
+              accessibilityLabel="Encerrar voz e voltar ao teclado"
               accessibilityState={{ disabled: isLocked }}
               style={actionButtonStyle}
             >

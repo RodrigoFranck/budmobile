@@ -100,8 +100,10 @@ export function getMessageInputBarStyles(params: {
       {
         width: sendTouchSize,
         height: sendTouchSize,
+        borderRadius: sendTouchSize / 2,
         right: sendButtonInset,
         top: sendButtonTop,
+        backgroundColor: colors['chat-accent-mint'],
       },
     ] satisfies ViewStyle[],
     sendHitSlop: baseStyles.sendHitSlop,

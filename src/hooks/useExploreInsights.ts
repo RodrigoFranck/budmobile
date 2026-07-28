@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { isDeveloperEmail } from '@/constants/developerAccess';
 import {
+  fetchUserInsights,
+} from '@/hooks/useUserInsightsQuery';
+import { queryKeys } from '@/lib/queryKeys';
+import {
   DEEP_INSIGHT_TYPE,
-  EXPLORE_INSIGHT_TYPES,
   type ExploreInsightType,
   type InsightUnlockProgress,
 } from '@/types/insightUnlock.types';
@@ -128,6 +133,7 @@ function buildInsightFromSources(
 
 export function useExploreInsights(refreshToken = 0) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const isDeveloper = isDeveloperEmail(user?.email);
   const hasLoadedOnceRef = useRef(false);
 
@@ -147,25 +153,21 @@ export function useExploreInsights(refreshToken = 0) {
   const deepSyncInFlightRef = useRef(false);
 
   const applyInsightsFromDb = useCallback(async () => {
-    if (!user) {
+    if (!user?.id) {
       return null;
     }
 
     const weekStartStr = formatDateBrasilia(getWeekStartBrasilia());
 
-    const [rules, insightsResult] = await Promise.all([
+    const [rules, storedRows] = await Promise.all([
       fetchInsightUnlockRules(),
-      supabase
-        .from('user_insights')
-        .select(
-          'insight_type, title, description, locked, context_summary, internal_context, conversation_id, generated_at, insight_date, week_start, content_json',
-        )
-        .eq('user_id', user.id)
-        .in('insight_type', [...EXPLORE_INSIGHT_TYPES, DEEP_INSIGHT_TYPE]),
+      queryClient.fetchQuery({
+        queryKey: queryKeys.userInsights(user.id),
+        queryFn: () => fetchUserInsights(user.id),
+      }),
     ]);
 
     const progressMap = await buildInsightProgressMap(user.id, rules);
-    const storedRows = insightsResult.data ?? [];
     const storedByType = new Map(
       storedRows
         .filter((row) => row.insight_type !== DEEP_INSIGHT_TYPE)
@@ -271,11 +273,11 @@ export function useExploreInsights(refreshToken = 0) {
       deepUnlocked: !effectiveDeepProgress.locked,
       hasDeepContent: !!deepStored,
     };
-  }, [isDeveloper, user]);
+  }, [isDeveloper, queryClient, user?.id]);
 
   const syncDeepInsightIfNeeded = useCallback(
     async (weekStartStr: string) => {
-      if (deepSyncInFlightRef.current) {
+      if (deepSyncInFlightRef.current || !user?.id) {
         return;
       }
 
@@ -290,6 +292,7 @@ export function useExploreInsights(refreshToken = 0) {
           return;
         }
 
+        await queryClient.invalidateQueries({ queryKey: queryKeys.userInsights(user.id) });
         await applyInsightsFromDb();
       } catch (error) {
         console.warn('Deep insight sync failed:', error);
@@ -297,12 +300,12 @@ export function useExploreInsights(refreshToken = 0) {
         deepSyncInFlightRef.current = false;
       }
     },
-    [applyInsightsFromDb],
+    [applyInsightsFromDb, queryClient, user?.id],
   );
 
   const loadInsights = useCallback(
     async (options: LoadExploreInsightsOptions = {}) => {
-      if (!user) {
+      if (!user?.id) {
         hasLoadedOnceRef.current = false;
         setYesterdayInsight(LOGIN_MESSAGE);
         setGeneralInsight(LOGIN_MESSAGE);
@@ -355,6 +358,9 @@ export function useExploreInsights(refreshToken = 0) {
 
         void syncExploreInsights({ force: options.forceSync }).then(async () => {
           try {
+            await queryClient.invalidateQueries({
+              queryKey: queryKeys.userInsights(user.id),
+            });
             await applyInsightsFromDb();
           } catch (error) {
             console.error('Error refreshing explore insights after sync:', error);
@@ -376,7 +382,7 @@ export function useExploreInsights(refreshToken = 0) {
         setDeepInsightContent(null);
       }
     },
-    [applyInsightsFromDb, syncDeepInsightIfNeeded, user],
+    [applyInsightsFromDb, queryClient, syncDeepInsightIfNeeded, user?.id],
   );
 
   useEffect(() => {

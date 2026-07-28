@@ -38,6 +38,7 @@ import { ProminentVoiceButton } from '@/voice/ProminentVoiceButton';
 import { WavesIcon } from '@/voice/WavesIcon';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
 import { buildVoiceSessionStartOptions, type VoiceSessionStartOptions } from '@/voice/voiceElevenLabsSession';
+import { playVoiceMuteSound } from '@/voice/voiceCallSounds';
 
 type VoiceSessionPhase = 'idle' | 'connecting' | 'connected' | 'disconnecting';
 
@@ -74,7 +75,12 @@ interface ElevenLabsModeChange {
 interface ElevenLabsConversation {
   endSession: () => Promise<void>;
   sendContextualUpdate?: (text: string) => void;
+  setMicMuted?: (muted: boolean) => void;
+  sendUserActivity?: () => void;
 }
+
+/** Keep agent from taking the turn on silence while the user is paused. */
+const VOICE_PAUSE_ACTIVITY_INTERVAL_MS = 1500;
 
 export interface VoiceInterfaceProps {
   appearance?: VoiceAppearance;
@@ -83,6 +89,8 @@ export interface VoiceInterfaceProps {
   onVoiceModeChange?: (active: boolean) => void;
   onConnectingChange?: (connecting: boolean) => void;
   onSessionBusyChange?: (busy: boolean) => void;
+  onPausedChange?: (paused: boolean) => void;
+  onMicMutedChange?: (muted: boolean) => void;
   onUserMessage?: (text: string) => void;
   onAssistantMessage?: (text: string) => void;
   onAssistantTranscript?: (text: string) => void;
@@ -169,6 +177,8 @@ function VoiceInterfaceNativeInner(
     onVoiceModeChange,
     onConnectingChange,
     onSessionBusyChange,
+    onPausedChange,
+    onMicMutedChange,
     onUserMessage,
     onAssistantMessage,
     onAssistantTranscript,
@@ -188,6 +198,11 @@ function VoiceInterfaceNativeInner(
   const lastUserMsgAtRef = useRef<number | null>(null);
   const lastAiMsgAtRef = useRef<number | null>(null);
   const micArmTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pauseActivityTimerRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
+  const isPausedRef = useRef(false);
+  const isMicMutedRef = useRef(false);
   const statusRef = useRef<string>('idle');
   const modeRef = useRef<{ mode: 'speaking' | 'listening'; at: number }>({
     mode: 'listening',
@@ -221,6 +236,42 @@ function VoiceInterfaceNativeInner(
     onSessionBusyChange?.(isSessionLocked);
   }, [isSessionLocked, onSessionBusyChange]);
 
+  const clearPauseKeepAlive = useCallback(() => {
+    if (pauseActivityTimerRef.current) {
+      clearInterval(pauseActivityTimerRef.current);
+      pauseActivityTimerRef.current = null;
+    }
+  }, []);
+
+  const clearPausedState = useCallback(() => {
+    const wasPaused = isPausedRef.current;
+    isPausedRef.current = false;
+    clearPauseKeepAlive();
+    if (wasPaused) {
+      onPausedChange?.(false);
+    }
+  }, [clearPauseKeepAlive, onPausedChange]);
+
+  const clearMicMutedState = useCallback(() => {
+    const wasMuted = isMicMutedRef.current;
+    isMicMutedRef.current = false;
+    if (wasMuted) {
+      onMicMutedChange?.(false);
+    }
+  }, [onMicMutedChange]);
+
+  const unmuteMicIfAllowed = useCallback(
+    (setMuted: (muted: boolean) => void) => {
+      if (isPausedRef.current || isMicMutedRef.current) return;
+      try {
+        setMuted(false);
+      } catch {
+        // ignore unmute failures
+      }
+    },
+    [],
+  );
+
   const conversation = useConversation({
     onStatusChange: (event: { status: string }) => {
       statusRef.current = event.status;
@@ -242,15 +293,18 @@ function VoiceInterfaceNativeInner(
         micArmTimerRef.current = null;
       }
       setTimeout(() => {
-        try {
-          conversation.setMuted(false);
-        } catch {
-          // ignore unmute failures on connect
-        }
+        unmuteMicIfAllowed(conversation.setMuted);
       }, 600);
       let attempts = 0;
       micArmTimerRef.current = setInterval(() => {
         attempts += 1;
+        if (isPausedRef.current) {
+          if (micArmTimerRef.current) {
+            clearInterval(micArmTimerRef.current);
+            micArmTimerRef.current = null;
+          }
+          return;
+        }
         if (!conversation.isMuted) {
           if (micArmTimerRef.current) {
             clearInterval(micArmTimerRef.current);
@@ -258,11 +312,7 @@ function VoiceInterfaceNativeInner(
           }
           return;
         }
-        try {
-          conversation.setMuted(false);
-        } catch {
-          // ignore unmute failures while arming mic
-        }
+        unmuteMicIfAllowed(conversation.setMuted);
         if (attempts >= 20 && micArmTimerRef.current) {
           clearInterval(micArmTimerRef.current);
           micArmTimerRef.current = null;
@@ -272,6 +322,8 @@ function VoiceInterfaceNativeInner(
     onDisconnect: () => {
       voiceSessionActiveRef.current = false;
       startSessionPromiseRef.current = null;
+      clearPausedState();
+      clearMicMutedState();
       onConnectingChange?.(false);
       setSessionPhase('idle');
       setIsLoading(false);
@@ -342,11 +394,7 @@ function VoiceInterfaceNativeInner(
                 const sessionOptions = lastSessionConfigRef.current;
                 if (!sessionOptions) return;
                 await conversation.startSession(sessionOptions);
-                try {
-                  conversation.setMuted(false);
-                } catch {
-                  // ignore unmute failures after restart
-                }
+                unmuteMicIfAllowed(conversation.setMuted);
               })
               .catch(() => {})
               .finally(() => {
@@ -365,6 +413,8 @@ function VoiceInterfaceNativeInner(
         if (isSafetyResponse(text)) {
           onAssistantMessage?.(text);
           voiceSessionActiveRef.current = false;
+          clearPausedState();
+          clearMicMutedState();
           setSessionPhase('disconnecting');
           void conversation.endSession();
           onTranscript?.('');
@@ -414,6 +464,8 @@ function VoiceInterfaceNativeInner(
     onError: (message: string) => {
       voiceSessionActiveRef.current = false;
       startSessionPromiseRef.current = null;
+      clearPausedState();
+      clearMicMutedState();
       onConnectingChange?.(false);
       setSessionPhase('idle');
       setIsLoading(false);
@@ -451,10 +503,72 @@ function VoiceInterfaceNativeInner(
         clearInterval(micArmTimerRef.current);
         micArmTimerRef.current = null;
       }
+      clearPauseKeepAlive();
     };
-  }, []);
+  }, [clearPauseKeepAlive]);
 
   const [isLoading, setIsLoading] = useState(false);
+
+  const setPaused = useCallback(
+    (paused: boolean) => {
+      if (sessionPhase !== 'connected') return;
+      if (isPausedRef.current === paused) return;
+
+      isPausedRef.current = paused;
+      onPausedChange?.(paused);
+
+      if (paused) {
+        try {
+          conversation.setMuted(true);
+        } catch {
+          // ignore mute failures while pausing
+        }
+        try {
+          conversation.sendUserActivity();
+        } catch {
+          // ignore activity signal failures
+        }
+        clearPauseKeepAlive();
+        pauseActivityTimerRef.current = setInterval(() => {
+          try {
+            conversation.sendUserActivity();
+          } catch {
+            // ignore activity signal failures while paused
+          }
+        }, VOICE_PAUSE_ACTIVITY_INTERVAL_MS);
+        return;
+      }
+
+      clearPauseKeepAlive();
+      try {
+        conversation.setMuted(isMicMutedRef.current);
+      } catch {
+        // ignore mic restore failures while resuming
+      }
+    },
+    [clearPauseKeepAlive, conversation, onPausedChange, sessionPhase],
+  );
+
+  const setMicMuted = useCallback(
+    (muted: boolean) => {
+      if (sessionPhase !== 'connected') return;
+      if (isMicMutedRef.current === muted) return;
+
+      isMicMutedRef.current = muted;
+      onMicMutedChange?.(muted);
+      playVoiceMuteSound(muted);
+
+      // While paused the mic stays muted regardless; mute preference is restored on resume.
+      if (isPausedRef.current) return;
+
+      try {
+        conversation.setMuted(muted);
+      } catch {
+        // ignore mute failures
+      }
+    },
+    [conversation, onMicMutedChange, sessionPhase],
+  );
 
   const endConversation = useCallback(async (options?: { force?: boolean }) => {
     const force = options?.force ?? false;
@@ -467,6 +581,8 @@ function VoiceInterfaceNativeInner(
 
     startGenerationRef.current += 1;
     voiceSessionActiveRef.current = false;
+    clearPausedState();
+    clearMicMutedState();
     setSessionPhase('disconnecting');
 
     try {
@@ -497,7 +613,15 @@ function VoiceInterfaceNativeInner(
     onTranscript?.('');
     processedRef.current.clear();
     sessionMessagesRef.current = [];
-  }, [conversation, onConnectingChange, onTranscript, onVoiceModeChange, sessionPhase]);
+  }, [
+    clearMicMutedState,
+    clearPausedState,
+    conversation,
+    onConnectingChange,
+    onTranscript,
+    onVoiceModeChange,
+    sessionPhase,
+  ]);
 
   const ensureMicrophonePermission = useCallback(async () => {
     if (Platform.OS === 'android') {
@@ -552,6 +676,8 @@ function VoiceInterfaceNativeInner(
 
     const generation = ++startGenerationRef.current;
     voiceSessionActiveRef.current = true;
+    clearPausedState();
+    clearMicMutedState();
     setSessionPhase('connecting');
     onVoiceModeChange?.(true);
     onConnectingChange?.(true);
@@ -648,6 +774,8 @@ function VoiceInterfaceNativeInner(
       }
     }
   }, [
+    clearMicMutedState,
+    clearPausedState,
     conversation,
     ensureMicrophonePermission,
     internalProfile,
@@ -661,8 +789,15 @@ function VoiceInterfaceNativeInner(
 
   useImperativeHandle(
     ref,
-    () => ({ startConversation, endConversation }),
-    [startConversation, endConversation],
+    () => ({
+      startConversation,
+      endConversation,
+      setPaused,
+      togglePaused: () => setPaused(!isPausedRef.current),
+      setMicMuted,
+      toggleMicMuted: () => setMicMuted(!isMicMutedRef.current),
+    }),
+    [startConversation, endConversation, setPaused, setMicMuted],
   );
 
   const isConnected = sessionPhase === 'connected';
@@ -705,6 +840,8 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
       onVoiceModeChange,
       onConnectingChange,
       onSessionBusyChange,
+      onPausedChange,
+      onMicMutedChange,
       onUserMessage,
       onAssistantMessage,
       onAssistantTranscript,
@@ -724,6 +861,11 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
     const processedMessagesRef = useRef<Set<string>>(new Set());
     const voiceSessionActiveRef = useRef(false);
     const startGenerationRef = useRef(0);
+    const isPausedRef = useRef(false);
+    const isMicMutedRef = useRef(false);
+    const pauseActivityTimerRef = useRef<ReturnType<typeof setInterval> | null>(
+      null,
+    );
     const sessionMessagesRef = useRef<VoiceChatMessage[]>([]);
     const refreshClinicalContextRef = useRef<
       ReturnType<typeof createVoiceContextRefresher> | null
@@ -736,6 +878,30 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
     useEffect(() => {
       onSessionBusyChange?.(isSessionLocked);
     }, [isSessionLocked, onSessionBusyChange]);
+
+    const clearPauseKeepAlive = useCallback(() => {
+      if (pauseActivityTimerRef.current) {
+        clearInterval(pauseActivityTimerRef.current);
+        pauseActivityTimerRef.current = null;
+      }
+    }, []);
+
+    const clearPausedState = useCallback(() => {
+      const wasPaused = isPausedRef.current;
+      isPausedRef.current = false;
+      clearPauseKeepAlive();
+      if (wasPaused) {
+        onPausedChange?.(false);
+      }
+    }, [clearPauseKeepAlive, onPausedChange]);
+
+    const clearMicMutedState = useCallback(() => {
+      const wasMuted = isMicMutedRef.current;
+      isMicMutedRef.current = false;
+      if (wasMuted) {
+        onMicMutedChange?.(false);
+      }
+    }, [onMicMutedChange]);
 
     useEffect(() => {
       refreshClinicalContextRef.current = createVoiceContextRefresher((text) => {
@@ -755,6 +921,67 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
       };
     }, [onAssistantMessage, onUserMessage]);
 
+    const setPaused = useCallback(
+      (paused: boolean) => {
+        if (sessionPhase !== 'connected') return;
+        if (isPausedRef.current === paused) return;
+
+        isPausedRef.current = paused;
+        onPausedChange?.(paused);
+
+        const conversation = conversationRef.current;
+        if (paused) {
+          try {
+            conversation?.setMicMuted?.(true);
+          } catch {
+            // ignore mute failures while pausing
+          }
+          try {
+            conversation?.sendUserActivity?.();
+          } catch {
+            // ignore activity signal failures
+          }
+          clearPauseKeepAlive();
+          pauseActivityTimerRef.current = setInterval(() => {
+            try {
+              conversationRef.current?.sendUserActivity?.();
+            } catch {
+              // ignore activity signal failures while paused
+            }
+          }, VOICE_PAUSE_ACTIVITY_INTERVAL_MS);
+          return;
+        }
+
+        clearPauseKeepAlive();
+        try {
+          conversation?.setMicMuted?.(isMicMutedRef.current);
+        } catch {
+          // ignore unmute failures while resuming
+        }
+      },
+      [clearPauseKeepAlive, onPausedChange, sessionPhase],
+    );
+
+    const setMicMuted = useCallback(
+      (muted: boolean) => {
+        if (sessionPhase !== 'connected') return;
+        if (isMicMutedRef.current === muted) return;
+
+        isMicMutedRef.current = muted;
+        onMicMutedChange?.(muted);
+        playVoiceMuteSound(muted);
+
+        if (isPausedRef.current) return;
+
+        try {
+          conversationRef.current?.setMicMuted?.(muted);
+        } catch {
+          // ignore mute failures
+        }
+      },
+      [onMicMutedChange, sessionPhase],
+    );
+
     const endConversation = useCallback(async (options?: { force?: boolean }) => {
       const force = options?.force ?? false;
       if (!force && (sessionPhase === 'connecting' || sessionPhase === 'disconnecting')) {
@@ -766,6 +993,8 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
 
       startGenerationRef.current += 1;
       voiceSessionActiveRef.current = false;
+      clearPausedState();
+      clearMicMutedState();
       setSessionPhase('disconnecting');
 
       if (conversationRef.current) {
@@ -787,7 +1016,14 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
       onTranscript?.('');
       processedMessagesRef.current.clear();
       sessionMessagesRef.current = [];
-    }, [onConnectingChange, onVoiceModeChange, onTranscript, sessionPhase]);
+    }, [
+      clearMicMutedState,
+      clearPausedState,
+      onConnectingChange,
+      onVoiceModeChange,
+      onTranscript,
+      sessionPhase,
+    ]);
 
     const startConversation = useCallback(async () => {
       if (sessionPhase !== 'idle') {
@@ -796,6 +1032,8 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
 
       const generation = ++startGenerationRef.current;
       voiceSessionActiveRef.current = true;
+      clearPausedState();
+      clearMicMutedState();
       setSessionPhase('connecting');
       onVoiceModeChange?.(true);
       onConnectingChange?.(true);
@@ -848,6 +1086,8 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
           },
           onDisconnect: () => {
             voiceSessionActiveRef.current = false;
+            clearPausedState();
+            clearMicMutedState();
             setSessionPhase('idle');
             setIsLoading(false);
             onConnectingChange?.(false);
@@ -872,6 +1112,8 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
               if (isSafetyResponse(text)) {
                 onAssistantMessage?.(text);
                 voiceSessionActiveRef.current = false;
+                clearPausedState();
+                clearMicMutedState();
                 setSessionPhase('disconnecting');
                 if (conversationRef.current) {
                   void conversationRef.current.endSession();
@@ -897,6 +1139,8 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
           },
           onError: () => {
             voiceSessionActiveRef.current = false;
+            clearPausedState();
+            clearMicMutedState();
             setSessionPhase('idle');
             onConnectingChange?.(false);
             appAlert({ title: 'Erro', message: 'Erro na conexão de voz' });
@@ -909,6 +1153,8 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
           return;
         }
         voiceSessionActiveRef.current = false;
+        clearPausedState();
+        clearMicMutedState();
         setSessionPhase('idle');
         onConnectingChange?.(false);
         onVoiceModeChange?.(false);
@@ -922,6 +1168,8 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
       messageHistory,
       recentInsights,
       internalProfile,
+      clearMicMutedState,
+      clearPausedState,
       onConnectingChange,
       onVoiceModeChange,
       onTranscript,
@@ -935,15 +1183,23 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
 
     useImperativeHandle(
       ref,
-      () => ({ startConversation, endConversation }),
-      [startConversation, endConversation],
+      () => ({
+        startConversation,
+        endConversation,
+        setPaused,
+        togglePaused: () => setPaused(!isPausedRef.current),
+        setMicMuted,
+        toggleMicMuted: () => setMicMuted(!isMicMutedRef.current),
+      }),
+      [startConversation, endConversation, setPaused, setMicMuted],
     );
 
     useEffect(() => {
       return () => {
+        clearPauseKeepAlive();
         void conversationRef.current?.endSession();
       };
-    }, []);
+    }, [clearPauseKeepAlive]);
 
     const isConnected = sessionPhase === 'connected';
     useVoiceSessionKeepAwake(isConnected || isSessionLocked);

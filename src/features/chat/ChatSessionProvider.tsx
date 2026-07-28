@@ -60,6 +60,10 @@ interface ChatSessionContextValue {
   setVoiceTranscript: (text: string) => void;
   isBudSpeaking: boolean;
   setIsBudSpeaking: (active: boolean) => void;
+  isVoicePaused: boolean;
+  setIsVoicePaused: (paused: boolean) => void;
+  isVoiceMicMuted: boolean;
+  setIsVoiceMicMuted: (muted: boolean) => void;
   userContext: UserContext;
   messageHistory: Array<{ role: string; content: string }>;
   recentInsights: Array<{ insight_type: string; title: string; description: string }>;
@@ -68,6 +72,8 @@ interface ChatSessionContextValue {
   handleVoiceUserMessage: (text: string) => Promise<void>;
   handleVoiceAssistantMessage: (text: string) => Promise<void>;
   handleEndVoiceSession: () => Promise<void>;
+  handleToggleVoicePause: () => void;
+  handleToggleVoiceMute: () => void;
   applyChatInsight: (insight: ChatInsightParam) => void;
   bootstrapInsightSession: () => void;
   trySendPendingInsight: () => void;
@@ -113,6 +119,8 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const [isVoiceSessionBusy, setIsVoiceSessionBusy] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [isBudSpeaking, setIsBudSpeaking] = useState(false);
+  const [isVoicePaused, setIsVoicePaused] = useState(false);
+  const [isVoiceMicMuted, setIsVoiceMicMuted] = useState(false);
   const [insightContext, setInsightContext] = useState<InsightContext | null>(null);
   const insightContextRef = useRef<InsightContext | null>(null);
   const [recentInsights, setRecentInsights] = useState<
@@ -191,6 +199,8 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     setIsVoiceSessionBusy(false);
     setVoiceTranscript('');
     setIsBudSpeaking(false);
+    setIsVoicePaused(false);
+    setIsVoiceMicMuted(false);
     setInsightContext(null);
     insightContextRef.current = null;
     setRecentInsights([]);
@@ -233,6 +243,12 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const justActivated = isVoiceModeActive && !wasVoiceModeActiveRef.current;
     wasVoiceModeActiveRef.current = isVoiceModeActive;
+
+    if (!isVoiceModeActive) {
+      setIsVoicePaused(false);
+      setIsVoiceMicMuted(false);
+      return;
+    }
 
     if (!justActivated) return;
 
@@ -282,6 +298,14 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
 
   const handleEndVoiceSession = useCallback(async () => {
     await voiceInterfaceRef.current?.endConversation();
+  }, []);
+
+  const handleToggleVoicePause = useCallback(() => {
+    voiceInterfaceRef.current?.togglePaused();
+  }, []);
+
+  const handleToggleVoiceMute = useCallback(() => {
+    voiceInterfaceRef.current?.toggleMicMuted();
   }, []);
 
   const handleAssistantRevealComplete = useCallback((messageId: string | number) => {
@@ -536,6 +560,10 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       setVoiceTranscript,
       isBudSpeaking,
       setIsBudSpeaking,
+      isVoicePaused,
+      setIsVoicePaused,
+      isVoiceMicMuted,
+      setIsVoiceMicMuted,
       userContext,
       messageHistory,
       recentInsights,
@@ -544,6 +572,8 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       handleVoiceUserMessage,
       handleVoiceAssistantMessage,
       handleEndVoiceSession,
+      handleToggleVoicePause,
+      handleToggleVoiceMute,
       applyChatInsight,
       bootstrapInsightSession,
       trySendPendingInsight,
@@ -562,6 +592,8 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       isVoiceSessionBusy,
       voiceTranscript,
       isBudSpeaking,
+      isVoicePaused,
+      isVoiceMicMuted,
       userContext,
       messageHistory,
       recentInsights,
@@ -570,6 +602,8 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       handleVoiceUserMessage,
       handleVoiceAssistantMessage,
       handleEndVoiceSession,
+      handleToggleVoicePause,
+      handleToggleVoiceMute,
       applyChatInsight,
       bootstrapInsightSession,
       trySendPendingInsight,

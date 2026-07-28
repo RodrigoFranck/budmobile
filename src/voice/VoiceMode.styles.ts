@@ -38,6 +38,10 @@ export function createVoiceModeStyles(params: {
       alignItems: 'center',
       paddingBottom: 24,
     },
+    // When text overflows, drop vertical centering so Android can scroll the top/bottom.
+    scrollContentOverflow: {
+      justifyContent: 'flex-start',
+    },
     heroLabel: {
       fontFamily: 'Fraunces_400Regular',
       fontSize: 36,
@@ -64,12 +68,20 @@ export function createVoiceModeStyles(params: {
     statusHintSpacer: {
       marginBottom: 18,
     },
+    transcriptBlock: {
+      width: '100%',
+      alignItems: 'center',
+    },
     transcript: {
       fontFamily: 'Fraunces_400Regular',
       fontSize: 24,
       lineHeight: 32,
-      color: '#FFFFFF',
+      color: colors['chat-body'],
       textAlign: 'center',
+      width: '100%',
+    },
+    transcriptStanza: {
+      marginTop: 20,
     },
     bottom: {
       paddingBottom: Math.max(bottomInset, 24) + 18,
@@ -80,7 +92,7 @@ export function createVoiceModeStyles(params: {
       fontSize: 16,
       lineHeight: 22,
       fontWeight: '500',
-      color: '#FFFFFF',
+      color: colors['chat-body'],
       textAlign: 'center',
       marginBottom: 8,
     },
@@ -107,6 +119,9 @@ export function createVoiceModeStyles(params: {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    actionButtonMuted: {
+      backgroundColor: 'rgba(239, 68, 68, 0.18)',
+    },
     actionButtonDisabled: {
       opacity: 0.4,
     },
@@ -119,6 +134,9 @@ export function createVoiceModeStyles(params: {
       justifyContent: 'center',
     },
     activityBarsWrapConnecting: {
+      backgroundColor: colors['chat-accent-mint'],
+    },
+    activityBarsWrapPaused: {
       backgroundColor: colors['chat-accent-mint'],
     },
     activityBarsInner: {

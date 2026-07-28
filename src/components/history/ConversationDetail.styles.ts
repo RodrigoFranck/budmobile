@@ -30,13 +30,13 @@ export function useConversationDetailStyles() {
       width: 44,
       height: 44,
       borderRadius: 22,
-      backgroundColor: 'rgba(255,255,255,0.08)',
+      backgroundColor: onboardingColors.gradientIconSurface,
       alignItems: 'center',
       justifyContent: 'center',
     },
     headerDivider: {
       height: StyleSheet.hairlineWidth,
-      backgroundColor: 'rgba(255,255,255,0.08)',
+      backgroundColor: onboardingColors.borderDark,
     },
     titleBlock: {
       paddingTop: 24,
@@ -87,14 +87,14 @@ export function useConversationDetailStyles() {
       fontFamily: frauncesFont,
       fontSize: 20,
       fontStyle: 'italic',
-      color: onboardingColors.grayMedium,
+      color: onboardingColors.textMuted,
       marginBottom: 6,
     },
     roleLabelUser: {
       fontFamily: frauncesFont,
       fontSize: 20,
       fontStyle: 'italic',
-      color: onboardingColors.grayMedium,
+      color: onboardingColors.textMuted,
       marginBottom: 6,
     },
     userBody: {
@@ -108,7 +108,7 @@ export function useConversationDetailStyles() {
     assistantBody: {
       fontFamily: instrumentSansFont,
       fontSize: 20,
-      color: onboardingColors.grayMedium,
+      color: onboardingColors.textSecondary,
       lineHeight: 28,
       maxWidth: '92%',
     },
@@ -116,12 +116,12 @@ export function useConversationDetailStyles() {
       justifyContent: 'center',
     },
     contextFallbackCard: {
-      backgroundColor: 'rgba(255,255,255,0.06)',
+      backgroundColor: onboardingColors.gradientIconSurface,
       borderRadius: 14,
       paddingHorizontal: 14,
       paddingVertical: 10,
       borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.10)',
+      borderColor: onboardingColors.borderDark,
     },
     contextFallbackText: {
       fontFamily: instrumentSansFont,

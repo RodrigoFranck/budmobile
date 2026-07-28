@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useLayoutEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useLayoutEffect, useState, useMemo, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -6,9 +6,12 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import * as Crypto from 'expo-crypto';
 import { CodedError } from 'expo-modules-core';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { unregisterPushNotificationsForUser } from '@/hooks/usePushNotifications';
 import { MOBILE_OAUTH_WEB_CALLBACK } from '@/constants/auth';
+import { queryKeys } from '@/lib/queryKeys';
+import { fetchAppProfile } from '@/services/profileQuery';
 import { z } from 'zod';
 
 const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '';
@@ -93,6 +96,7 @@ function isAppleAuthCanceled(error: unknown): boolean {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -104,6 +108,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const clearPasswordRecovery = () => {
     setPasswordRecoveryPending(false);
   };
+
+  const profileQuery = useQuery({
+    queryKey: queryKeys.profile(user?.id ?? ''),
+    queryFn: () => fetchAppProfile(user!.id),
+    enabled: !!user?.id,
+  });
 
   useEffect(() => {
     if (Platform.OS !== 'ios') {
@@ -121,25 +131,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user?.id]);
 
-  // Função para atualizar status de onboarding
-  const refreshOnboardingStatus = async () => {
+  const refreshOnboardingStatus = useCallback(async () => {
     if (!user?.id) {
       setOnboardingCompleted(false);
       return;
     }
 
-    const { data } = await supabase
-      .from("profiles")
-      .select("onboarding_completed")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    
-    // Ensure strict boolean conversion (Supabase may return as string in some cases)
-    const completed = normalizeOnboardingCompleted(data?.onboarding_completed);
-    setOnboardingCompleted(completed);
-  };
+    const data = await queryClient.fetchQuery({
+      queryKey: queryKeys.profile(user.id),
+      queryFn: () => fetchAppProfile(user.id),
+    });
 
-  // Carrega status de onboarding do usuário
+    setOnboardingCompleted(normalizeOnboardingCompleted(data?.onboarding_completed));
+  }, [queryClient, user?.id]);
+
   useEffect(() => {
     if (!user?.id) {
       setOnboardingCompleted(false);
@@ -147,34 +152,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    let cancelled = false;
-    setOnboardingStatusLoaded(false);
+    if (profileQuery.isPending) {
+      setOnboardingStatusLoaded(false);
+      return;
+    }
 
-    const loadUserPreferences = async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("onboarding_completed")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (cancelled) {
-        return;
-      }
-
-      if (data) {
-        const completed = normalizeOnboardingCompleted(data.onboarding_completed);
-        setOnboardingCompleted(completed);
-      } else {
-        setOnboardingCompleted(false);
-      }
-      setOnboardingStatusLoaded(true);
-    };
-
-    loadUserPreferences();
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id]);
+    setOnboardingCompleted(
+      normalizeOnboardingCompleted(profileQuery.data?.onboarding_completed),
+    );
+    setOnboardingStatusLoaded(true);
+  }, [user?.id, profileQuery.isPending, profileQuery.data?.onboarding_completed]);
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -545,6 +532,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setSession(null);
       setUser(null);
+      queryClient.clear();
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -583,6 +571,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setPasswordRecoveryPending(false);
       setSession(null);
       setUser(null);
+      queryClient.clear();
     }
   };
 

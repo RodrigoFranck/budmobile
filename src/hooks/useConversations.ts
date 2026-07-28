@@ -1,307 +1,165 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { getTodayInBrasilia, getNowInBrasilia } from "@/utils/dateUtils";
-import type { Tables } from "@/integrations/supabase/types";
+import { useCallback, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
-type Conversation = Tables<"conversations">;
+import { useAuth } from '@/contexts/AuthContext';
+import { useConversationsQuery } from '@/hooks/useConversationsQuery';
+import { supabase } from '@/integrations/supabase/client';
+import { queryKeys } from '@/lib/queryKeys';
+import type { Conversation } from '@/services/conversationsQuery';
+import { getTodayInBrasilia } from '@/utils/dateUtils';
 
 export function useConversations(daysLimit?: number) {
   const { user } = useAuth();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const isInitialLoadRef = useRef(true);
-  const previousDaysLimitRef = useRef<number | undefined>(undefined);
-  const hasLoadedOnceRef = useRef(false);
+  const userId = user?.id;
+  const queryClient = useQueryClient();
+  const { conversations, isLoading, isFetching, refetch: refetchQuery } =
+    useConversationsQuery(daysLimit);
 
   useEffect(() => {
-    if (!user) {
-      setConversations([]);
-      setLoading(false);
-      isInitialLoadRef.current = true;
-      previousDaysLimitRef.current = undefined;
-      hasLoadedOnceRef.current = false;
+    if (!userId) {
       return;
     }
 
-    let isMounted = true;
-    const isDaysLimitChanged = previousDaysLimitRef.current !== daysLimit;
-    const isFirstLoad = !hasLoadedOnceRef.current || isInitialLoadRef.current;
-
-    // CRÍTICO: Limpar conversas ANTES de começar a carregar para evitar mostrar dados antigos
-    if (isFirstLoad || isDaysLimitChanged) {
-      setConversations([]);
-      setLoading(true);
-    }
-
-    const fetchConversations = async () => {
-      if (!user || !isMounted) return;
-
-      try {
-        const { data: allConversations, error: convError } = await supabase
-          .from("conversations")
-          .select("*, messages!inner(id)")
-          .eq("user_id", user.id)
-          .eq("is_archived", false)
-          .order("updated_at", { ascending: false });
-
-        if (convError) throw convError;
-
-        if (!isMounted) return;
-
-        if (!allConversations || allConversations.length === 0) {
-          setConversations([]);
-          setLoading(false);
-          isInitialLoadRef.current = false;
-          hasLoadedOnceRef.current = true;
-          return;
-        }
-
-        let conversationsWithMessages = allConversations.map(
-          ({ messages: _messages, ...conversation }) => conversation as Conversation,
-        );
-
-        // Aplicar limite de dias baseado no plano APÓS filtrar por mensagens
-        if (daysLimit) {
-          // Usar horário de Brasília para calcular o limite
-          const nowBrasilia = getNowInBrasilia();
-          const limitDate = new Date(nowBrasilia);
-          limitDate.setDate(limitDate.getDate() - daysLimit);
-          limitDate.setHours(0, 0, 0, 0); // Zerar horas para comparar apenas datas
-          
-          // Converter para string YYYY-MM-DD para comparação
-          const limitDateStr = limitDate.toISOString().split('T')[0];
-          
-          conversationsWithMessages = conversationsWithMessages.filter((c: Conversation) => {
-            // Usar conversation_date se disponível, senão created_at
-            const dateSource = c.conversation_date || c.created_at;
-            
-            // Extrair apenas a data (YYYY-MM-DD) para comparação
-            let convDateStr: string;
-            if (dateSource.includes('T')) {
-              // Timestamp completo - extrair apenas a data
-              convDateStr = dateSource.split('T')[0];
-            } else {
-              // Já está no formato YYYY-MM-DD
-              convDateStr = dateSource;
-            }
-            
-            // Comparar strings de data diretamente (YYYY-MM-DD)
-            return convDateStr >= limitDateStr;
-          });
-        }
-
-        // Remover duplicatas baseadas no ID antes de definir o estado
-        const uniqueConversations = Array.from(
-          new Map(conversationsWithMessages.map((c: Conversation) => [c.id, c])).values()
-        );
-        
-        // Atualizar estado de uma vez só, quando tudo estiver pronto
-        setConversations(uniqueConversations);
-        setLoading(false);
-        isInitialLoadRef.current = false;
-        hasLoadedOnceRef.current = true;
-      } catch (error) {
-        console.error("Error fetching conversations:", error);
-        if (isMounted) {
-          setConversations([]);
-          setLoading(false);
-        }
-      }
-    };
-
-    // Sempre buscar quando user ou daysLimit mudarem
-    if (isFirstLoad || isDaysLimitChanged) {
-      fetchConversations();
-    }
-
-    previousDaysLimitRef.current = daysLimit;
-
-    // Subscribe to realtime updates
     let refetchTimer: ReturnType<typeof setTimeout> | undefined;
     const scheduleRefetch = () => {
-      if (!isMounted) return;
       if (refetchTimer) clearTimeout(refetchTimer);
       refetchTimer = setTimeout(() => {
-        void fetchConversations();
+        void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(userId) });
       }, 400);
     };
 
     const channel = supabase
-      .channel(`conversations-changes-${user.id}-${Date.now()}`)
+      .channel(`conversations-changes-${userId}`)
       .on(
-        "postgres_changes",
+        'postgres_changes',
         {
-          event: "*",
-          schema: "public",
-          table: "conversations",
-          filter: `user_id=eq.${user.id}`,
+          event: '*',
+          schema: 'public',
+          table: 'conversations',
+          filter: `user_id=eq.${userId}`,
         },
         scheduleRefetch,
       )
       .subscribe();
 
     return () => {
-      isMounted = false;
       if (refetchTimer) clearTimeout(refetchTimer);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
-  }, [user, daysLimit]);
+  }, [queryClient, userId]);
 
   const getOrCreateTodayConversation = useCallback(async () => {
-    if (!user) return null;
+    if (!userId) return null;
 
     try {
-      const today = getTodayInBrasilia(); // YYYY-MM-DD format (horário de Brasília)
+      const today = getTodayInBrasilia();
 
-      // Buscar conversa do dia atual
       const { data: existingConversation, error: fetchError } = await supabase
-        .from("conversations")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("conversation_date", today)
-        .eq("is_archived", false)
+        .from('conversations')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('conversation_date', today)
+        .eq('is_archived', false)
         .maybeSingle();
 
       if (fetchError) throw fetchError;
 
-      // Se já existe, retorna ela
       if (existingConversation) {
         return existingConversation;
       }
 
-      // Se não existe, cria uma nova para hoje
       const { data: newConversation, error: createError } = await supabase
-        .from("conversations")
+        .from('conversations')
         .insert({
-          user_id: user.id,
+          user_id: userId,
           conversation_date: today,
         })
         .select()
         .single();
 
       if (createError) {
-        // Se for erro de chave duplicada (race condition), buscar novamente
         if (createError.code === '23505') {
-          console.log("Duplicate key detected, retrying fetch...");
           const { data: retryData } = await supabase
-            .from("conversations")
-            .select("*")
-            .eq("user_id", user.id)
-            .eq("conversation_date", today)
-            .eq("is_archived", false)
+            .from('conversations')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('conversation_date', today)
+            .eq('is_archived', false)
             .maybeSingle();
-          
+
           return retryData;
         }
         throw createError;
       }
-      
+
+      void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(userId) });
       return newConversation;
     } catch (error) {
       console.error("Error getting or creating today's conversation:", error);
       return null;
     }
-  }, [user]);
+  }, [queryClient, userId]);
 
   const createConversation = useCallback(async () => {
     return getOrCreateTodayConversation();
   }, [getOrCreateTodayConversation]);
 
-  const deleteConversation = async (conversationId: string) => {
-    try {
-      const { error } = await supabase
-        .from("conversations")
-        .delete()
-        .eq("id", conversationId);
+  const deleteConversation = useCallback(
+    async (conversationId: string) => {
+      try {
+        const { error } = await supabase
+          .from('conversations')
+          .delete()
+          .eq('id', conversationId);
 
-      if (error) throw error;
-      
-      // Atualizar estado local imediatamente após exclusão bem-sucedida
-      setConversations((prev) => prev.filter((conv) => conv.id !== conversationId));
-    } catch (error) {
-      console.error("Error deleting conversation:", error);
-      throw error; // Re-throw para que o chamador saiba que falhou
-    }
-  };
+        if (error) throw error;
 
-  const archiveConversation = async (conversationId: string) => {
-    try {
-      const { error } = await supabase
-        .from("conversations")
-        .update({ is_archived: true })
-        .eq("id", conversationId);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error("Error archiving conversation:", error);
-    }
-  };
-
-  const refetch = useCallback(async (options?: { silent?: boolean }) => {
-    if (!user) return;
-
-    const silent = options?.silent ?? false;
-
-    try {
-      if (!silent) {
-        setLoading(true);
-      }
-      
-      const { data: allConversations, error: convError } = await supabase
-        .from("conversations")
-        .select("*, messages!inner(id)")
-        .eq("user_id", user.id)
-        .eq("is_archived", false)
-        .order("updated_at", { ascending: false });
-
-      if (convError) throw convError;
-
-      if (!allConversations || allConversations.length === 0) {
-        setConversations([]);
-        if (!silent) {
-          setLoading(false);
+        if (userId) {
+          queryClient.setQueryData<Conversation[]>(
+            queryKeys.conversations(userId),
+            (prev) => (prev ?? []).filter((conv) => conv.id !== conversationId),
+          );
         }
-        return;
+      } catch (error) {
+        console.error('Error deleting conversation:', error);
+        throw error;
       }
+    },
+    [queryClient, userId],
+  );
 
-      let conversationsWithMessages = allConversations.map(
-        ({ messages: _messages, ...conversation }) => conversation as Conversation,
-      );
+  const archiveConversation = useCallback(async (conversationId: string) => {
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .update({ is_archived: true })
+        .eq('id', conversationId);
 
-      if (daysLimit) {
-        const nowBrasilia = getNowInBrasilia();
-        const limitDate = new Date(nowBrasilia);
-        limitDate.setDate(limitDate.getDate() - daysLimit);
-        limitDate.setHours(0, 0, 0, 0);
-        const limitDateStr = limitDate.toISOString().split('T')[0];
+      if (error) throw error;
 
-        conversationsWithMessages = conversationsWithMessages.filter((c: Conversation) => {
-          const dateSource = c.conversation_date || c.created_at;
-          const convDateStr = dateSource.includes('T')
-            ? dateSource.split('T')[0]
-            : dateSource;
-          return convDateStr >= limitDateStr;
-        });
+      if (userId) {
+        queryClient.setQueryData<Conversation[]>(
+          queryKeys.conversations(userId),
+          (prev) => (prev ?? []).filter((conv) => conv.id !== conversationId),
+        );
       }
-
-      const uniqueConversations = Array.from(
-        new Map(conversationsWithMessages.map((c: Conversation) => [c.id, c])).values()
-      );
-      
-      setConversations(uniqueConversations);
     } catch (error) {
-      console.error("Error refetching conversations:", error);
-    } finally {
-      if (!silent) {
-        setLoading(false);
-      }
+      console.error('Error archiving conversation:', error);
     }
-  }, [user, daysLimit]);
+  }, [queryClient, userId]);
+
+  const refetch = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!userId) return;
+      await refetchQuery();
+      void options;
+    },
+    [refetchQuery, userId],
+  );
 
   return {
     conversations,
-    loading,
+    loading: isLoading || (isFetching && conversations.length === 0),
     createConversation,
     getOrCreateTodayConversation,
     deleteConversation,
@@ -309,4 +167,3 @@ export function useConversations(daysLimit?: number) {
     refetch,
   };
 }
-

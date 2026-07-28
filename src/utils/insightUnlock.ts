@@ -1,3 +1,6 @@
+import { queryClient } from '@/lib/queryClient';
+import { queryKeys } from '@/lib/queryKeys';
+import { fetchConversationsWithMessages } from '@/services/conversationsQuery';
 import { supabase } from '@/integrations/supabase/client';
 import type {
   InsightCountScope,
@@ -64,43 +67,28 @@ function uniqueDateCount(dates: Array<string | null | undefined>): number {
   return new Set(dates.filter((date): date is string => !!date)).size;
 }
 
-async function countConversationDays(
-  userId: string,
-  range?: { start: string; end: string },
-): Promise<string[]> {
-  let query = supabase
-    .from('conversations')
-    .select('conversation_date, messages!inner(id)')
-    .eq('user_id', userId)
-    .eq('is_archived', false);
-
-  if (range) {
-    query = query.gte('conversation_date', range.start).lte('conversation_date', range.end);
-  }
-
-  const { data, error } = await query;
-  if (error) {
-    console.error('Error fetching conversation days:', error);
-    return [];
-  }
-
-  return (data ?? []).map((row) => row.conversation_date);
+function inRange(date: string, range?: { start: string; end: string }): boolean {
+  if (!range) return true;
+  return date >= range.start && date <= range.end;
 }
 
-async function countCheckInDays(
-  userId: string,
-  range?: { start: string; end: string },
-): Promise<string[]> {
-  let query = supabase
+async function fetchConversationDates(userId: string): Promise<string[]> {
+  const conversations = await queryClient.ensureQueryData({
+    queryKey: queryKeys.conversations(userId),
+    queryFn: () => fetchConversationsWithMessages(userId),
+  });
+
+  return conversations
+    .map((row) => row.conversation_date)
+    .filter((date): date is string => !!date);
+}
+
+async function fetchCheckInDates(userId: string): Promise<string[]> {
+  const { data, error } = await supabase
     .from('daily_checkins')
     .select('checkin_date')
     .eq('user_id', userId);
 
-  if (range) {
-    query = query.gte('checkin_date', range.start).lte('checkin_date', range.end);
-  }
-
-  const { data, error } = await query;
   if (error) {
     console.error('Error fetching check-in days:', error);
     return [];
@@ -109,16 +97,36 @@ async function countCheckInDays(
   return (data ?? []).map((row) => row.checkin_date);
 }
 
-async function countActiveDays(
-  userId: string,
-  range?: { start: string; end: string },
-): Promise<number> {
-  const [conversationDays, checkInDays] = await Promise.all([
-    countConversationDays(userId, range),
-    countCheckInDays(userId, range),
-  ]);
+function countForScope(
+  scope: InsightCountScope,
+  conversationDates: string[],
+  checkInDates: string[],
+): number {
+  if (scope === 'yesterday_with_messages') {
+    const yesterday = getYesterdayInBrasilia();
+    return conversationDates.filter((date) => date === yesterday).length;
+  }
 
-  return uniqueDateCount([...conversationDays, ...checkInDays]);
+  if (scope === 'weekly_with_messages' || scope === 'weekly_active_days') {
+    const weekStart = formatDateBrasilia(getWeekStartBrasilia());
+    const weekEnd = formatDateBrasilia(getWeekEndBrasilia(getWeekStartBrasilia()));
+    const range = { start: weekStart, end: weekEnd };
+
+    if (scope === 'weekly_active_days') {
+      return uniqueDateCount([
+        ...conversationDates.filter((date) => inRange(date, range)),
+        ...checkInDates.filter((date) => inRange(date, range)),
+      ]);
+    }
+
+    return conversationDates.filter((date) => inRange(date, range)).length;
+  }
+
+  if (scope === 'total_active_days') {
+    return uniqueDateCount([...conversationDates, ...checkInDates]);
+  }
+
+  return conversationDates.length;
 }
 
 export async function fetchInsightUnlockRules(): Promise<InsightUnlockRule[]> {
@@ -141,63 +149,13 @@ export async function countConversationsForScope(
   userId: string,
   scope: InsightCountScope,
 ): Promise<number> {
-  if (scope === 'yesterday_with_messages') {
-    const { count, error } = await supabase
-      .from('conversations')
-      .select('id, messages!inner(id)', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('is_archived', false)
-      .eq('conversation_date', getYesterdayInBrasilia());
+  const needsCheckIns = scope === 'total_active_days' || scope === 'weekly_active_days';
+  const [conversationDates, checkInDates] = await Promise.all([
+    fetchConversationDates(userId),
+    needsCheckIns ? fetchCheckInDates(userId) : Promise.resolve([] as string[]),
+  ]);
 
-    if (error) {
-      console.error('Error counting yesterday conversations:', error);
-      return 0;
-    }
-
-    return count ?? 0;
-  }
-
-  if (scope === 'weekly_with_messages' || scope === 'weekly_active_days') {
-    const weekStart = formatDateBrasilia(getWeekStartBrasilia());
-    const weekEnd = formatDateBrasilia(getWeekEndBrasilia(getWeekStartBrasilia()));
-    const range = { start: weekStart, end: weekEnd };
-
-    if (scope === 'weekly_active_days') {
-      return countActiveDays(userId, range);
-    }
-
-    const { count, error } = await supabase
-      .from('conversations')
-      .select('id, messages!inner(id)', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('is_archived', false)
-      .gte('conversation_date', weekStart)
-      .lte('conversation_date', weekEnd);
-
-    if (error) {
-      console.error('Error counting weekly conversations:', error);
-      return 0;
-    }
-
-    return count ?? 0;
-  }
-
-  if (scope === 'total_active_days') {
-    return countActiveDays(userId);
-  }
-
-  const { count, error } = await supabase
-    .from('conversations')
-    .select('id, messages!inner(id)', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('is_archived', false);
-
-  if (error) {
-    console.error('Error counting total conversations:', error);
-    return 0;
-  }
-
-  return count ?? 0;
+  return countForScope(scope, conversationDates, checkInDates);
 }
 
 export function computeInsightUnlockProgress(
@@ -236,13 +194,19 @@ export async function buildInsightProgressMap(
   rules: InsightUnlockRule[],
 ): Promise<Record<string, InsightUnlockProgress>> {
   const scopes = [...new Set(rules.map((rule) => rule.count_scope))];
-  const counts = new Map<InsightCountScope, number>();
-
-  await Promise.all(
-    scopes.map(async (scope) => {
-      counts.set(scope, await countConversationsForScope(userId, scope));
-    }),
+  const needsCheckIns = scopes.some(
+    (scope) => scope === 'total_active_days' || scope === 'weekly_active_days',
   );
+
+  const [conversationDates, checkInDates] = await Promise.all([
+    fetchConversationDates(userId),
+    needsCheckIns ? fetchCheckInDates(userId) : Promise.resolve([] as string[]),
+  ]);
+
+  const counts = new Map<InsightCountScope, number>();
+  for (const scope of scopes) {
+    counts.set(scope, countForScope(scope, conversationDates, checkInDates));
+  }
 
   return rules.reduce<Record<string, InsightUnlockProgress>>((acc, rule) => {
     const conversationCount = counts.get(rule.count_scope) ?? 0;

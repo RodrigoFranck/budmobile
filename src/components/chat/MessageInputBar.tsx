@@ -10,7 +10,7 @@ import {
   Text,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronUp } from 'lucide-react-native';
+import { ArrowUp } from 'lucide-react-native';
 import {
   VoiceInterface,
 } from '@/voice/VoiceInterface';
@@ -30,6 +30,8 @@ interface MessageInputBarProps {
   onVoiceModeChange?: (active: boolean) => void;
   onVoiceConnectingChange?: (connecting: boolean) => void;
   onVoiceSessionBusyChange?: (busy: boolean) => void;
+  onVoicePausedChange?: (paused: boolean) => void;
+  onVoiceMicMutedChange?: (muted: boolean) => void;
   onVoiceUserMessage?: (text: string) => void;
   onVoiceAssistantMessage?: (text: string) => void;
   onVoiceTranscript?: (text: string) => void;
@@ -56,6 +58,8 @@ export function MessageInputBar({
   onVoiceModeChange,
   onVoiceConnectingChange,
   onVoiceSessionBusyChange,
+  onVoicePausedChange,
+  onVoiceMicMutedChange,
   onVoiceUserMessage,
   onVoiceAssistantMessage,
   onVoiceTranscript,
@@ -100,6 +104,11 @@ export function MessageInputBar({
   const isProminentVoice =
     voiceAppearance === 'prominent' ||
     (voiceAppearance == null && mode === 'trigger');
+  const sendIconSize = Math.round(layout.sendTouchSize * 0.48);
+  const sendIconColor = colors['chat-warm-bg'];
+  const sendButtonDisabledStyle = {
+    backgroundColor: `${colors['chat-accent-mint']}59`,
+  } as const;
 
   const styles = useMemo(
     () =>
@@ -125,6 +134,8 @@ export function MessageInputBar({
       onVoiceModeChange={onVoiceModeChange}
       onConnectingChange={onVoiceConnectingChange}
       onSessionBusyChange={onVoiceSessionBusyChange}
+      onPausedChange={onVoicePausedChange}
+      onMicMutedChange={onVoiceMicMutedChange}
       onUserMessage={onVoiceUserMessage}
       onAssistantMessage={onVoiceAssistantMessage}
       onAssistantTranscript={onVoiceTranscript}
@@ -150,11 +161,11 @@ export function MessageInputBar({
       >
         Envie uma mensagem
       </Text>
-      <View style={[styles.sendButton, { opacity: 0.35 }]}>
-        <ChevronUp
-          size={Math.round(layout.sendTouchSize * 0.55)}
-          color={colors['chat-body']}
-          strokeWidth={2.5}
+      <View style={[styles.sendButton, sendButtonDisabledStyle]}>
+        <ArrowUp
+          size={sendIconSize}
+          color={`${sendIconColor}8C`}
+          strokeWidth={3}
         />
       </View>
     </Pressable>
@@ -186,13 +197,13 @@ export function MessageInputBar({
         disabled={!canSend}
         accessibilityRole="button"
         accessibilityLabel="Enviar mensagem"
-        style={[styles.sendButton, { opacity: canSend ? 1 : 0.35 }]}
+        style={[styles.sendButton, !canSend && sendButtonDisabledStyle]}
         hitSlop={styles.sendHitSlop}
       >
-        <ChevronUp
-          size={Math.round(layout.sendTouchSize * 0.55)}
-          color={colors['chat-body']}
-          strokeWidth={2.5}
+        <ArrowUp
+          size={sendIconSize}
+          color={canSend ? sendIconColor : `${sendIconColor}8C`}
+          strokeWidth={3}
         />
       </TouchableOpacity>
     </View>

@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { useAppProfileQuery } from '@/hooks/useAppProfileQuery';
 import { supabase } from '@/integrations/supabase/client';
+import { queryKeys } from '@/lib/queryKeys';
+import type { AppProfile } from '@/services/profileQuery';
 import {
   registerForPushNotificationsAsync,
   removeAllPushTokensForUser,
@@ -31,6 +35,8 @@ function getDeviceTimezone(): string {
 
 export function useNotificationPreferences() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: profile, isFetched } = useAppProfileQuery();
   const [enabled, setEnabled] = useState(true);
   const [dailyTime, setDailyTime] = useState(DEFAULT_TIME);
   const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
@@ -46,36 +52,21 @@ export function useNotificationPreferences() {
       return;
     }
 
-    let cancelled = false;
+    if (!isFetched) {
+      setLoaded(false);
+      return;
+    }
 
-    const load = async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('push_notifications_enabled, notification_daily_time, timezone')
-        .eq('user_id', user.id)
-        .maybeSingle();
+    if (profile) {
+      setEnabled(profile.push_notifications_enabled !== false);
+      setDailyTime(profile.notification_daily_time ?? DEFAULT_TIME);
+      setTimezone(profile.timezone ?? getDeviceTimezone());
+    } else {
+      setTimezone(getDeviceTimezone());
+    }
 
-      if (cancelled) {
-        return;
-      }
-
-      if (data) {
-        setEnabled(data.push_notifications_enabled !== false);
-        setDailyTime(data.notification_daily_time ?? DEFAULT_TIME);
-        setTimezone(data.timezone ?? getDeviceTimezone());
-      } else {
-        setTimezone(getDeviceTimezone());
-      }
-
-      setLoaded(true);
-    };
-
-    load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id]);
+    setLoaded(true);
+  }, [user?.id, isFetched, profile]);
 
   const setNotificationsEnabled = useCallback(
     async (nextEnabled: boolean) => {
@@ -96,17 +87,30 @@ export function useNotificationPreferences() {
           }
         }
 
+        const nextTimezone = getDeviceTimezone();
         const { error } = await supabase
           .from('profiles')
           .update({
             push_notifications_enabled: nextEnabled,
-            timezone: getDeviceTimezone(),
+            timezone: nextTimezone,
           })
           .eq('user_id', user.id);
 
         if (error) {
           throw error;
         }
+
+        queryClient.setQueryData<AppProfile | null>(
+          queryKeys.profile(user.id),
+          (current) =>
+            current
+              ? {
+                  ...current,
+                  push_notifications_enabled: nextEnabled,
+                  timezone: nextTimezone,
+                }
+              : current,
+        );
 
         if (Platform.OS === 'web') {
           return;
@@ -128,7 +132,7 @@ export function useNotificationPreferences() {
         setSaving(false);
       }
     },
-    [user?.id],
+    [queryClient, user?.id],
   );
 
   const setDailyNotificationTime = useCallback(
@@ -138,6 +142,7 @@ export function useNotificationPreferences() {
       }
 
       const nextTime = `${String(hour).padStart(2, '0')}:00:00`;
+      const nextTimezone = getDeviceTimezone();
       setSaving(true);
       setDailyTime(nextTime);
 
@@ -146,13 +151,25 @@ export function useNotificationPreferences() {
           .from('profiles')
           .update({
             notification_daily_time: nextTime,
-            timezone: getDeviceTimezone(),
+            timezone: nextTimezone,
           })
           .eq('user_id', user.id);
 
         if (error) {
           throw error;
         }
+
+        queryClient.setQueryData<AppProfile | null>(
+          queryKeys.profile(user.id),
+          (current) =>
+            current
+              ? {
+                  ...current,
+                  notification_daily_time: nextTime,
+                  timezone: nextTimezone,
+                }
+              : current,
+        );
       } catch (error) {
         const previousHour = Number.parseInt(dailyTime.slice(0, 2), 10);
         setDailyTime(`${String(previousHour).padStart(2, '0')}:00:00`);
@@ -161,7 +178,7 @@ export function useNotificationPreferences() {
         setSaving(false);
       }
     },
-    [dailyTime, user?.id],
+    [dailyTime, queryClient, user?.id],
   );
 
   return {
