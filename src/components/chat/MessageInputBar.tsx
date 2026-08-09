@@ -15,6 +15,7 @@ import {
   VoiceInterface,
 } from '@/voice/VoiceInterface';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
+import { ProminentVoiceButton } from '@/voice/ProminentVoiceButton';
 import { useAppColors } from '@/lib/colors';
 import type { UserContext } from '@/utils/chatStream';
 import { getMessageInputBarStyles } from '@/components/chat/MessageInputBar.styles';
@@ -23,6 +24,7 @@ import { useMessageInputBarLayout } from '@/components/chat/messageInputBarLayou
 interface MessageInputBarProps {
   mode?: 'editable' | 'trigger';
   onPressTrigger?: () => void;
+  onPressVoice?: () => void;
   autoFocus?: boolean;
   onSendMessage?: (message: string) => void;
   disabled?: boolean;
@@ -51,6 +53,7 @@ interface MessageInputBarProps {
 export function MessageInputBar({
   mode = 'editable',
   onPressTrigger,
+  onPressVoice,
   autoFocus = false,
   onSendMessage,
   disabled,
@@ -80,14 +83,14 @@ export function MessageInputBar({
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    if (mode !== 'editable' || !autoFocus) return;
+    if (mode !== 'editable' || !autoFocus || !isFocused) return;
 
     const timer = setTimeout(() => {
       inputRef.current?.focus();
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [autoFocus, mode]);
+  }, [autoFocus, isFocused, mode]);
 
   const hasMessage = message.trim().length > 0;
 
@@ -121,32 +124,47 @@ export function MessageInputBar({
     [colors, insets.bottom, isProminentVoice, layout],
   );
 
-  const voiceInterface = voiceInterfaceRef && isFocused ? (
-    <VoiceInterface
-      ref={voiceInterfaceRef}
-      appearance={voiceAppearance ?? (mode === 'trigger' ? 'prominent' : 'companion')}
-      prominentSize={isProminentVoice ? layout.pillHeight : undefined}
-      onTranscript={(text) => {
-        messageRef.current = text;
-        setMessage(text);
-        onVoiceTranscript?.(text);
-      }}
-      onVoiceModeChange={onVoiceModeChange}
-      onConnectingChange={onVoiceConnectingChange}
-      onSessionBusyChange={onVoiceSessionBusyChange}
-      onPausedChange={onVoicePausedChange}
-      onMicMutedChange={onVoiceMicMutedChange}
-      onUserMessage={onVoiceUserMessage}
-      onAssistantMessage={onVoiceAssistantMessage}
-      onAssistantTranscript={onVoiceTranscript}
-      onSpeakingChange={onSpeakingChange}
-      onSafetyTriggered={onSafetyTriggered}
-      userContext={userContext}
-      messageHistory={messageHistory}
-      recentInsights={recentInsights}
-      internalProfile={internalProfile}
-    />
-  ) : null;
+  const voiceLauncher =
+    onPressVoice != null ? (
+      <ProminentVoiceButton
+        colors={colors}
+        size={isProminentVoice ? layout.pillHeight : layout.voiceSlotWidth}
+        isConnected={false}
+        isLoading={false}
+        onPress={onPressVoice}
+        disabled={false}
+      />
+    ) : null;
+
+  const voiceInterface =
+    !voiceLauncher && voiceInterfaceRef && isFocused ? (
+      <VoiceInterface
+        ref={voiceInterfaceRef}
+        appearance={voiceAppearance ?? (mode === 'trigger' ? 'prominent' : 'companion')}
+        prominentSize={isProminentVoice ? layout.pillHeight : undefined}
+        onTranscript={(text) => {
+          messageRef.current = text;
+          setMessage(text);
+          onVoiceTranscript?.(text);
+        }}
+        onVoiceModeChange={onVoiceModeChange}
+        onConnectingChange={onVoiceConnectingChange}
+        onSessionBusyChange={onVoiceSessionBusyChange}
+        onPausedChange={onVoicePausedChange}
+        onMicMutedChange={onVoiceMicMutedChange}
+        onUserMessage={onVoiceUserMessage}
+        onAssistantMessage={onVoiceAssistantMessage}
+        onAssistantTranscript={onVoiceTranscript}
+        onSpeakingChange={onSpeakingChange}
+        onSafetyTriggered={onSafetyTriggered}
+        userContext={userContext}
+        messageHistory={messageHistory}
+        recentInsights={recentInsights}
+        internalProfile={internalProfile}
+      />
+    ) : null;
+
+  const voiceSlotContent = voiceLauncher ?? voiceInterface;
 
   const textTrigger = (
     <Pressable
@@ -213,8 +231,8 @@ export function MessageInputBar({
     <View style={styles.root}>
       <View style={styles.row}>
         {mode === 'trigger' ? textTrigger : textEditable}
-        {voiceInterface ? (
-          <View style={styles.voiceSlot}>{voiceInterface}</View>
+        {voiceSlotContent ? (
+          <View style={styles.voiceSlot}>{voiceSlotContent}</View>
         ) : null}
       </View>
     </View>

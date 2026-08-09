@@ -76,6 +76,7 @@ interface ChatSessionContextValue {
   handleToggleVoicePause: () => void;
   handleToggleVoiceMute: () => void;
   applyChatInsight: (insight: ChatInsightParam) => void;
+  requestAutoStartVoice: () => void;
   bootstrapInsightSession: () => void;
   trySendPendingInsight: () => void;
   handleVoiceInsight: (insight: {
@@ -184,6 +185,10 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     },
     [],
   );
+
+  const requestAutoStartVoice = useCallback(() => {
+    setShouldAutoStartVoice(true);
+  }, []);
 
   useEffect(() => {
     if (chatHomeResetToken === 0) return;
@@ -479,9 +484,15 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     if (
       !shouldAutoStartVoice ||
       !currentConversationId ||
-      !voiceInterfaceRef.current ||
       isVoiceAutoStartInFlightRef.current
     ) {
+      return;
+    }
+
+    if (!voiceInterfaceRef.current) {
+      requestAnimationFrame(() => {
+        bootstrapInsightSessionRef.current();
+      });
       return;
     }
 
@@ -578,6 +589,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       handleToggleVoicePause,
       handleToggleVoiceMute,
       applyChatInsight,
+      requestAutoStartVoice,
       bootstrapInsightSession,
       trySendPendingInsight,
       handleVoiceInsight,
@@ -608,6 +620,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       handleToggleVoicePause,
       handleToggleVoiceMute,
       applyChatInsight,
+      requestAutoStartVoice,
       bootstrapInsightSession,
       trySendPendingInsight,
       handleVoiceInsight,

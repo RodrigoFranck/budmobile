@@ -25,7 +25,6 @@ export default function ExploreScreen() {
   const tabLoading = useTabScreenLoading('Explore');
   const {
     yesterdayInsight,
-    generalInsight,
     frequencyInsight,
     habitInsight,
     refreshExploreInsights,
@@ -78,10 +77,6 @@ export default function ExploreScreen() {
 
   const handleContinueYesterday = () => {
     navigateToChatText('yesterday_journey', yesterdayInsight);
-  };
-
-  const handleTalkAboutInsight = () => {
-    navigateToChatText('general_insight', generalInsight);
   };
 
   const handleTalkAboutFrequency = () => {
@@ -159,20 +154,6 @@ export default function ExploreScreen() {
             cycleRequired={yesterdayInsight.cycleRequired}
             onMicClick={() => navigateToChatVoice('yesterday_journey', yesterdayInsight)}
             micDisabled={yesterdayInsight.locked}
-          />
-
-          <InsightCard
-            badge="INSPIRADO EM VOCÊ"
-            title={generalInsight.title}
-            description={generalInsight.description}
-            buttonText="Envie uma mensagem"
-            onButtonClick={handleTalkAboutInsight}
-            locked={generalInsight.locked}
-            remaining={generalInsight.remaining}
-            cycleProgress={generalInsight.cycleProgress}
-            cycleRequired={generalInsight.cycleRequired}
-            onMicClick={() => navigateToChatVoice('general_insight', generalInsight)}
-            micDisabled={generalInsight.locked}
           />
 
           <InsightCard

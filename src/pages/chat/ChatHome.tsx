@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 import { View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -12,11 +12,9 @@ import { TabScreenHeader } from '@/components/ui/TabScreenHeader';
 import { WeekCalendarHeader } from '@/components/ui/WeekCalendarHeader';
 import { Spacing } from '@/constants/styles';
 import { useTabScreenLoading } from '@/contexts/TabScreenContext';
-import { useChatSession } from '@/features/chat/ChatSessionProvider';
 import { useAppColors } from '@/lib/colors';
 import type { ChatStackNavigationProp } from '@/types/chatNavigation.types';
 import type { MainTabNavigationProp, RootNavigationProp } from '@/types/navigation';
-import { VoiceMode } from '@/voice/VoiceMode';
 
 export default function ChatHome() {
   const colors = useAppColors();
@@ -24,50 +22,14 @@ export default function ChatHome() {
   const navigation = useNavigation<ChatStackNavigationProp>();
   const tabNavigation = useNavigation<MainTabNavigationProp>();
   const rootNavigation = useNavigation<RootNavigationProp>();
-  const {
-    voiceInterfaceRef,
-    isVoiceModeActive,
-    setIsVoiceModeActive,
-    isVoiceConnecting,
-    setIsVoiceConnecting,
-    isVoiceSessionBusy,
-    setIsVoiceSessionBusy,
-    voiceTranscript,
-    setVoiceTranscript,
-    isBudSpeaking,
-    setIsBudSpeaking,
-    isVoicePaused,
-    setIsVoicePaused,
-    isVoiceMicMuted,
-    setIsVoiceMicMuted,
-    userContext,
-    messageHistory,
-    recentInsights,
-    memoryLoading,
-    internalProfileText,
-    handleVoiceUserMessage,
-    handleVoiceAssistantMessage,
-    handleEndVoiceSession,
-    handleToggleVoicePause,
-    handleToggleVoiceMute,
-  } = useChatSession();
 
-  const wasVoiceActiveRef = useRef(false);
-
-  const handleVoiceModeChange = useCallback(
-    (active: boolean) => {
-      if (wasVoiceActiveRef.current && !active) {
-        navigation.navigate('TextChat');
-      }
-      wasVoiceActiveRef.current = active;
-      setIsVoiceModeActive(active);
-    },
-    [navigation, setIsVoiceModeActive],
-  );
-
-  const openBudConversation = () => {
+  const openTextChat = useCallback(() => {
     navigation.navigate('TextChat');
-  };
+  }, [navigation]);
+
+  const openVoiceChat = useCallback(() => {
+    navigation.navigate('TextChat', { autoStartVoice: true });
+  }, [navigation]);
 
   return (
     <ScreenLoadingGate loading={tabLoading}>
@@ -93,37 +55,11 @@ export default function ChatHome() {
           />
           <MessageInputBar
             mode="trigger"
-            onPressTrigger={openBudConversation}
+            onPressTrigger={openTextChat}
+            onPressVoice={openVoiceChat}
             voiceAppearance="prominent"
-            voiceInterfaceRef={voiceInterfaceRef}
-            onVoiceModeChange={handleVoiceModeChange}
-            onVoiceConnectingChange={setIsVoiceConnecting}
-            onVoiceSessionBusyChange={setIsVoiceSessionBusy}
-            onVoicePausedChange={setIsVoicePaused}
-            onVoiceMicMutedChange={setIsVoiceMicMuted}
-            onVoiceUserMessage={handleVoiceUserMessage}
-            onVoiceAssistantMessage={handleVoiceAssistantMessage}
-            onVoiceTranscript={setVoiceTranscript}
-            onSpeakingChange={setIsBudSpeaking}
-            userContext={userContext}
-            messageHistory={messageHistory}
-            recentInsights={recentInsights}
-            internalProfile={memoryLoading ? undefined : internalProfileText}
           />
         </View>
-        <VoiceMode
-          visible={isVoiceModeActive}
-          onClose={() => handleVoiceModeChange(false)}
-          onEndVoice={handleEndVoiceSession}
-          onTogglePause={handleToggleVoicePause}
-          onToggleMute={handleToggleVoiceMute}
-          transcript={voiceTranscript}
-          isBudSpeaking={isBudSpeaking}
-          isConnecting={isVoiceConnecting}
-          isSessionBusy={isVoiceSessionBusy}
-          isPaused={isVoicePaused}
-          isMicMuted={isVoiceMicMuted}
-        />
       </View>
     </ScreenLoadingGate>
   );

@@ -4,6 +4,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   useFocusEffect,
   useNavigation,
+  useRoute,
+  type RouteProp,
 } from '@react-navigation/native';
 import { ChevronLeft } from 'lucide-react-native';
 
@@ -16,13 +18,17 @@ import { PlatformConstants } from '@/constants/layout';
 import { useTabScreenLoading } from '@/contexts/TabScreenContext';
 import { useChatSession } from '@/features/chat/ChatSessionProvider';
 import { useAppColors } from '@/lib/colors';
-import type { ChatStackNavigationProp } from '@/types/chatNavigation.types';
+import type {
+  ChatStackNavigationProp,
+  ChatStackParamList,
+} from '@/types/chatNavigation.types';
 import { VoiceMode } from '@/voice/VoiceMode';
 
 export default function TextChatScreen() {
   const colors = useAppColors();
   const tabLoading = useTabScreenLoading('Chat');
   const navigation = useNavigation<ChatStackNavigationProp>();
+  const route = useRoute<RouteProp<ChatStackParamList, 'TextChat'>>();
   const {
     allMessages,
     isStreaming,
@@ -54,14 +60,36 @@ export default function TextChatScreen() {
     handleToggleVoicePause,
     handleToggleVoiceMute,
     handleAssistantRevealComplete,
+    requestAutoStartVoice,
     bootstrapInsightSession,
   } = useChatSession();
 
   useFocusEffect(
     useCallback(() => {
       if (tabLoading) return;
+
+      if (route.params?.autoStartVoice) {
+        requestAutoStartVoice();
+        navigation.setParams({ autoStartVoice: undefined });
+      }
+
       bootstrapInsightSession();
-    }, [bootstrapInsightSession, tabLoading]),
+    }, [
+      bootstrapInsightSession,
+      navigation,
+      requestAutoStartVoice,
+      route.params?.autoStartVoice,
+      tabLoading,
+    ]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        void voiceInterfaceRef.current?.endConversation({ force: true });
+        setIsVoiceModeActive(false);
+      };
+    }, [setIsVoiceModeActive, voiceInterfaceRef]),
   );
 
   const handleBack = useCallback(() => {
