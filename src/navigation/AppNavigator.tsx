@@ -14,6 +14,7 @@ import OnboardingNavigator from '@/navigation/OnboardingNavigator';
 import SettingsScreen from '@/pages/Settings';
 import CrisisResourcesScreen from '@/pages/CrisisResources';
 import SupportFeedbackScreen from '@/pages/SupportFeedback';
+import CheckInNavigator from '@/navigation/CheckInNavigator';
 import PsychologicalAssessmentNavigator from '@/navigation/PsychologicalAssessmentNavigator';
 import MainTabs from '@/navigation/MainTabs';
 import type { RootStackParamList } from '@/types/navigation';
@@ -91,6 +92,7 @@ export default function AppNavigator() {
                 name="PsychologicalAssessment"
                 component={PsychologicalAssessmentNavigator}
               />
+              <Stack.Screen name="CheckIn" component={CheckInNavigator} />
             </>
           )}
         </Stack.Navigator>

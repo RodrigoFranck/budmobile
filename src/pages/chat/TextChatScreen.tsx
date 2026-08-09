@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { KeyboardAvoidingView, Pressable, View } from 'react-native';
+import { KeyboardAvoidingView, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   useFocusEffect,
@@ -7,12 +7,13 @@ import {
   useRoute,
   type RouteProp,
 } from '@react-navigation/native';
-import { ChevronLeft } from 'lucide-react-native';
+import { Book, Settings } from 'lucide-react-native';
 
 import { ChatContainer } from '@/components/chat/ChatContainer';
 import { MessageInputBar } from '@/components/chat/MessageInputBar';
 import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
 import { TabScreenHeader } from '@/components/ui/TabScreenHeader';
+import { WeekCalendarHeader } from '@/components/ui/WeekCalendarHeader';
 import { Spacing } from '@/constants/styles';
 import { PlatformConstants } from '@/constants/layout';
 import { useTabScreenLoading } from '@/contexts/TabScreenContext';
@@ -22,12 +23,15 @@ import type {
   ChatStackNavigationProp,
   ChatStackParamList,
 } from '@/types/chatNavigation.types';
+import type { MainTabNavigationProp, RootNavigationProp } from '@/types/navigation';
 import { VoiceMode } from '@/voice/VoiceMode';
 
 export default function TextChatScreen() {
   const colors = useAppColors();
   const tabLoading = useTabScreenLoading('Chat');
   const navigation = useNavigation<ChatStackNavigationProp>();
+  const tabNavigation = useNavigation<MainTabNavigationProp>();
+  const rootNavigation = useNavigation<RootNavigationProp>();
   const route = useRoute<RouteProp<ChatStackParamList, 'TextChat'>>();
   const {
     allMessages,
@@ -53,6 +57,7 @@ export default function TextChatScreen() {
     userContext,
     messageHistory,
     recentInsights,
+    chatHomeResetToken,
     handleSendMessage,
     handleVoiceUserMessage,
     handleVoiceAssistantMessage,
@@ -92,14 +97,6 @@ export default function TextChatScreen() {
     }, [setIsVoiceModeActive, voiceInterfaceRef]),
   );
 
-  const handleBack = useCallback(() => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-      return;
-    }
-    navigation.navigate('ChatHome');
-  }, [navigation]);
-
   return (
     <ScreenLoadingGate loading={tabLoading}>
       <View className="flex-1 bg-background">
@@ -114,20 +111,19 @@ export default function TextChatScreen() {
           keyboardVerticalOffset={PlatformConstants.keyboardVerticalOffset}
         >
           <TabScreenHeader>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Voltar para início do chat"
-              onPress={handleBack}
-              hitSlop={12}
-              style={{ alignSelf: 'flex-start', paddingVertical: 4 }}
-            >
-              <ChevronLeft size={28} color={colors.foreground} />
-            </Pressable>
+            <WeekCalendarHeader
+              leftIcon={Book}
+              onPressLeft={() => tabNavigation.navigate('Explore')}
+              showLeftIndicatorDot
+              rightIcon={Settings}
+              onPressRight={() => rootNavigation.navigate('Settings')}
+            />
           </TabScreenHeader>
           <ChatContainer
             messages={allMessages}
             loading={isStreaming || messagesLoading}
             topPadding={Spacing.base}
+            scrollResetToken={chatHomeResetToken}
             onAssistantRevealComplete={handleAssistantRevealComplete}
           />
           <MessageInputBar

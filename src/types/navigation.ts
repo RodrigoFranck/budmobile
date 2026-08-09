@@ -26,6 +26,7 @@ export type RootStackParamList = {
   CrisisResources: undefined;
   SupportFeedback: undefined;
   PsychologicalAssessment: undefined;
+  CheckIn: undefined;
   Onboarding: undefined;
 };
 

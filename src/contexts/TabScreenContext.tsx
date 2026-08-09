@@ -13,12 +13,14 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useChatMemoryContext } from '@/hooks/useChatMemoryContext';
 import { useConversations } from '@/hooks/useConversations';
 import { useExploreInsights } from '@/hooks/useExploreInsights';
+import { useExploreViewedInsights } from '@/hooks/useExploreViewedInsights';
 import { useMessages } from '@/hooks/useMessages';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { clearPendingChatInsight } from '@/utils/navigateToChat';
 import { prepareHistoryConversationTitles } from '@/utils/generateConversationTitle';
 import type { MainTabParamList } from '@/types/navigation';
 import type { Tables } from '@/integrations/supabase/types';
+import type { ExploreInsightKey } from '@/constants/exploreInsights';
 
 type Conversation = Tables<'conversations'>;
 
@@ -55,6 +57,8 @@ interface TabScreenContextValue {
   deepInsightContent: ReturnType<typeof useExploreInsights>['deepInsightContent'];
   deepInsightProgress: ReturnType<typeof useExploreInsights>['deepInsightProgress'];
   refreshExploreInsights: ReturnType<typeof useExploreInsights>['refreshInsights'];
+  unviewedInsightsCount: number;
+  markInsightViewed: (key: ExploreInsightKey) => void;
 }
 
 const TabScreenContext = createContext<TabScreenContextValue | undefined>(undefined);
@@ -89,6 +93,8 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
     isLoading: insightsLoading = false,
     refreshInsights,
   } = useExploreInsights(insightsRefreshToken);
+
+  const { unviewedInsightsCount, markInsightViewed } = useExploreViewedInsights();
 
   const [chatConversationId, setChatConversationId] = useState<string | null>(null);
   const [chatConversationReady, setChatConversationReady] = useState(false);
@@ -240,6 +246,8 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
       deepInsightContent,
       deepInsightProgress,
       refreshExploreInsights: refreshInsights,
+      unviewedInsightsCount,
+      markInsightViewed,
     }),
     [
       isTabReady,
@@ -270,6 +278,8 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
       deepInsightContent,
       deepInsightProgress,
       refreshInsights,
+      unviewedInsightsCount,
+      markInsightViewed,
     ],
   );
 

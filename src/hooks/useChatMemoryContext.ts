@@ -36,11 +36,21 @@ async function fetchSessionMemoryExtras(userId: string): Promise<{
       .maybeSingle(),
   ]);
 
+  // Column may be missing until migration `20260728210000_session_summaries` is applied.
+  if (bioRes.error && __DEV__) {
+    console.warn(
+      '[sessionMemory] profiles.biographical_notes unavailable:',
+      bioRes.error.message,
+    );
+  }
+
   return {
     sessionSummaries: (summariesRes.data ?? [])
       .map((row) => row.summary_text)
       .filter(Boolean),
-    biographicalNotes: bioRes.data?.biographical_notes ?? null,
+    biographicalNotes: bioRes.error
+      ? null
+      : (bioRes.data?.biographical_notes ?? null),
   };
 }
 

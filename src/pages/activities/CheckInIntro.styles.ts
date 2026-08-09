@@ -12,8 +12,11 @@ export function createCheckInIntroStyles(t: ActivitiesThemeTokens) {
       flex: 1,
       backgroundColor: t.surface,
     },
+    scroll: {
+      flex: 1,
+    },
     scrollContent: {
-      paddingBottom: 120,
+      paddingBottom: 24,
     },
     hero: {
       width: '100%',
@@ -95,12 +98,8 @@ export function createCheckInIntroStyles(t: ActivitiesThemeTokens) {
       marginTop: 8,
     },
     ctaContainer: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      bottom: 0,
       paddingHorizontal: 24,
-      paddingTop: 24,
+      paddingTop: 16,
     },
     ctaButton: {
       height: 56,

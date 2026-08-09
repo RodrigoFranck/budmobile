@@ -2,12 +2,30 @@ import { StyleSheet } from 'react-native';
 import { frauncesFont, instrumentSansFont } from '@/constants/onboardingTheme';
 import { darkColors } from '@/lib/colors';
 
+const ACTION_HEIGHT = 38;
+const SEND_TOUCH_SIZE = 22;
+const SEND_BUTTON_INSET = 8;
+
+export const insightCardActionLayout = {
+  height: ACTION_HEIGHT,
+  sendTouchSize: SEND_TOUCH_SIZE,
+  sendButtonInset: SEND_BUTTON_INSET,
+  sendIconSize: Math.round(SEND_TOUCH_SIZE * 0.48),
+  voiceHitSlop: { top: 10, bottom: 10, left: 10, right: 10 },
+} as const;
+
 export const insightCardStyles = StyleSheet.create({
   cardContainer: {
     backgroundColor: 'rgba(33, 33, 33, 0.85)',
     borderRadius: 20,
     minHeight: 340,
     overflow: 'hidden',
+  },
+  cardLocked: {
+    opacity: 0.75,
+  },
+  cardFillParent: {
+    flex: 1,
   },
   loadingContainer: {
     backgroundColor: 'rgba(33, 33, 33, 0.85)',
@@ -18,16 +36,16 @@ export const insightCardStyles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
-    paddingTop: 19,
-    paddingHorizontal: 24,
-    paddingBottom: 72,
+    paddingTop: 28,
+    paddingHorizontal: 28,
+    paddingBottom: 80,
   },
   contentContainerNoActions: {
-    paddingBottom: 28,
+    paddingBottom: 32,
   },
   badgeWrap: {
     alignItems: 'center',
-    marginBottom: 17,
+    marginBottom: 12,
   },
   badgeContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
@@ -44,29 +62,35 @@ export const insightCardStyles = StyleSheet.create({
   badgeText: {
     fontFamily: instrumentSansFont,
     fontWeight: '500',
-    fontSize: 11,
+    fontSize: 12,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
     color: 'rgba(255, 255, 255, 0.5)',
     textAlign: 'center',
   },
   contentGap: {
-    gap: 20,
+    flex: 1,
+    justifyContent: 'center',
+    gap: 28,
     alignItems: 'center',
+    paddingVertical: 16,
+    width: '100%',
   },
   titleText: {
     fontFamily: frauncesFont,
-    fontSize: 22,
-    lineHeight: 30,
+    fontSize: 34,
+    lineHeight: 42,
     color: '#FFFFFF',
     textAlign: 'center',
+    paddingHorizontal: 4,
   },
   descriptionText: {
     fontFamily: instrumentSansFont,
-    fontSize: 14,
-    lineHeight: 20,
-    color: 'rgba(255, 255, 255, 0.55)',
+    fontSize: 19,
+    lineHeight: 28,
+    color: 'rgba(255, 255, 255, 0.62)',
     textAlign: 'center',
+    paddingHorizontal: 4,
   },
   progressWrap: {
     marginTop: 4,
@@ -119,14 +143,13 @@ export const insightCardStyles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
-    height: 38,
+    height: ACTION_HEIGHT,
     borderRadius: 69,
     paddingLeft: 14,
-    paddingRight: 10,
+    paddingRight: SEND_TOUCH_SIZE + SEND_BUTTON_INSET + 4,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: darkColors['chat-input-pill'],
   },
   actionButtonLocked: {
     opacity: 0.55,
@@ -137,34 +160,57 @@ export const insightCardStyles = StyleSheet.create({
   actionButtonText: {
     fontFamily: instrumentSansFont,
     fontSize: 15,
-    color: 'rgba(240, 235, 229, 0.6)',
+    color: darkColors['chat-label-muted'],
     flexShrink: 1,
   },
-  sendIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: '#EFEAE6',
+  sendButton: {
+    position: 'absolute',
+    right: SEND_BUTTON_INSET,
+    top: (ACTION_HEIGHT - SEND_TOUCH_SIZE) / 2,
+    width: SEND_TOUCH_SIZE,
+    height: SEND_TOUCH_SIZE,
+    borderRadius: SEND_TOUCH_SIZE / 2,
+    backgroundColor: `${darkColors['chat-accent-mint']}59`,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  micButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  voiceButton: {
+    width: ACTION_HEIGHT,
+    height: ACTION_HEIGHT,
+    borderRadius: ACTION_HEIGHT / 2,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  micButtonEnabled: {
-    backgroundColor: darkColors['chat-mic-peach'],
+  voiceButtonEnabled: {
     opacity: 1,
   },
-  micButtonDisabled: {
-    backgroundColor: 'rgba(190, 169, 156, 0.35)',
+  voiceButtonDisabled: {
     opacity: 0.55,
   },
 });
 
+export const insightNavControlsStyles = StyleSheet.create({
+  wrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 28,
+    paddingTop: 4,
+    paddingBottom: 10,
+    zIndex: 2,
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  button: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
 export const insightCardImageStyle = { opacity: 0.6, borderRadius: 20 } as const;
-export const insightCardMicHitSlop = { top: 10, bottom: 10, left: 10, right: 10 } as const;

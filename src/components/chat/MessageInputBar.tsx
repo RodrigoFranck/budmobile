@@ -6,8 +6,6 @@ import {
   TouchableOpacity,
   Keyboard,
   Platform,
-  Pressable,
-  Text,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowUp } from 'lucide-react-native';
@@ -15,16 +13,12 @@ import {
   VoiceInterface,
 } from '@/voice/VoiceInterface';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
-import { ProminentVoiceButton } from '@/voice/ProminentVoiceButton';
 import { useAppColors } from '@/lib/colors';
 import type { UserContext } from '@/utils/chatStream';
 import { getMessageInputBarStyles } from '@/components/chat/MessageInputBar.styles';
 import { useMessageInputBarLayout } from '@/components/chat/messageInputBarLayout';
 
 interface MessageInputBarProps {
-  mode?: 'editable' | 'trigger';
-  onPressTrigger?: () => void;
-  onPressVoice?: () => void;
   autoFocus?: boolean;
   onSendMessage?: (message: string) => void;
   disabled?: boolean;
@@ -51,9 +45,6 @@ interface MessageInputBarProps {
 }
 
 export function MessageInputBar({
-  mode = 'editable',
-  onPressTrigger,
-  onPressVoice,
   autoFocus = false,
   onSendMessage,
   disabled,
@@ -83,14 +74,14 @@ export function MessageInputBar({
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    if (mode !== 'editable' || !autoFocus || !isFocused) return;
+    if (!autoFocus || !isFocused) return;
 
     const timer = setTimeout(() => {
       inputRef.current?.focus();
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [autoFocus, isFocused, mode]);
+  }, [autoFocus, isFocused]);
 
   const hasMessage = message.trim().length > 0;
 
@@ -104,9 +95,7 @@ export function MessageInputBar({
   };
 
   const canSend = hasMessage && !disabled;
-  const isProminentVoice =
-    voiceAppearance === 'prominent' ||
-    (voiceAppearance == null && mode === 'trigger');
+  const isProminentVoice = voiceAppearance === 'prominent';
   const sendIconSize = Math.round(layout.sendTouchSize * 0.48);
   const sendIconColor = colors['chat-warm-bg'];
   const sendButtonDisabledStyle = {
@@ -124,23 +113,11 @@ export function MessageInputBar({
     [colors, insets.bottom, isProminentVoice, layout],
   );
 
-  const voiceLauncher =
-    onPressVoice != null ? (
-      <ProminentVoiceButton
-        colors={colors}
-        size={isProminentVoice ? layout.pillHeight : layout.voiceSlotWidth}
-        isConnected={false}
-        isLoading={false}
-        onPress={onPressVoice}
-        disabled={false}
-      />
-    ) : null;
-
-  const voiceInterface =
-    !voiceLauncher && voiceInterfaceRef && isFocused ? (
+  const voiceSlotContent =
+    voiceInterfaceRef && isFocused ? (
       <VoiceInterface
         ref={voiceInterfaceRef}
-        appearance={voiceAppearance ?? (mode === 'trigger' ? 'prominent' : 'companion')}
+        appearance={voiceAppearance ?? 'companion'}
         prominentSize={isProminentVoice ? layout.pillHeight : undefined}
         onTranscript={(text) => {
           messageRef.current = text;
@@ -164,73 +141,44 @@ export function MessageInputBar({
       />
     ) : null;
 
-  const voiceSlotContent = voiceLauncher ?? voiceInterface;
-
-  const textTrigger = (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Abrir chat por texto"
-      onPress={onPressTrigger}
-      style={styles.inputWrap}
-    >
-      <Text
-        style={[styles.textInput, { color: colors['chat-label-muted'] }]}
-        numberOfLines={1}
-      >
-        Envie uma mensagem
-      </Text>
-      <View style={[styles.sendButton, sendButtonDisabledStyle]}>
-        <ArrowUp
-          size={sendIconSize}
-          color={`${sendIconColor}8C`}
-          strokeWidth={3}
-        />
-      </View>
-    </Pressable>
-  );
-
-  const textEditable = (
-    <View style={styles.inputWrap}>
-      <TextInput
-        ref={inputRef}
-        placeholder="Envie uma mensagem"
-        placeholderTextColor={colors['chat-label-muted']}
-        value={message}
-        onChangeText={(text) => {
-          messageRef.current = text;
-          setMessage(text);
-        }}
-        multiline
-        editable={!disabled}
-        onSubmitEditing={handleSend}
-        blurOnSubmit={false}
-        scrollEnabled={hasMessage}
-        style={styles.textInput}
-        {...(Platform.OS === 'android' && {
-          includeFontPadding: false,
-        })}
-      />
-      <TouchableOpacity
-        onPress={handleSend}
-        disabled={!canSend}
-        accessibilityRole="button"
-        accessibilityLabel="Enviar mensagem"
-        style={[styles.sendButton, !canSend && sendButtonDisabledStyle]}
-        hitSlop={styles.sendHitSlop}
-      >
-        <ArrowUp
-          size={sendIconSize}
-          color={canSend ? sendIconColor : `${sendIconColor}8C`}
-          strokeWidth={3}
-        />
-      </TouchableOpacity>
-    </View>
-  );
-
   return (
     <View style={styles.root}>
       <View style={styles.row}>
-        {mode === 'trigger' ? textTrigger : textEditable}
+        <View style={styles.inputWrap}>
+          <TextInput
+            ref={inputRef}
+            placeholder="Envie uma mensagem"
+            placeholderTextColor={colors['chat-label-muted']}
+            value={message}
+            onChangeText={(text) => {
+              messageRef.current = text;
+              setMessage(text);
+            }}
+            multiline
+            editable={!disabled}
+            onSubmitEditing={handleSend}
+            blurOnSubmit={false}
+            scrollEnabled={hasMessage}
+            style={styles.textInput}
+            {...(Platform.OS === 'android' && {
+              includeFontPadding: false,
+            })}
+          />
+          <TouchableOpacity
+            onPress={handleSend}
+            disabled={!canSend}
+            accessibilityRole="button"
+            accessibilityLabel="Enviar mensagem"
+            style={[styles.sendButton, !canSend && sendButtonDisabledStyle]}
+            hitSlop={styles.sendHitSlop}
+          >
+            <ArrowUp
+              size={sendIconSize}
+              color={canSend ? sendIconColor : `${sendIconColor}8C`}
+              strokeWidth={3}
+            />
+          </TouchableOpacity>
+        </View>
         {voiceSlotContent ? (
           <View style={styles.voiceSlot}>{voiceSlotContent}</View>
         ) : null}

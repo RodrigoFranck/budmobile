@@ -17,14 +17,12 @@ import morningCardBg from '@/assets/yesterday-journey-bg.png';
 import postTrainingCardBg from '@/assets/frequency-bg.png';
 import { useCheckIns, type CheckinType, type DailyCheckin } from '@/hooks/useCheckIns';
 import { useActivitiesTheme } from '@/lib/activitiesTheme';
-import type { ActivitiesStackParamList } from '@/types/activitiesNavigation.types';
-import { isPostGameCheckInAvailable } from '@/utils/dateUtils';
+import type { CheckInStackParamList } from '@/types/checkInNavigation.types';
 import { createCheckInActivitiesStyles } from './CheckInActivities.styles';
 
-type Nav = NativeStackNavigationProp<ActivitiesStackParamList, 'CheckInActivities'>;
+type Nav = NativeStackNavigationProp<CheckInStackParamList, 'CheckInActivities'>;
 
-function getCtaLabel(done: boolean, hasReport: boolean, locked: boolean): string {
-  if (locked && !done) return 'Domingo às 8h';
+function getCtaLabel(done: boolean, hasReport: boolean): string {
   if (!done) return 'Começar →';
   if (hasReport) return 'Ver relatório →';
   return 'Gerar relatório →';
@@ -47,15 +45,9 @@ export default function CheckInActivities() {
   const { todayMorning, todayPostTraining, todayPostGame, loading } = useCheckIns();
   const theme = useActivitiesTheme();
   const styles = useMemo(() => createCheckInActivitiesStyles(theme), [theme]);
-  const postGameAvailable = isPostGameCheckInAvailable();
 
   const handlePress = useCallback(
     (type: CheckinType) => {
-      if (type === 'post_game' && !postGameAvailable) {
-        const existing = todayPostGame;
-        if (!existing) return;
-      }
-
       const existing = getExistingCheckin(
         type,
         todayMorning,
@@ -85,7 +77,7 @@ export default function CheckInActivities() {
       }
       navigation.navigate('CheckInFlow', { type });
     },
-    [navigation, postGameAvailable, todayMorning, todayPostGame, todayPostTraining],
+    [navigation, todayMorning, todayPostGame, todayPostTraining],
   );
 
   const renderCard = (
@@ -95,21 +87,16 @@ export default function CheckInActivities() {
     image: number,
     done: boolean,
     hasReport: boolean,
-    locked = false,
   ) => {
-    const disabled = locked && !done;
-
     return (
       <Pressable
-        style={[styles.card, disabled && styles.cardLocked]}
+        style={styles.card}
         onPress={() => handlePress(type)}
-        disabled={disabled}
         accessibilityRole="button"
-        accessibilityState={{ disabled }}
-        accessibilityLabel={`${title}. ${prompt}. ${getCtaLabel(done, hasReport, locked)}`}
+        accessibilityLabel={`${title}. ${prompt}. ${getCtaLabel(done, hasReport)}`}
       >
         <ImageBackground source={image} style={styles.cardImage} resizeMode="cover">
-          <View style={[styles.cardOverlay, disabled && styles.cardOverlayLocked]} />
+          <View style={styles.cardOverlay} />
           <View style={styles.cardBody}>
             <View>
               <Text style={styles.cardTitle}>{title}</Text>
@@ -119,7 +106,7 @@ export default function CheckInActivities() {
               {loading ? (
                 <ActivityIndicator color={theme.questionOnCard} size="small" />
               ) : (
-                <Text style={styles.cardCta}>{getCtaLabel(done, hasReport, locked)}</Text>
+                <Text style={styles.cardCta}>{getCtaLabel(done, hasReport)}</Text>
               )}
             </View>
           </View>
@@ -151,7 +138,7 @@ export default function CheckInActivities() {
         <Text style={styles.title} accessibilityRole="header">
           Atividades
         </Text>
-        <Text style={styles.subtitle}>Check-ins diários e pós-jogo no domingo.</Text>
+        <Text style={styles.subtitle}>Check-ins diários e pós-jogo.</Text>
 
         {renderCard(
           'morning',
@@ -176,7 +163,6 @@ export default function CheckInActivities() {
           habitCardBg,
           !!todayPostGame,
           !!todayPostGame?.ai_report,
-          !postGameAvailable,
         )}
       </ScrollView>
     </View>

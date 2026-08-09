@@ -1,11 +1,13 @@
 import React from 'react';
 import { View, Text, ImageBackground, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { ChevronUp, Lock, Mic } from 'lucide-react-native';
+import { ArrowUp, Lock } from 'lucide-react-native';
 import { cn } from '@/lib/utils';
-import { insightCardStyles } from '@/components/explore/InsightCard.styles';
+import { useAppColors } from '@/lib/colors';
+import { WavesIcon } from '@/voice/WavesIcon';
 import {
+  insightCardActionLayout,
+  insightCardStyles,
   insightCardImageStyle,
-  insightCardMicHitSlop,
 } from '@/components/explore/InsightCard.styles';
 
 interface InsightCardProps {
@@ -27,6 +29,7 @@ interface InsightCardProps {
   micLabel?: string;
   className?: string;
   backgroundImage?: any;
+  fillParent?: boolean;
 }
 
 export function InsightCard({
@@ -48,10 +51,24 @@ export function InsightCard({
   micLabel,
   className,
   backgroundImage,
+  fillParent = false,
 }: InsightCardProps) {
+  const colors = useAppColors();
+  const containerStyle = [
+    insightCardStyles.cardContainer,
+    fillParent ? insightCardStyles.cardFillParent : null,
+    locked ? insightCardStyles.cardLocked : null,
+  ];
+
   if (loading) {
     return (
-      <View className={cn(className)} style={insightCardStyles.loadingContainer}>
+      <View
+        className={cn(className)}
+        style={[
+          insightCardStyles.loadingContainer,
+          fillParent ? insightCardStyles.cardFillParent : null,
+        ]}
+      >
         <ActivityIndicator size="small" color="white" />
       </View>
     );
@@ -64,6 +81,9 @@ export function InsightCard({
     cycleRequired > 0 ? Math.min((cycleProgress / cycleRequired) * 100, 100) : 0;
   const showActions =
     !isButtonDisabled && ((!!buttonText && !!onButtonClick) || !!onMicClick);
+  const isVoiceDisabled = micDisabled || locked;
+  const sendIconColor = `${colors['chat-warm-bg']}8C`;
+  const voiceIconSize = Math.round(insightCardActionLayout.height * 0.42);
 
   const CardActions = showActions ? (
     <View style={insightCardStyles.actionsRow}>
@@ -84,8 +104,12 @@ export function InsightCard({
           <Text style={insightCardStyles.actionButtonText} numberOfLines={1}>
             {isUpgradeLocked ? lockedMessage || buttonText : buttonText}
           </Text>
-          <View style={insightCardStyles.sendIcon}>
-            <ChevronUp size={14} color="#EFEAE6" strokeWidth={2.5} />
+          <View style={insightCardStyles.sendButton}>
+            <ArrowUp
+              size={insightCardActionLayout.sendIconSize}
+              color={sendIconColor}
+              strokeWidth={3}
+            />
           </View>
         </TouchableOpacity>
       ) : null}
@@ -93,23 +117,19 @@ export function InsightCard({
       {onMicClick ? (
         <TouchableOpacity
           onPress={onMicClick}
-          disabled={micDisabled || locked}
+          disabled={isVoiceDisabled}
           accessibilityRole="button"
           accessibilityLabel={micLabel || 'Abrir modo de voz para este insight'}
-          activeOpacity={0.7}
+          activeOpacity={0.88}
           style={[
-            insightCardStyles.micButton,
-            micDisabled || locked
-              ? insightCardStyles.micButtonDisabled
-              : insightCardStyles.micButtonEnabled,
+            insightCardStyles.voiceButton,
+            isVoiceDisabled
+              ? insightCardStyles.voiceButtonDisabled
+              : insightCardStyles.voiceButtonEnabled,
           ]}
-          hitSlop={insightCardMicHitSlop}
+          hitSlop={insightCardActionLayout.voiceHitSlop}
         >
-          <Mic
-            size={18}
-            color={micDisabled || locked ? 'rgba(29,25,22,0.45)' : '#1D1916'}
-            strokeWidth={2}
-          />
+          <WavesIcon size={voiceIconSize} color="#373737" />
         </TouchableOpacity>
       ) : null}
     </View>
@@ -180,9 +200,9 @@ export function InsightCard({
     return (
       <ImageBackground
         source={backgroundImage}
-        className={cn(locked && 'opacity-75', className)}
+        className={className}
         imageStyle={insightCardImageStyle}
-        style={insightCardStyles.cardContainer}
+        style={containerStyle}
       >
         {CardBody}
       </ImageBackground>
@@ -190,10 +210,7 @@ export function InsightCard({
   }
 
   return (
-    <View
-      className={cn(locked && 'opacity-75', className)}
-      style={insightCardStyles.cardContainer}
-    >
+    <View className={className} style={containerStyle}>
       {CardBody}
     </View>
   );

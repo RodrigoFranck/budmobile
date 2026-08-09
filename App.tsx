@@ -6,6 +6,7 @@ import { Fraunces_400Regular } from '@expo-google-fonts/fraunces';
 import { Audio } from 'expo-av';
 import { useEffect } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConversationProvider } from '@elevenlabs/react-native';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AppAlertProvider } from '@/contexts/AppAlertContext';
@@ -48,18 +49,20 @@ export default function App() {
   }
 
   const content = (
-    <SafeAreaProvider>
-      <AppQueryProvider>
-        <AuthProvider>
-          <ThemeProvider>
-            <AppAlertProvider>
-              <AppNavigator />
-              <StatusBar style="auto" />
-            </AppAlertProvider>
-          </ThemeProvider>
-        </AuthProvider>
-      </AppQueryProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AppQueryProvider>
+          <AuthProvider>
+            <ThemeProvider>
+              <AppAlertProvider>
+                <AppNavigator />
+                <StatusBar style="auto" />
+              </AppAlertProvider>
+            </ThemeProvider>
+          </AuthProvider>
+        </AppQueryProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 
   if (Platform.OS !== 'web') {

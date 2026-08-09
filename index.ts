@@ -1,3 +1,5 @@
+import 'react-native-gesture-handler';
+
 // Reactotron deve ser importado PRIMEIRO
 if (__DEV__) {
   require('./src/config/ReactotronConfig');

@@ -13,11 +13,11 @@ import { openCheckInChat } from '@/utils/buildCheckInChatInsight';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { supabase } from '@/integrations/supabase/client';
 import { resolveCheckInGradient, useActivitiesTheme } from '@/lib/activitiesTheme';
-import type { ActivitiesStackParamList } from '@/types/activitiesNavigation.types';
+import type { CheckInStackParamList } from '@/types/checkInNavigation.types';
 import { createCheckInResultStyles } from './CheckInResult.styles';
 
-type Route = RouteProp<ActivitiesStackParamList, 'CheckInResult'>;
-type Nav = NativeStackNavigationProp<ActivitiesStackParamList, 'CheckInResult'>;
+type Route = RouteProp<CheckInStackParamList, 'CheckInResult'>;
+type Nav = NativeStackNavigationProp<CheckInStackParamList, 'CheckInResult'>;
 
 function splitParagraphs(text: string): string[] {
   return text.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
@@ -167,7 +167,7 @@ export default function CheckInResultScreen() {
         <Text style={styles.headerBadge}>{badge}</Text>
         <Pressable
           style={styles.headerButton}
-          onPress={() => navigation.navigate('ActivitiesHome')}
+          onPress={() => navigation.getParent()?.goBack()}
           accessibilityRole="button"
           accessibilityLabel="Fechar"
         >

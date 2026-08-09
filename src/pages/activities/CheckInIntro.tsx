@@ -16,13 +16,13 @@ import checkInIntroHero from '@/assets/yesterday-journey-bg.png';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { getNowInBrasilia } from '@/utils/dateUtils';
 import { useActivitiesTheme } from '@/lib/activitiesTheme';
-import type { ActivitiesStackParamList } from '@/types/activitiesNavigation.types';
+import type { CheckInStackParamList } from '@/types/checkInNavigation.types';
 import {
   createCheckInIntroStyles,
   HERO_HEIGHT,
 } from './CheckInIntro.styles';
 
-type Nav = NativeStackNavigationProp<ActivitiesStackParamList, 'CheckInIntro'>;
+type Nav = NativeStackNavigationProp<CheckInStackParamList, 'CheckInIntro'>;
 
 const WARM_OVERLAY_COLORS = [
   'rgba(245,158,11,0.2)',
@@ -78,7 +78,7 @@ function getCtaFadeColors(surface: string): readonly [string, string, string] {
 export default function CheckInIntro() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
-  const { profile, loading: profileLoading } = useUserProfile();
+  const { profile } = useUserProfile();
   const theme = useActivitiesTheme();
   const styles = useMemo(() => createCheckInIntroStyles(theme), [theme]);
 
@@ -100,13 +100,10 @@ export default function CheckInIntro() {
   );
   const lead = useMemo(() => getLeadCopy(), []);
 
-  if (profileLoading) {
-    return <View style={styles.root} />;
-  }
-
   return (
     <View style={styles.root}>
       <ScrollView
+        style={styles.scroll}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
@@ -179,7 +176,6 @@ export default function CheckInIntro() {
         colors={[...ctaFadeColors]}
         locations={[0, 0.35, 1]}
         style={[styles.ctaContainer, { paddingBottom: Math.max(insets.bottom, 16) }]}
-        pointerEvents="box-none"
       >
         <Pressable
           style={styles.ctaButton}

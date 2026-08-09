@@ -8,11 +8,11 @@
   "main": "index.ts",
   "scripts": {
     "postinstall": "node scripts/patch-expo-gradle-node.js",
-    "start": "expo start",
-    "start:clear": "expo start -c",
-    "android": "expo run:android",
+    "start": "react-native start",
+    "start:clear": "react-native start --reset-cache",
+    "android": "react-native run-android",
     "android:bundle": "cd android && ./gradlew bundleRelease",
-    "ios": "DEVELOPER_DIR=\"$HOME/Downloads/Xcode 2.app/Contents/Developer\" expo run:ios --configuration Debug",
+    "ios": "DEVELOPER_DIR=\"$HOME/Downloads/Xcode 2.app/Contents/Developer\" react-native run-ios --mode Debug",
     "db:repair-subscriptions": "cd ../budmind && npm run db:repair-subscriptions"
   },
   "dependencies": {
@@ -54,7 +54,9 @@
     "react": "19.1.0",
     "react-hook-form": "7.71.1",
     "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
     "react-native-reanimated": "4.1.1",
+    "react-native-reanimated-carousel": "^5.1.1",
     "react-native-safe-area-context": "5.6.2",
     "react-native-screens": "4.16.0",
     "react-native-svg": "15.12.1",
