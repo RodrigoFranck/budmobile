@@ -22,7 +22,7 @@ Task Progress:
 - [ ] Determinar START (reflog da branch ou merge-base)
 - [ ] Listar commits START..HEAD (--no-merges, ordem cronológica)
 - [ ] Para cada commit: inspecionar diff e redigir resumo em PT-BR
-- [ ] Emitir saída no formato | `<hash>`: ...
+- [ ] Emitir saída em fence ```text```, uma linha por commit
 ```
 
 ## Coleta de evidências (não pular)
@@ -52,15 +52,23 @@ git log --no-merges START..HEAD --pretty=format:"%h|%s" --reverse
 
 ## Formato de saída (obrigatório)
 
-Uma linha por commit, **exatamente** (pipe + hash em código inline + dois pontos + resumo):
+Envolver **toda** a lista num único fence ` ```text ` ` ` `. Dentro do fence:
+
+- **Uma linha física por commit** (terminar cada commit com `\n`).
+- **Linha em branco entre commits** (evita o Markdown juntar pipes numa tabela).
+- Formato de cada linha: pipe + hash em código inline + dois pontos + resumo.
 
 ```text
 | `<hash>`: <resumo breve em PT-BR do que aquele commit implementa>
 ```
 
+Regras:
+
 - Hash curto (`%h`) como na listagem.
 - Resumo: o **que** mudou em linguagem técnica objetiva (PT-BR), não copiar o subject do commit se for vago.
-- Sem título `#`, sem seções extras, sem bullet lists — apenas as linhas no formato acima, salvo pedido explícito do usuário.
+- Sem título `#`, sem seções extras, sem bullet lists fora do fence — só o bloco ` ```text ` ` ` `, salvo pedido explícito do usuário.
+- **Proibido** colar todos os commits numa única linha ou num parágrafo contínuo.
+- **Proibido** emitir linhas `| ...` fora do fence (no chat elas viram tabela e “grudam”).
 
 ## Exemplo
 
@@ -71,9 +79,12 @@ Entrada (commits hipotéticos):
 9d8e7f6|fix: handle null status
 ```
 
-Saída:
+Saída (exatamente assim — fence + linha em branco entre commits):
 
+````text
 ```text
 | `0a1b2c3`: Implementa o fluxo de reembolso (telas e integrações necessárias) para o módulo.
+
 | `9d8e7f6`: Corrige tratamento de status nulo para evitar falha em tempo de execução.
 ```
+````

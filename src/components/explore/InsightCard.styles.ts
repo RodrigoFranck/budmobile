@@ -1,4 +1,5 @@
 import { StyleSheet } from 'react-native';
+import { SCREEN } from '@/constants/layout';
 import { frauncesFont, instrumentSansFont } from '@/constants/onboardingTheme';
 import { darkColors } from '@/lib/colors';
 
@@ -194,22 +195,39 @@ export const insightNavControlsStyles = StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    gap: 48,
     paddingHorizontal: 28,
     paddingTop: 4,
     paddingBottom: 10,
     zIndex: 2,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   button: {
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+});
+
+/** Space reserved for the vertical pagination rail (~6% of screen width). */
+export const INSIGHT_PAGINATION_GUTTER = Math.round(SCREEN.width * 0.06);
+
+/** Horizontal inset so the card stays centered with room for the rail (~7%). */
+export const INSIGHT_CARD_SIDE_INSET = Math.round(
+  SCREEN.width * 0.04 + INSIGHT_PAGINATION_GUTTER / 2,
+);
+
+export const insightPaginationStyles = StyleSheet.create({
+  rail: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: INSIGHT_PAGINATION_GUTTER,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 3,
   },
 });
 

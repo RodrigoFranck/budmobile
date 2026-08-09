@@ -14,6 +14,10 @@ import { navigateToChatTab } from '@/utils/navigateToChat';
 import { ExploreProgressBackground } from '@/components/explore/ExploreProgressBackground';
 import { InsightCard } from '@/components/explore/InsightCard';
 import { InsightNavControls } from '@/components/explore/InsightNavControls';
+import {
+  INSIGHT_CARD_SIDE_INSET,
+  insightPaginationStyles,
+} from '@/components/explore/InsightCard.styles';
 import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
 import {
   useTabScreenContext,
@@ -23,7 +27,6 @@ import type {
   MainTabNavigationProp,
   RootNavigationProp,
 } from '@/types/navigation';
-import { LayoutSpacing } from '@/constants/layout';
 import {
   EXPLORE_INSIGHT_COUNT,
   EXPLORE_INSIGHT_KEYS,
@@ -63,7 +66,8 @@ const ExploreInsightSlide = memo(function ExploreInsightSlide({
       style={{
         width,
         height,
-        paddingHorizontal: LayoutSpacing.contentPadding.horizontal,
+        paddingLeft: INSIGHT_CARD_SIDE_INSET,
+        paddingRight: INSIGHT_CARD_SIDE_INSET,
         paddingTop: 4,
         paddingBottom: 8,
       }}
@@ -244,16 +248,12 @@ export default function ExploreScreen() {
                 )}
               />
             ) : null}
-          </View>
 
-          <InsightNavControls
-            progress={progress}
-            onPrev={handlePrev}
-            onNext={handleNext}
-            centerSlot={
+            <View style={insightPaginationStyles.rail} pointerEvents="box-none">
               <Pagination
                 count={EXPLORE_INSIGHT_COUNT}
                 progress={progress}
+                orientation="vertical"
                 onPress={goToInsight}
                 containerStyle={{ gap: 8 }}
                 dotStyle={{
@@ -263,13 +263,19 @@ export default function ExploreScreen() {
                   backgroundColor: 'rgba(255, 255, 255, 0.28)',
                 }}
                 activeDotStyle={{
-                  width: 18,
-                  height: 6,
+                  width: 6,
+                  height: 18,
                   borderRadius: 3,
                   backgroundColor: 'rgba(255, 255, 255, 0.95)',
                 }}
               />
-            }
+            </View>
+          </View>
+
+          <InsightNavControls
+            progress={progress}
+            onPrev={handlePrev}
+            onNext={handleNext}
           />
         </View>
       </View>

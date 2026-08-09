@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import Animated, {
@@ -17,14 +16,12 @@ interface InsightNavControlsProps {
   progress: SharedValue<number>;
   onPrev: () => void;
   onNext: () => void;
-  centerSlot?: ReactNode;
 }
 
 export function InsightNavControls({
   progress,
   onPrev,
   onNext,
-  centerSlot,
 }: InsightNavControlsProps) {
   const iconSize = Math.round(insightCardActionLayout.height * 0.55);
   const lastIndex = EXPLORE_INSIGHT_COUNT - 1;
@@ -63,8 +60,6 @@ export function InsightNavControls({
           <ChevronLeft size={iconSize} color="#FFFFFF" strokeWidth={2} />
         </TouchableOpacity>
       </Animated.View>
-
-      <View style={insightNavControlsStyles.center}>{centerSlot}</View>
 
       <Animated.View style={nextStyle}>
         <TouchableOpacity
