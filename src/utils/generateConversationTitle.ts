@@ -798,7 +798,7 @@ export async function prepareHistoryConversationTitles<
       return conversation;
     }
 
-    const title = await updateConversationTitleIfNeeded(conversation.id);
+    const title = await updateConversationTitleIfNeeded(conversation.id, conversation.title);
     if (!title) {
       return conversation;
     }
@@ -809,7 +809,10 @@ export async function prepareHistoryConversationTitles<
 
 const titleUpdatePromises = new Map<string, Promise<string | null>>();
 
-export async function updateConversationTitleIfNeeded(conversationId: string): Promise<string | null> {
+export async function updateConversationTitleIfNeeded(
+  conversationId: string,
+  knownTitle?: string | null,
+): Promise<string | null> {
   const inFlight = titleUpdatePromises.get(conversationId);
   if (inFlight) {
     return inFlight;
@@ -817,15 +820,25 @@ export async function updateConversationTitleIfNeeded(conversationId: string): P
 
   const promise = (async () => {
     try {
-      const { data: conversation, error: convError } = await supabase
-        .from("conversations")
-        .select("title")
-        .eq("id", conversationId)
-        .single();
+      let currentTitle = knownTitle?.trim() ?? null;
 
-      if (convError) {
-        console.error("Error checking conversation title:", convError);
-        return null;
+      if (knownTitle === undefined) {
+        const { data: conversation, error: convError } = await supabase
+          .from("conversations")
+          .select("title")
+          .eq("id", conversationId)
+          .single();
+
+        if (convError) {
+          console.error("Error checking conversation title:", convError);
+          return null;
+        }
+
+        currentTitle = conversation?.title?.trim() ?? null;
+      }
+
+      if (currentTitle && !needsConversationTitleRegeneration(currentTitle)) {
+        return currentTitle;
       }
 
       const title = await generateConversationTitle(conversationId);
@@ -834,14 +847,13 @@ export async function updateConversationTitleIfNeeded(conversationId: string): P
         return null;
       }
 
-      const storedTitle = conversation?.title?.trim();
       const shouldUpdate =
-        !storedTitle ||
-        needsConversationTitleRegeneration(storedTitle) ||
-        storedTitle !== title;
+        !currentTitle ||
+        needsConversationTitleRegeneration(currentTitle) ||
+        currentTitle !== title;
 
       if (!shouldUpdate) {
-        return storedTitle ?? title;
+        return currentTitle ?? title;
       }
 
       const { error: updateError } = await supabase

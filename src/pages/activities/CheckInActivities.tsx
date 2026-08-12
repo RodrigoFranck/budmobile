@@ -12,14 +12,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+import habitCardBg from '@/assets/habit-bg.png';
 import morningCardBg from '@/assets/yesterday-journey-bg.png';
 import postTrainingCardBg from '@/assets/frequency-bg.png';
-import { useCheckIns, type CheckinType } from '@/hooks/useCheckIns';
+import { useCheckIns, type CheckinType, type DailyCheckin } from '@/hooks/useCheckIns';
 import { useActivitiesTheme } from '@/lib/activitiesTheme';
-import type { ActivitiesStackParamList } from '@/types/activitiesNavigation.types';
+import type { CheckInStackParamList } from '@/types/checkInNavigation.types';
 import { createCheckInActivitiesStyles } from './CheckInActivities.styles';
 
-type Nav = NativeStackNavigationProp<ActivitiesStackParamList, 'CheckInActivities'>;
+type Nav = NativeStackNavigationProp<CheckInStackParamList, 'CheckInActivities'>;
 
 function getCtaLabel(done: boolean, hasReport: boolean): string {
   if (!done) return 'Começar →';
@@ -27,16 +28,33 @@ function getCtaLabel(done: boolean, hasReport: boolean): string {
   return 'Gerar relatório →';
 }
 
+function getExistingCheckin(
+  type: CheckinType,
+  todayMorning: DailyCheckin | null,
+  todayPostTraining: DailyCheckin | null,
+  todayPostGame: DailyCheckin | null,
+): DailyCheckin | null {
+  if (type === 'morning') return todayMorning;
+  if (type === 'post_game') return todayPostGame;
+  return todayPostTraining;
+}
+
 export default function CheckInActivities() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
-  const { todayMorning, todayPostTraining, loading } = useCheckIns();
+  const { todayMorning, todayPostTraining, todayPostGame, loading } = useCheckIns();
   const theme = useActivitiesTheme();
   const styles = useMemo(() => createCheckInActivitiesStyles(theme), [theme]);
 
   const handlePress = useCallback(
     (type: CheckinType) => {
-      const existing = type === 'morning' ? todayMorning : todayPostTraining;
+      const existing = getExistingCheckin(
+        type,
+        todayMorning,
+        todayPostTraining,
+        todayPostGame,
+      );
+
       if (existing?.ai_report) {
         navigation.navigate('CheckInResult', {
           type,
@@ -59,7 +77,7 @@ export default function CheckInActivities() {
       }
       navigation.navigate('CheckInFlow', { type });
     },
-    [navigation, todayMorning, todayPostTraining],
+    [navigation, todayMorning, todayPostGame, todayPostTraining],
   );
 
   const renderCard = (
@@ -69,31 +87,33 @@ export default function CheckInActivities() {
     image: number,
     done: boolean,
     hasReport: boolean,
-  ) => (
-    <Pressable
-      style={styles.card}
-      onPress={() => handlePress(type)}
-      accessibilityRole="button"
-      accessibilityLabel={`${title}. ${prompt}. ${getCtaLabel(done, hasReport)}`}
-    >
-      <ImageBackground source={image} style={styles.cardImage} resizeMode="cover">
-        <View style={styles.cardOverlay} />
-        <View style={styles.cardBody}>
-          <View>
-            <Text style={styles.cardTitle}>{title}</Text>
-            <Text style={styles.cardPrompt}>{prompt}</Text>
+  ) => {
+    return (
+      <Pressable
+        style={styles.card}
+        onPress={() => handlePress(type)}
+        accessibilityRole="button"
+        accessibilityLabel={`${title}. ${prompt}. ${getCtaLabel(done, hasReport)}`}
+      >
+        <ImageBackground source={image} style={styles.cardImage} resizeMode="cover">
+          <View style={styles.cardOverlay} />
+          <View style={styles.cardBody}>
+            <View>
+              <Text style={styles.cardTitle}>{title}</Text>
+              <Text style={styles.cardPrompt}>{prompt}</Text>
+            </View>
+            <View style={styles.cardFooter}>
+              {loading ? (
+                <ActivityIndicator color={theme.questionOnCard} size="small" />
+              ) : (
+                <Text style={styles.cardCta}>{getCtaLabel(done, hasReport)}</Text>
+              )}
+            </View>
           </View>
-          <View style={styles.cardFooter}>
-            {loading ? (
-              <ActivityIndicator color={theme.questionOnCard} size="small" />
-            ) : (
-              <Text style={styles.cardCta}>{getCtaLabel(done, hasReport)}</Text>
-            )}
-          </View>
-        </View>
-      </ImageBackground>
-    </Pressable>
-  );
+        </ImageBackground>
+      </Pressable>
+    );
+  };
 
   return (
     <View style={styles.root}>
@@ -118,7 +138,7 @@ export default function CheckInActivities() {
         <Text style={styles.title} accessibilityRole="header">
           Atividades
         </Text>
-        <Text style={styles.subtitle}>Dois check-ins por dia.</Text>
+        <Text style={styles.subtitle}>Check-ins diários e pós-jogo.</Text>
 
         {renderCard(
           'morning',
@@ -135,6 +155,14 @@ export default function CheckInActivities() {
           postTrainingCardBg,
           !!todayPostTraining,
           !!todayPostTraining?.ai_report,
+        )}
+        {renderCard(
+          'post_game',
+          'Pós-Jogo',
+          'O que ficou desse jogo pra você?',
+          habitCardBg,
+          !!todayPostGame,
+          !!todayPostGame?.ai_report,
         )}
       </ScrollView>
     </View>

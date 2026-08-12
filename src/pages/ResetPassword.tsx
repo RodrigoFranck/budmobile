@@ -7,7 +7,7 @@ import {
   KeyboardAvoidingView,
   TouchableOpacity,
   ActivityIndicator,
-  ImageBackground,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppAlert } from "@/contexts/AppAlertContext";
@@ -61,11 +61,13 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <ImageBackground
-      source={backgroundLogin}
-      style={styles.container}
-      resizeMode="cover"
-    >
+    <View style={styles.root}>
+      <Image
+        source={backgroundLogin}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+        accessibilityIgnoresInvertColors
+      />
       <KeyboardAvoidingView
         behavior={PlatformConstants.keyboardBehavior}
         style={styles.container}
@@ -127,7 +129,7 @@ export default function ResetPasswordScreen() {
                   activeOpacity={0.7}
                 >
                   {isLoading ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <ActivityIndicator size="small" color="#1D1916" />
                   ) : (
                     <Text style={styles.buttonText}>Salvar nova senha</Text>
                   )}
@@ -137,6 +139,6 @@ export default function ResetPasswordScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </ImageBackground>
+    </View>
   );
 }

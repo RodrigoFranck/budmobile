@@ -3,7 +3,7 @@
     "name": "Bud.",
     "slug": "budmobile",
     "scheme": "com.bud.app",
-    "version": "2.0.10",
+    "version": "2.0.13",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -11,16 +11,20 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#AEECEF"
+      "backgroundColor": "#1D1916"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.bud.budios",
       "googleServicesFile": "./ios/budmobile/GoogleService-Info.plist",
       "usesAppleSignIn": true,
-      "buildNumber": "20",
+      "buildNumber": "23",
+      "associatedDomains": ["applinks:falecombud.com.br"],
       "entitlements": {
-        "aps-environment": "development"
+        "aps-environment": "development",
+        "com.apple.developer.associated-domains": [
+          "applinks:falecombud.com.br"
+        ]
       },
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Bud precisa acessar o microfone para conversas de voz.",
@@ -38,7 +42,21 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.falecombud.bud",
-      "permissions": ["RECORD_AUDIO", "POST_NOTIFICATIONS"]
+      "permissions": ["RECORD_AUDIO", "POST_NOTIFICATIONS"],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "category": ["BROWSABLE", "DEFAULT"],
+          "data": [
+            {
+              "scheme": "https",
+              "host": "falecombud.com.br",
+              "pathPrefix": "/nativelink"
+            }
+          ]
+        }
+      ]
     },
     "extra": {
       "eas": {

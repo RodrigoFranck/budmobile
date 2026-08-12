@@ -11,14 +11,39 @@ interface BuildCheckInChatInsightParams {
   clickedQuestion?: string;
 }
 
+function getCheckInMeta(type: CheckinType): {
+  badge: string;
+  checkinLabel: string;
+  backgroundType: NonNullable<ChatInsightParam['backgroundType']>;
+} {
+  if (type === 'morning') {
+    return {
+      badge: 'CHECK-IN MANHÃ',
+      checkinLabel: 'Check-in da Manhã',
+      backgroundType: 'inspired',
+    };
+  }
+  if (type === 'post_game') {
+    return {
+      badge: 'CHECK-IN PÓS-JOGO',
+      checkinLabel: 'Check-in Pós-Jogo',
+      backgroundType: 'habit',
+    };
+  }
+  return {
+    badge: 'CHECK-IN PÓS-TREINO',
+    checkinLabel: 'Check-in Pós-Treino',
+    backgroundType: 'habit',
+  };
+}
+
 export function buildCheckInChatInsight({
   type,
   report,
   responses = null,
   clickedQuestion,
 }: BuildCheckInChatInsightParams): ChatInsightParam {
-  const badge = type === 'morning' ? 'CHECK-IN MANHÃ' : 'CHECK-IN PÓS-TREINO';
-  const checkinLabel = type === 'morning' ? 'Check-in da Manhã' : 'Check-in Pós-Treino';
+  const { badge, checkinLabel, backgroundType } = getCheckInMeta(type);
 
   const richContext = {
     checkin_type: type,
@@ -40,7 +65,7 @@ export function buildCheckInChatInsight({
     title: report.headline,
     contextSummary: clickedQuestion ?? report.analysis,
     internalContext: JSON.stringify(richContext),
-    backgroundType: type === 'morning' ? 'inspired' : 'habit',
+    backgroundType,
     initialUserMessage: userMessage,
   };
 }

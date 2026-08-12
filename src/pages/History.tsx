@@ -9,11 +9,12 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight, Lock, MessageSquare, Sparkles } from 'lucide-react-native';
+import { Check, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react-native';
 
 import { useFocusEffect } from '@react-navigation/native';
 
 import ConversationDetail from '@/components/history/ConversationDetail';
+import { WeekProgressRing } from '@/components/history/WeekProgressRing';
 import { DeepInsightSheet } from '@/components/explore/DeepInsightSheet';
 import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
 import {
@@ -22,7 +23,11 @@ import {
 } from '@/contexts/TabScreenContext';
 import { LayoutSpacing } from '@/constants/layout';
 import { useAppColors } from '@/lib/colors';
-import { groupConversationsByDate, groupConversationsByMonth } from '@/utils/dateGrouping';
+import {
+  formatConversationWeekdayLabel,
+  groupConversationsByDate,
+  groupConversationsByWeek,
+} from '@/utils/dateGrouping';
 import { createHistoryStyles } from '@/pages/History.styles';
 import type { MainTabNavigationProp, MainTabParamList } from '@/types/navigation';
 
@@ -56,31 +61,41 @@ export default function HistoryScreen() {
     title: string;
     date: string;
   } | null>(null);
-  const [selectedMonthIndex, setSelectedMonthIndex] = useState(0);
+  const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
   const [deepInsightOpen, setDeepInsightOpen] = useState(false);
   const [pendingDeepInsightOpen, setPendingDeepInsightOpen] = useState(false);
 
-  const monthGroups = useMemo(
-    () => groupConversationsByMonth(conversations),
+  const weekGroups = useMemo(
+    () => groupConversationsByWeek(conversations),
     [conversations],
   );
 
   useEffect(() => {
-    if (selectedMonthIndex >= monthGroups.length && monthGroups.length > 0) {
-      setSelectedMonthIndex(0);
+    if (selectedWeekIndex >= weekGroups.length && weekGroups.length > 0) {
+      setSelectedWeekIndex(0);
     }
-  }, [monthGroups.length, selectedMonthIndex]);
+  }, [weekGroups.length, selectedWeekIndex]);
 
-  const currentMonth = monthGroups[selectedMonthIndex];
-  const groupedByDate = useMemo(
-    () => (currentMonth ? groupConversationsByDate(currentMonth.conversations) : []),
-    [currentMonth],
-  );
+  const currentWeek = weekGroups[selectedWeekIndex];
+  const weekConversations = useMemo(() => {
+    if (!currentWeek) {
+      return [];
+    }
+    return groupConversationsByDate(currentWeek.conversations).flatMap(
+      (group) => group.conversations,
+    );
+  }, [currentWeek]);
 
-  const canGoNewer = selectedMonthIndex > 0;
-  const canGoOlder = selectedMonthIndex < monthGroups.length - 1;
-
+  const canGoNewer = selectedWeekIndex > 0;
+  const canGoOlder = selectedWeekIndex < weekGroups.length - 1;
   const canOpenDeepInsight = !insightsLoading && !deepInsightProgress.locked;
+  const showInsightCard = !currentWeek || currentWeek.isCurrent;
+  const remainingDays = deepInsightProgress.remaining;
+  const meetsWeeklyThreshold =
+    deepInsightProgress.progress >= deepInsightProgress.required;
+  const progressMessage = meetsWeeklyThreshold
+    ? 'Você já tem dias suficientes nesta semana.\nSeu insight semanal libera todo domingo.'
+    : `Converse ou faça check-ins em mais ${remainingDays} ${remainingDays === 1 ? 'dia' : 'dias'} nesta semana\npara receber seu insight semanal.`;
 
   useEffect(() => {
     if (!route.params?.openDeepInsight) {
@@ -114,149 +129,163 @@ export default function HistoryScreen() {
   return (
     <ScreenLoadingGate loading={tabLoading}>
       <View style={styles.screen}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.scrollContent,
-          {
-            paddingTop: insets.top + LayoutSpacing.contentPadding.top,
-            paddingHorizontal: LayoutSpacing.contentPadding.horizontal,
-            paddingBottom: LayoutSpacing.contentPadding.bottom + insets.bottom,
-          },
-        ]}
-      >
-        <Text style={styles.pageTitle} accessibilityRole="header">
-          Histórico
-        </Text>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={
-            canOpenDeepInsight
-              ? 'Inspirado em você. Toque para ler o insight completo.'
-              : 'Inspirado em você. Continue conversando para desbloquear.'
-          }
-          onPress={() => {
-            if (canOpenDeepInsight) {
-              setDeepInsightOpen(true);
-            }
-          }}
-          disabled={!canOpenDeepInsight}
-          style={styles.inspiredCard}
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: insets.top + LayoutSpacing.contentPadding.top,
+              paddingHorizontal: LayoutSpacing.contentPadding.horizontal,
+              paddingBottom: LayoutSpacing.contentPadding.bottom + insets.bottom,
+            },
+          ]}
         >
-          <ImageBackground source={inspiredBg} style={{ flex: 1 }} resizeMode="cover">
-            <View style={styles.inspiredOverlay} />
-            <View style={styles.inspiredContent}>
-              <View style={styles.inspiredBadgeRow}>
-                <Sparkles size={16} color="rgba(255,255,255,0.8)" />
-                <Text style={styles.inspiredBadge}>Inspirado em você</Text>
-              </View>
+          {currentWeek ? (
+            <View style={styles.weekHeader}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Semana anterior"
+                disabled={!canGoOlder}
+                onPress={() => setSelectedWeekIndex((i) => i + 1)}
+                style={[styles.weekNavButton, !canGoOlder && styles.weekNavButtonDisabled]}
+              >
+                <ChevronLeft size={20} color={colors.foreground} />
+              </Pressable>
 
-              {insightsLoading ? (
-                <ActivityIndicator color="#ffffff" style={{ alignSelf: 'flex-start' }} />
-              ) : canOpenDeepInsight ? (
-                <>
-                  <Text style={styles.inspiredTitle} numberOfLines={2}>
-                    {deepInsight.title || 'Inspirado em você'}
-                  </Text>
-                  <Text style={styles.inspiredDescription} numberOfLines={2}>
-                    {deepInsight.description || 'Toque para ler seu insight semanal.'}
-                  </Text>
-                  <View style={styles.inspiredHintRow}>
-                    <Text style={styles.inspiredHint}>Toque para ler</Text>
-                    <ChevronRight size={14} color="rgba(255,255,255,0.5)" />
-                  </View>
-                </>
-              ) : (
-                <View style={styles.inspiredLockedRow}>
-                  <Lock size={20} color="rgba(255,255,255,0.6)" />
-                  <Text style={styles.inspiredLockedText}>
-                    Continue conversando com o Bud para desbloquear seu insight semanal (
-                    {deepInsightProgress.progress}/{deepInsightProgress.required} conversas nesta
-                    semana).
-                  </Text>
-                </View>
-              )}
+              <Text style={styles.weekLabel}>{currentWeek.weekLabel}</Text>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Próxima semana"
+                disabled={!canGoNewer}
+                onPress={() => setSelectedWeekIndex((i) => i - 1)}
+                style={[styles.weekNavButton, !canGoNewer && styles.weekNavButtonDisabled]}
+              >
+                <ChevronRight size={20} color={colors.foreground} />
+              </Pressable>
             </View>
-          </ImageBackground>
-        </Pressable>
+          ) : null}
 
-        {conversations.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <MessageSquare size={48} color={colors['muted-foreground']} />
-            <Text style={styles.emptyText}>Você ainda não tem conversas salvas.</Text>
-          </View>
-        ) : (
-          <>
-            {currentMonth ? (
-              <View style={styles.monthHeader}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Mês anterior"
-                  disabled={!canGoOlder}
-                  onPress={() => setSelectedMonthIndex((i) => i + 1)}
-                  style={[styles.monthNavButton, !canGoOlder && styles.monthNavButtonDisabled]}
+          <View style={styles.headerDivider} />
+
+          {showInsightCard ? (
+            <View
+              style={[
+                styles.inspiredCard,
+                canOpenDeepInsight
+                  ? styles.inspiredCardAvailable
+                  : styles.inspiredCardProgress,
+              ]}
+            >
+              <ImageBackground
+                source={inspiredBg}
+                style={styles.inspiredImage}
+                imageStyle={styles.inspiredImageRadius}
+                resizeMode="cover"
+              >
+                <View style={styles.inspiredOverlay} />
+                <View
+                  style={[
+                    styles.inspiredContent,
+                    canOpenDeepInsight && styles.inspiredContentAvailable,
+                  ]}
                 >
-                  <ChevronLeft size={22} color={colors.foreground} />
-                </Pressable>
+                  <View style={styles.inspiredBadge}>
+                    {canOpenDeepInsight ? (
+                      <Check size={12} color="#FFFFFF" strokeWidth={2.5} />
+                    ) : null}
+                    <Text
+                      style={[
+                        styles.inspiredBadgeText,
+                        canOpenDeepInsight && styles.inspiredBadgeTextAvailable,
+                      ]}
+                    >
+                      Inspirado em você
+                    </Text>
+                  </View>
 
-                <View>
-                  <Text style={styles.monthLabel}>{currentMonth.monthLabel}</Text>
-                  <Text style={styles.monthCount}>
-                    {currentMonth.count}{' '}
-                    {currentMonth.count === 1 ? 'conversa' : 'conversas'}
-                  </Text>
+                  {insightsLoading ? (
+                    <ActivityIndicator color="#ffffff" />
+                  ) : canOpenDeepInsight ? (
+                    <>
+                      <Text style={styles.inspiredTitle}>
+                        {deepInsight.title || 'Inspirado em você'}
+                      </Text>
+                      <Text style={styles.inspiredDescription}>
+                        {deepInsight.description ||
+                          'Baseado nas suas conversas desta semana, o Bud identificou um padrão.'}
+                      </Text>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Clique aqui para ver mais"
+                        onPress={() => setDeepInsightOpen(true)}
+                        style={styles.inspiredCta}
+                      >
+                        <Text style={styles.inspiredCtaText}>Clique aqui para ver mais</Text>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <>
+                      <View style={styles.progressRingWrap}>
+                        <WeekProgressRing
+                          progress={deepInsightProgress.progress}
+                          required={deepInsightProgress.required}
+                        />
+                      </View>
+                      <Text style={styles.inspiredProgressMessage}>{progressMessage}</Text>
+                      <Text style={styles.inspiredReleaseText}>
+                        Libera domingo, 8h da manhã
+                      </Text>
+                    </>
+                  )}
                 </View>
+              </ImageBackground>
+            </View>
+          ) : null}
 
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Próximo mês"
-                  disabled={!canGoNewer}
-                  onPress={() => setSelectedMonthIndex((i) => i - 1)}
-                  style={[styles.monthNavButton, !canGoNewer && styles.monthNavButtonDisabled]}
-                >
-                  <ChevronRight size={22} color={colors.foreground} />
-                </Pressable>
-              </View>
-            ) : null}
+          <Text style={styles.sectionTitle}>Conversas da semana</Text>
 
-            {groupedByDate.length === 0 ? (
-              <View style={styles.emptyMonth}>
-                <Text style={styles.emptyMonthText}>Nenhuma conversa neste mês.</Text>
+          {weekConversations.length === 0 ? (
+            conversations.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <MessageSquare size={48} color={colors['muted-foreground']} />
+                <Text style={styles.emptyText}>Você ainda não tem conversas salvas.</Text>
               </View>
             ) : (
-              groupedByDate.map((group) => (
-                <View key={group.groupKey} style={styles.dateGroup}>
-                  <Text style={styles.dateGroupTitle}>{group.groupTitle}</Text>
-
-                  {group.conversations.map((conversation) => (
-                    <Pressable
-                      key={conversation.id}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Conversa: ${conversation.title}`}
-                      onPress={() =>
-                        setSelectedConversation({
-                          id: conversation.id,
-                          title: conversation.title,
-                          date: conversation.date.toISOString(),
-                        })
-                      }
-                      style={styles.conversationRow}
-                    >
-                      <Text style={styles.conversationTitle} numberOfLines={1}>
-                        {conversation.title}
-                      </Text>
-                      <ChevronRight size={20} color={colors['muted-foreground']} />
-                    </Pressable>
-                  ))}
+              <View style={styles.emptyWeek}>
+                <Text style={styles.emptyWeekText}>Nenhuma conversa nesta semana.</Text>
+              </View>
+            )
+          ) : (
+            weekConversations.map((conversation) => (
+              <Pressable
+                key={conversation.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Conversa: ${conversation.title}`}
+                onPress={() =>
+                  setSelectedConversation({
+                    id: conversation.id,
+                    title: conversation.title,
+                    date: conversation.date.toISOString(),
+                  })
+                }
+                style={styles.conversationRow}
+              >
+                <View style={styles.conversationTextWrap}>
+                  <Text style={styles.conversationTitle} numberOfLines={1}>
+                    {conversation.title}
+                  </Text>
+                  <Text style={styles.conversationDate}>
+                    {formatConversationWeekdayLabel(conversation.date)}
+                  </Text>
                 </View>
-              ))
-            )}
-          </>
-        )}
-      </ScrollView>
+                <Text style={styles.conversationChevron}>›</Text>
+              </Pressable>
+            ))
+          )}
+        </ScrollView>
 
-      <DeepInsightSheet visible={deepInsightOpen} onClose={() => setDeepInsightOpen(false)} />
+        <DeepInsightSheet visible={deepInsightOpen} onClose={() => setDeepInsightOpen(false)} />
       </View>
     </ScreenLoadingGate>
   );

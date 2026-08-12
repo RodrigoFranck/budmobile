@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppProfileQuery } from "@/hooks/useAppProfileQuery";
 
 /**
  * Dados do perfil do usuário
- * 
+ *
  * IMPORTANTE: Contém dados sensíveis (PII) protegidos por RLS.
  * Acessível apenas pelo próprio usuário via auth.uid() = id.
  * Campos sensíveis: name, age, gender, relationship, hobbies, occupation
@@ -22,34 +23,34 @@ export interface UserProfile {
 
 export function useUserProfile() {
   const { user } = useAuth();
+  const { data, isLoading, isFetching } = useAppProfileQuery();
+
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user) {
-      fetchProfile();
+    if (!user?.id) {
+      setProfile(null);
+      return;
     }
-  }, [user]);
 
-  const fetchProfile = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("name, initial_thoughts, conversation_goal, occupation, age, gender, relationship, hobbies")
-        .eq("user_id", user.id)
-        .single();
-
-      if (error) throw error;
-      setProfile(data);
-    } catch (error) {
-      console.error("Error fetching user profile:", error);
-    } finally {
-      setLoading(false);
+    if (!data) {
+      return;
     }
+
+    setProfile({
+      name: data.name,
+      initial_thoughts: data.initial_thoughts,
+      conversation_goal: data.conversation_goal,
+      occupation: data.occupation,
+      age: data.age,
+      gender: data.gender,
+      relationship: data.relationship,
+      hobbies: data.hobbies,
+    });
+  }, [data, user?.id]);
+
+  return {
+    profile,
+    loading: !!user?.id && (isLoading || (isFetching && !profile)),
   };
-
-  return { profile, loading };
 }
-

@@ -1,9 +1,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Appearance } from 'react-native';
 import { useColorScheme } from 'nativewind';
+import { useQueryClient } from '@tanstack/react-query';
+
 import { appAlert } from '@/contexts/AppAlertContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAppProfileQuery } from '@/hooks/useAppProfileQuery';
+import { queryKeys } from '@/lib/queryKeys';
+import type { AppProfile } from '@/services/profileQuery';
 
 type ThemeMode = 'light' | 'dark';
 type ThemePreference = ThemeMode | 'system';
@@ -27,6 +32,8 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: profile, isPending, isFetched } = useAppProfileQuery();
   const { colorScheme, setColorScheme } = useColorScheme();
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
   const [loaded, setLoaded] = useState(false);
@@ -66,68 +73,64 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    let cancelled = false;
-    setLoaded(false);
+    if (isPending && !isFetched) {
+      setLoaded(false);
+      return;
+    }
 
-    (async () => {
-      try {
-        const { data, error } = await supabase
+    if (profile?.dark_mode === true) {
+      setPreferenceState('dark');
+    } else {
+      setPreferenceState('system');
+      if (profile?.dark_mode === false) {
+        void supabase
           .from('profiles')
-          .select('dark_mode')
+          .update({ dark_mode: null })
           .eq('user_id', user.id)
-          .maybeSingle();
-        if (cancelled) return;
-        if (error) {
-          setPreferenceState('system');
-        } else {
-          const pref: ThemePreference =
-            data?.dark_mode === null || data?.dark_mode === undefined
-              ? 'system'
-              : data.dark_mode
-                ? 'dark'
-                : 'light';
-          setPreferenceState(pref);
-        }
-      } catch {
-        if (!cancelled) setPreferenceState('system');
-      } finally {
-        if (!cancelled) setLoaded(true);
+          .then(() => {
+            queryClient.setQueryData<AppProfile | null>(
+              queryKeys.profile(user.id),
+              (current) => (current ? { ...current, dark_mode: null } : current),
+            );
+          });
       }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id]);
+    }
+    setLoaded(true);
+  }, [user?.id, profile?.dark_mode, isPending, isFetched, queryClient]);
 
   const setPreference = useCallback(
     async (nextPreference: ThemePreference) => {
-      setPreferenceState(nextPreference);
+      const normalized: ThemePreference =
+        nextPreference === 'light' ? 'system' : nextPreference;
+      setPreferenceState(normalized);
       if (!user?.id) return;
       try {
-        const nextDark =
-          nextPreference === 'system'
-            ? null
-            : nextPreference === 'dark';
+        const nextDark = normalized === 'dark' ? true : null;
         const { error } = await supabase
           .from('profiles')
           .update({ dark_mode: nextDark })
           .eq('user_id', user.id);
         if (error) {
-          setPreferenceState((current) => (current === 'dark' ? 'light' : 'dark'));
+          setPreferenceState((current) => (current === 'dark' ? 'system' : 'dark'));
           appAlert({ title: 'Erro', message: 'Não foi possível salvar sua preferência de tema.' });
+          return;
         }
+
+        queryClient.setQueryData<AppProfile | null>(
+          queryKeys.profile(user.id),
+          (current) => (current ? { ...current, dark_mode: nextDark } : current),
+        );
       } catch {
-        setPreferenceState((current) => (current === 'dark' ? 'light' : 'dark'));
+        setPreferenceState((current) => (current === 'dark' ? 'system' : 'dark'));
         appAlert({ title: 'Erro', message: 'Não foi possível salvar sua preferência de tema.' });
       }
     },
-    [user?.id],
+    [queryClient, user?.id],
   );
 
   const setMode = useCallback(
     async (nextMode: ThemeMode) => {
-      await setPreference(nextMode);
+      await setPreference(nextMode === 'light' ? 'system' : nextMode);
     },
     [setPreference],
   );
@@ -156,4 +159,3 @@ export function useTheme() {
   }
   return context;
 }
-

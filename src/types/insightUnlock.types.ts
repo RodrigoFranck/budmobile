@@ -16,7 +16,9 @@ export const DEEP_INSIGHT_TYPE = 'deep_insight' as const;
 export type InsightCountScope =
   | 'total_with_messages'
   | 'weekly_with_messages'
-  | 'yesterday_with_messages';
+  | 'yesterday_with_messages'
+  | 'total_active_days'
+  | 'weekly_active_days';
 
 export interface InsightUnlockRule {
   insight_type: string;

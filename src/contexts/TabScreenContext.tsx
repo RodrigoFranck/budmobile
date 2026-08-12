@@ -13,12 +13,14 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useChatMemoryContext } from '@/hooks/useChatMemoryContext';
 import { useConversations } from '@/hooks/useConversations';
 import { useExploreInsights } from '@/hooks/useExploreInsights';
+import { useExploreViewedInsights } from '@/hooks/useExploreViewedInsights';
 import { useMessages } from '@/hooks/useMessages';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { clearPendingChatInsight } from '@/utils/navigateToChat';
 import { prepareHistoryConversationTitles } from '@/utils/generateConversationTitle';
 import type { MainTabParamList } from '@/types/navigation';
 import type { Tables } from '@/integrations/supabase/types';
+import type { ExploreInsightKey } from '@/constants/exploreInsights';
 
 type Conversation = Tables<'conversations'>;
 
@@ -55,6 +57,8 @@ interface TabScreenContextValue {
   deepInsightContent: ReturnType<typeof useExploreInsights>['deepInsightContent'];
   deepInsightProgress: ReturnType<typeof useExploreInsights>['deepInsightProgress'];
   refreshExploreInsights: ReturnType<typeof useExploreInsights>['refreshInsights'];
+  unviewedInsightsCount: number;
+  markInsightViewed: (key: ExploreInsightKey) => void;
 }
 
 const TabScreenContext = createContext<TabScreenContextValue | undefined>(undefined);
@@ -90,6 +94,8 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
     refreshInsights,
   } = useExploreInsights(insightsRefreshToken);
 
+  const { unviewedInsightsCount, markInsightViewed } = useExploreViewedInsights();
+
   const [chatConversationId, setChatConversationId] = useState<string | null>(null);
   const [chatConversationReady, setChatConversationReady] = useState(false);
   const [chatHomeResetToken, setChatHomeResetToken] = useState(0);
@@ -108,7 +114,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
   }, [getOrCreateTodayConversation]);
 
   useEffect(() => {
-    if (!user) {
+    if (!user?.id) {
       setChatConversationId(null);
       setChatConversationReady(true);
       return;
@@ -126,13 +132,13 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [user, getOrCreateTodayConversation]);
+  }, [user?.id, getOrCreateTodayConversation]);
 
   const { messages, loading: chatMessagesLoading, addMessage } =
     useMessages(chatConversationId);
 
   useEffect(() => {
-    if (!user) {
+    if (!user?.id) {
       setHistoryConversations([]);
       setHistoryTitlesLoading(false);
       return;
@@ -157,7 +163,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [user, conversations, conversationsLoading]);
+  }, [user?.id, conversations, conversationsLoading]);
 
   const chatReady =
     chatConversationReady &&
@@ -177,7 +183,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    if (!user) {
+    if (!user?.id) {
       setLatchedReady({
         Chat: false,
         Explore: false,
@@ -193,7 +199,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
       History: prev.History || historyReady,
       Activities: prev.Activities || activitiesReady,
     }));
-  }, [user, chatReady, exploreReady, historyReady, activitiesReady]);
+  }, [user?.id, chatReady, exploreReady, historyReady, activitiesReady]);
 
   const readiness = useMemo(
     () => ({
@@ -240,6 +246,8 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
       deepInsightContent,
       deepInsightProgress,
       refreshExploreInsights: refreshInsights,
+      unviewedInsightsCount,
+      markInsightViewed,
     }),
     [
       isTabReady,
@@ -270,6 +278,8 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
       deepInsightContent,
       deepInsightProgress,
       refreshInsights,
+      unviewedInsightsCount,
+      markInsightViewed,
     ],
   );
 

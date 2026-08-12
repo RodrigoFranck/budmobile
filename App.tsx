@@ -6,11 +6,13 @@ import { Fraunces_400Regular } from '@expo-google-fonts/fraunces';
 import { Audio } from 'expo-av';
 import { useEffect } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConversationProvider } from '@elevenlabs/react-native';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AppAlertProvider } from '@/contexts/AppAlertContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import AppNavigator from '@/navigation/AppNavigator';
+import { AppQueryProvider } from '@/providers/AppQueryProvider';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -31,24 +33,36 @@ export default function App() {
   }, []);
 
   if (!fontsLoaded) {
+    // Match native / Figma splash (#1D1916) — do not flash light theme while fonts load.
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000000' }}>
-        <ActivityIndicator size="large" color="#466080" />
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: '#1D1916',
+        }}
+      >
+        <ActivityIndicator size="large" color="#77716C" />
       </View>
     );
   }
 
   const content = (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <ThemeProvider>
-          <AppAlertProvider>
-            <AppNavigator />
-            <StatusBar style="auto" />
-          </AppAlertProvider>
-        </ThemeProvider>
-      </AuthProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AppQueryProvider>
+          <AuthProvider>
+            <ThemeProvider>
+              <AppAlertProvider>
+                <AppNavigator />
+                <StatusBar style="auto" />
+              </AppAlertProvider>
+            </ThemeProvider>
+          </AuthProvider>
+        </AppQueryProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 
   if (Platform.OS !== 'web') {

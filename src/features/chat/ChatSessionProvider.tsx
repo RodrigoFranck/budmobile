@@ -24,11 +24,13 @@ import {
   registerChatInsightConsumer,
 } from '@/utils/navigateToChat';
 import {
+  clearMessageClientIds,
+  createStreamingMessageId,
   mergeDbAndStreamingMessages,
   registerMessageClientId,
-  clearMessageClientIds,
 } from '@/utils/mergeChatMessages';
 import { syncExploreInsights } from '@/utils/syncExploreInsights';
+import { scheduleSessionMemory } from '@/utils/scheduleSessionMemory';
 import type { StreamingMessage } from '@/types/messages';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
 import { getResumableAssistantTranscript } from '@/voice/voiceTranscript';
@@ -59,6 +61,10 @@ interface ChatSessionContextValue {
   setVoiceTranscript: (text: string) => void;
   isBudSpeaking: boolean;
   setIsBudSpeaking: (active: boolean) => void;
+  isVoicePaused: boolean;
+  setIsVoicePaused: (paused: boolean) => void;
+  isVoiceMicMuted: boolean;
+  setIsVoiceMicMuted: (muted: boolean) => void;
   userContext: UserContext;
   messageHistory: Array<{ role: string; content: string }>;
   recentInsights: Array<{ insight_type: string; title: string; description: string }>;
@@ -67,7 +73,10 @@ interface ChatSessionContextValue {
   handleVoiceUserMessage: (text: string) => Promise<void>;
   handleVoiceAssistantMessage: (text: string) => Promise<void>;
   handleEndVoiceSession: () => Promise<void>;
+  handleToggleVoicePause: () => void;
+  handleToggleVoiceMute: () => void;
   applyChatInsight: (insight: ChatInsightParam) => void;
+  requestAutoStartVoice: () => void;
   bootstrapInsightSession: () => void;
   trySendPendingInsight: () => void;
   handleVoiceInsight: (insight: {
@@ -112,6 +121,8 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const [isVoiceSessionBusy, setIsVoiceSessionBusy] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [isBudSpeaking, setIsBudSpeaking] = useState(false);
+  const [isVoicePaused, setIsVoicePaused] = useState(false);
+  const [isVoiceMicMuted, setIsVoiceMicMuted] = useState(false);
   const [insightContext, setInsightContext] = useState<InsightContext | null>(null);
   const insightContextRef = useRef<InsightContext | null>(null);
   const [recentInsights, setRecentInsights] = useState<
@@ -138,6 +149,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const bootstrapInsightSessionRef = useRef<() => void>(() => {});
   const handledInsightKeyRef = useRef<string | null>(null);
   const isVoiceAutoStartInFlightRef = useRef(false);
+  const sendInFlightRef = useRef(false);
 
   const applyChatInsight = useCallback(
     (insight: ChatInsightParam) => {
@@ -174,11 +186,16 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const requestAutoStartVoice = useCallback(() => {
+    setShouldAutoStartVoice(true);
+  }, []);
+
   useEffect(() => {
     if (chatHomeResetToken === 0) return;
 
     handledInsightKeyRef.current = null;
     isVoiceAutoStartInFlightRef.current = false;
+    sendInFlightRef.current = false;
     setStreamingMessages([]);
     setIsStreaming(false);
     streamingIdRef.current = null;
@@ -188,6 +205,8 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     setIsVoiceSessionBusy(false);
     setVoiceTranscript('');
     setIsBudSpeaking(false);
+    setIsVoicePaused(false);
+    setIsVoiceMicMuted(false);
     setInsightContext(null);
     insightContextRef.current = null;
     setRecentInsights([]);
@@ -231,6 +250,12 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     const justActivated = isVoiceModeActive && !wasVoiceModeActiveRef.current;
     wasVoiceModeActiveRef.current = isVoiceModeActive;
 
+    if (!isVoiceModeActive) {
+      setIsVoicePaused(false);
+      setIsVoiceMicMuted(false);
+      return;
+    }
+
     if (!justActivated) return;
 
     setVoiceTranscript(getResumableAssistantTranscript(allMessages));
@@ -273,12 +298,21 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       if (!currentConversationId || !text.trim()) return;
       await addMessage(text, 'assistant');
       scheduleInsightSync();
+      scheduleSessionMemory(currentConversationId, dbMessages.length + 1);
     },
-    [currentConversationId, addMessage, scheduleInsightSync],
+    [currentConversationId, addMessage, scheduleInsightSync, dbMessages.length],
   );
 
   const handleEndVoiceSession = useCallback(async () => {
     await voiceInterfaceRef.current?.endConversation();
+  }, []);
+
+  const handleToggleVoicePause = useCallback(() => {
+    voiceInterfaceRef.current?.togglePaused();
+  }, []);
+
+  const handleToggleVoiceMute = useCallback(() => {
+    voiceInterfaceRef.current?.toggleMicMuted();
   }, []);
 
   const handleAssistantRevealComplete = useCallback((messageId: string | number) => {
@@ -293,12 +327,14 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
 
   const handleSendMessage = useCallback(
     async (message: string, contextOverride?: InsightContext | null) => {
-      if (!currentConversationId || !user) return;
+      if (!currentConversationId || !user || sendInFlightRef.current) return;
+
+      sendInFlightRef.current = true;
 
       const activeInsightContext =
         contextOverride ?? insightContextRef.current ?? insightContext;
 
-      const userMessageId = `user-${Date.now()}`;
+      const userMessageId = createStreamingMessageId('user');
       registerMessageClientId(messageClientIdsRef.current, 'user', message, userMessageId);
       setStreamingMessages((prev) => [
         ...prev,
@@ -323,7 +359,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       ];
 
       setIsStreaming(true);
-      const assistantMessageId = `assistant-${Date.now()}`;
+      const assistantMessageId = createStreamingMessageId('assistant');
       streamingIdRef.current = assistantMessageId;
 
       setStreamingMessages((prev) => [
@@ -356,52 +392,61 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
             guidanceText: approachDecision.guidanceText,
           };
 
-      await streamChat({
-        messages: apiMessages,
-        userContext: streamUserContext,
-        insightContext: activeInsightContext ?? undefined,
-        memoryContext: memoryLoading ? undefined : memoryContext,
-        approachContext: streamApproachContext,
-        onDelta: (deltaText) => {
-          accumulatedContent += deltaText;
-          setStreamingMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === assistantMessageId
-                ? { ...msg, content: accumulatedContent }
-                : msg,
-            ),
-          );
-        },
-        onDone: async () => {
-          registerMessageClientId(
-            messageClientIdsRef.current,
-            'assistant',
-            accumulatedContent,
-            assistantMessageId,
-          );
-          setIsStreaming(false);
-          setStreamingMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === assistantMessageId
-                ? { ...msg, isStreaming: false, isRevealing: true }
-                : msg,
-            ),
-          );
-          streamingIdRef.current = null;
+      try {
+        await streamChat({
+          messages: apiMessages,
+          userContext: streamUserContext,
+          insightContext: activeInsightContext ?? undefined,
+          memoryContext: memoryLoading ? undefined : memoryContext,
+          approachContext: streamApproachContext,
+          onDelta: (deltaText) => {
+            accumulatedContent += deltaText;
+            setStreamingMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMessageId
+                  ? { ...msg, content: accumulatedContent }
+                  : msg,
+              ),
+            );
+          },
+          onDone: async () => {
+            registerMessageClientId(
+              messageClientIdsRef.current,
+              'assistant',
+              accumulatedContent,
+              assistantMessageId,
+            );
+            setIsStreaming(false);
+            sendInFlightRef.current = false;
+            setStreamingMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMessageId
+                  ? { ...msg, isStreaming: false, isRevealing: true }
+                  : msg,
+              ),
+            );
+            streamingIdRef.current = null;
 
-          await userMessagePromise;
-          await addMessage(accumulatedContent, 'assistant');
-          scheduleInsightSync();
-        },
-        onError: (error) => {
-          setIsStreaming(false);
-          alert(`Erro: ${error}`);
-          setStreamingMessages((prev) =>
-            prev.filter((msg) => msg.id !== assistantMessageId),
-          );
-          streamingIdRef.current = null;
-        },
-      });
+            await userMessagePromise;
+            await addMessage(accumulatedContent, 'assistant');
+            scheduleInsightSync();
+            scheduleSessionMemory(currentConversationId, dbMessages.length + 2);
+          },
+          onError: (error) => {
+            setIsStreaming(false);
+            sendInFlightRef.current = false;
+            alert(`Erro: ${error}`);
+            setStreamingMessages((prev) =>
+              prev.filter((msg) => msg.id !== assistantMessageId),
+            );
+            streamingIdRef.current = null;
+          },
+        });
+      } catch {
+        setIsStreaming(false);
+        sendInFlightRef.current = false;
+        streamingIdRef.current = null;
+      }
     },
     [
       currentConversationId,
@@ -425,7 +470,8 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       currentConversationId &&
       user &&
       !didAutoSendInsightRef.current &&
-      !isStreaming
+      !isStreaming &&
+      !sendInFlightRef.current
     ) {
       didAutoSendInsightRef.current = true;
       const message = pending.initialUserMessage.trim();
@@ -438,9 +484,15 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     if (
       !shouldAutoStartVoice ||
       !currentConversationId ||
-      !voiceInterfaceRef.current ||
       isVoiceAutoStartInFlightRef.current
     ) {
+      return;
+    }
+
+    if (!voiceInterfaceRef.current) {
+      requestAnimationFrame(() => {
+        bootstrapInsightSessionRef.current();
+      });
       return;
     }
 
@@ -522,6 +574,10 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       setVoiceTranscript,
       isBudSpeaking,
       setIsBudSpeaking,
+      isVoicePaused,
+      setIsVoicePaused,
+      isVoiceMicMuted,
+      setIsVoiceMicMuted,
       userContext,
       messageHistory,
       recentInsights,
@@ -530,7 +586,10 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       handleVoiceUserMessage,
       handleVoiceAssistantMessage,
       handleEndVoiceSession,
+      handleToggleVoicePause,
+      handleToggleVoiceMute,
       applyChatInsight,
+      requestAutoStartVoice,
       bootstrapInsightSession,
       trySendPendingInsight,
       handleVoiceInsight,
@@ -548,6 +607,8 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       isVoiceSessionBusy,
       voiceTranscript,
       isBudSpeaking,
+      isVoicePaused,
+      isVoiceMicMuted,
       userContext,
       messageHistory,
       recentInsights,
@@ -556,7 +617,10 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       handleVoiceUserMessage,
       handleVoiceAssistantMessage,
       handleEndVoiceSession,
+      handleToggleVoicePause,
+      handleToggleVoiceMute,
       applyChatInsight,
+      requestAutoStartVoice,
       bootstrapInsightSession,
       trySendPendingInsight,
       handleVoiceInsight,

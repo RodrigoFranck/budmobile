@@ -157,6 +157,81 @@ export const POST_TRAINING_CHECKIN_STEPS: CheckInStepConfig[] = [
   },
 ];
 
+export const POST_GAME_CHECKIN_STEPS: CheckInStepConfig[] = [
+  {
+    key: 'entry_state',
+    category: 'ANTES',
+    question: 'Como você entrou pro jogo?',
+    inputType: 'chips',
+    options: [
+      'Tranquilo',
+      'Confiante',
+      'Ligado',
+      'Nervoso',
+      'Ansioso',
+      'Na dúvida',
+      'Indiferente',
+    ],
+    gradientColors: ['rgba(120,53,15,0.28)', 'rgba(180,83,9,0.12)', '#1D1916'],
+  },
+  {
+    key: 'mental_state',
+    category: 'MENTE',
+    question: 'E a cabeça durante o jogo?',
+    inputType: 'chips',
+    options: ['Presente', 'Distraída', 'Determinada', 'Frustrada', 'Em dúvida', 'Acelerada'],
+    gradientColors: ['rgba(99,102,241,0.22)', 'rgba(59,130,246,0.1)', '#1D1916'],
+  },
+  {
+    key: 'emotional_state',
+    category: 'EMOÇÃO',
+    question: 'Que emoção predominou?',
+    inputType: 'chips',
+    options: [
+      'Alegria',
+      'Raiva',
+      'Ansiedade',
+      'Calma',
+      'Tristeza',
+      'Orgulho',
+      'Vergonha',
+      'Vazio',
+    ],
+    gradientColors: ['rgba(225,29,72,0.2)', 'rgba(249,115,22,0.1)', '#1D1916'],
+  },
+  {
+    key: 'expectation_match',
+    category: 'EXPECTATIVA',
+    question: 'Você jogou como imaginava?',
+    subtitle: 'O que você planejou vs. o que saiu.',
+    inputType: 'slider',
+    min: 1,
+    max: 10,
+    minLabel: 'Longe',
+    maxLabel: 'Exatamente',
+    gradientColors: ['rgba(146,64,14,0.25)', 'rgba(180,83,9,0.12)', '#1D1916'],
+  },
+  {
+    key: 'self_judgment',
+    category: 'JULGAMENTO',
+    question: 'Como você se julgou?',
+    inputType: 'chips',
+    options: ['Compreensivo', 'Crítico', 'Duro', 'Justo', 'Indiferente'],
+    gradientColors: ['rgba(245,158,11,0.2)', 'rgba(234,179,8,0.1)', '#1D1916'],
+  },
+  {
+    key: 'open_note',
+    category: 'LIVRE',
+    question: 'O que fica desse jogo pra você?',
+    subtitle: 'Um aprendizado, uma cena, o que vier.',
+    inputType: 'text',
+    textPlaceholder: '...',
+    gradientColors: ['rgba(100,116,139,0.2)', 'rgba(82,82,91,0.1)', '#1D1916'],
+  },
+];
+
 export function getCheckInSteps(type: CheckinType): CheckInStepConfig[] {
-  return type === 'morning' ? MORNING_CHECKIN_STEPS : POST_TRAINING_CHECKIN_STEPS;
+  if (type === 'morning') return MORNING_CHECKIN_STEPS;
+  if (type === 'post_game') return POST_GAME_CHECKIN_STEPS;
+  return POST_TRAINING_CHECKIN_STEPS;
 }

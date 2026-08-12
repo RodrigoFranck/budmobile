@@ -378,6 +378,7 @@ export type Database = {
         Row: {
           age: string | null
           avatar_url: string | null
+          biographical_notes: string | null
           birth_date: string | null
           city: string | null
           company_name: string | null
@@ -413,6 +414,7 @@ export type Database = {
         Insert: {
           age?: string | null
           avatar_url?: string | null
+          biographical_notes?: string | null
           birth_date?: string | null
           city?: string | null
           company_name?: string | null
@@ -448,6 +450,7 @@ export type Database = {
         Update: {
           age?: string | null
           avatar_url?: string | null
+          biographical_notes?: string | null
           birth_date?: string | null
           city?: string | null
           company_name?: string | null
@@ -508,6 +511,38 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      session_summaries: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          id: string
+          summary_text: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          summary_text: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          summary_text?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_summaries_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       push_tokens: {
         Row: {
@@ -668,6 +703,7 @@ export type Database = {
         Row: {
           blind_spots: Json
           communication_style: Json
+          clinical_insights: string | null
           conversations_analyzed: number
           created_at: string
           effective_approaches: Json
@@ -681,6 +717,7 @@ export type Database = {
         }
         Insert: {
           blind_spots?: Json
+          clinical_insights?: string | null
           communication_style?: Json
           conversations_analyzed?: number
           created_at?: string
@@ -695,6 +732,7 @@ export type Database = {
         }
         Update: {
           blind_spots?: Json
+          clinical_insights?: string | null
           communication_style?: Json
           conversations_analyzed?: number
           created_at?: string

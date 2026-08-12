@@ -5,18 +5,21 @@ import type { ChatInsightParam } from '@/types/chatInsight';
 
 export type ChatTabParams = NonNullable<MainTabParamList['Chat']>;
 
-function findTabNavigator(navigation: NavigationProp<ParamListBase>): NavigationProp<ParamListBase> {
+function findNavigatorWithRoutes(
+  navigation: NavigationProp<ParamListBase>,
+  requiredRoutes: string[],
+): NavigationProp<ParamListBase> | null {
   let current: NavigationProp<ParamListBase> | undefined = navigation;
 
   while (current) {
     const routeNames = current.getState?.()?.routeNames ?? [];
-    if (routeNames.includes('Chat') && routeNames.includes('Explore')) {
+    if (requiredRoutes.every((route) => routeNames.includes(route))) {
       return current;
     }
     current = current.getParent?.() as NavigationProp<ParamListBase> | undefined;
   }
 
-  return navigation;
+  return null;
 }
 
 let pendingChatInsight: ChatInsightParam | null = null;
@@ -61,9 +64,27 @@ export function navigateToChatTab(
     }
   }
 
-  const tabNav = findTabNavigator(navigation);
-  tabNav.navigate('Chat', {
+  const chatParams = {
     ...params,
-    screen: 'TextChat',
-  });
+    screen: 'TextChat' as const,
+  };
+
+  // Within MainTabs (Explore, Activities, History, Chat).
+  const tabNav = findNavigatorWithRoutes(navigation, ['Chat', 'Explore']);
+  if (tabNav) {
+    tabNav.navigate('Chat', chatParams);
+    return;
+  }
+
+  // Outside MainTabs (e.g. CheckIn on the root stack) — pop back into tabs.
+  const rootNav = findNavigatorWithRoutes(navigation, ['MainTabs']);
+  if (rootNav) {
+    rootNav.navigate('MainTabs', {
+      screen: 'Chat',
+      params: chatParams,
+    });
+    return;
+  }
+
+  navigation.navigate('Chat' as never, chatParams as never);
 }

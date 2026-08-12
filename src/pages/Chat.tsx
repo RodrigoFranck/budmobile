@@ -56,6 +56,8 @@ export default function ChatScreen() {
   const [isVoiceSessionBusy, setIsVoiceSessionBusy] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [isBudSpeaking, setIsBudSpeaking] = useState(false);
+  const [isVoicePaused, setIsVoicePaused] = useState(false);
+  const [isVoiceMicMuted, setIsVoiceMicMuted] = useState(false);
   const route = useRoute<RouteProp<MainTabParamList, 'Chat'>>();
   const navigation = useNavigation<MainTabNavigationProp>();
   const rootNavigation = useNavigation<RootNavigationProp>();
@@ -108,6 +110,8 @@ export default function ChatScreen() {
     setIsVoiceSessionBusy(false);
     setVoiceTranscript('');
     setIsBudSpeaking(false);
+    setIsVoicePaused(false);
+    setIsVoiceMicMuted(false);
     setInsightContext(null);
     setRecentInsights([]);
     setShouldAutoStartVoice(false);
@@ -218,6 +222,14 @@ export default function ChatScreen() {
 
   const handleEndVoiceSession = useCallback(async () => {
     await voiceInterfaceRef.current?.endConversation();
+  }, []);
+
+  const handleToggleVoicePause = useCallback(() => {
+    voiceInterfaceRef.current?.togglePaused();
+  }, []);
+
+  const handleToggleVoiceMute = useCallback(() => {
+    voiceInterfaceRef.current?.toggleMicMuted();
   }, []);
 
   const handleAssistantRevealComplete = useCallback((messageId: string | number) => {
@@ -419,6 +431,8 @@ export default function ChatScreen() {
           onVoiceModeChange={setIsVoiceModeActive}
           onVoiceConnectingChange={setIsVoiceConnecting}
           onVoiceSessionBusyChange={setIsVoiceSessionBusy}
+          onVoicePausedChange={setIsVoicePaused}
+          onVoiceMicMutedChange={setIsVoiceMicMuted}
           onVoiceUserMessage={handleVoiceUserMessage}
           onVoiceAssistantMessage={handleVoiceAssistantMessage}
           onVoiceTranscript={setVoiceTranscript}
@@ -433,10 +447,14 @@ export default function ChatScreen() {
         visible={isVoiceModeActive}
         onClose={() => setIsVoiceModeActive(false)}
         onEndVoice={handleEndVoiceSession}
+        onTogglePause={handleToggleVoicePause}
+        onToggleMute={handleToggleVoiceMute}
         transcript={voiceTranscript}
         isBudSpeaking={isBudSpeaking}
         isConnecting={isVoiceConnecting}
         isSessionBusy={isVoiceSessionBusy}
+        isPaused={isVoicePaused}
+        isMicMuted={isVoiceMicMuted}
       />
       </View>
     </ScreenLoadingGate>

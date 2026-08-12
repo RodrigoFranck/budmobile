@@ -136,6 +136,7 @@ export async function savePushTokenForUser(
   );
 
   if (error) {
+    console.error('Error saving push token:', error.message, error.code);
     return;
   }
 
@@ -153,6 +154,7 @@ export async function removePushTokenForUser(
     .eq('expo_push_token', pushToken);
 
   if (error) {
+    console.error('Error removing push token:', error.message, error.code);
     return;
   }
 }
@@ -161,6 +163,7 @@ export async function removeAllPushTokensForUser(userId: string): Promise<void> 
   const { error } = await supabase.from('push_tokens').delete().eq('user_id', userId);
 
   if (error) {
+    console.error('Error removing all push tokens:', error.message, error.code);
     return;
   }
 

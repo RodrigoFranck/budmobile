@@ -1,6 +1,8 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from '@tanstack/react-query';
+
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { queryKeys } from '@/lib/queryKeys';
 
 export interface EmotionalPattern {
   pattern: string;
@@ -38,58 +40,52 @@ export interface InternalProfile {
   communication_style: CommunicationStyle;
   blind_spots: BlindSpot[];
   journey_summary: string | null;
+  clinical_insights: string | null;
   effective_approaches: EffectiveApproach[];
   conversations_analyzed: number;
   last_consolidated_at: string | null;
 }
 
-export function useInternalProfile() {
-  const { user } = useAuth();
-  const [profile, setProfile] = useState<InternalProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+async function fetchInternalProfile(userId: string): Promise<InternalProfile | null> {
+  const { data, error } = await supabase
+    .from('user_internal_profile')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
 
-  useEffect(() => {
-    if (!user) {
-      setProfile(null);
-      setLoading(false);
-      return;
-    }
+  if (error) {
+    throw error;
+  }
 
-    const fetchProfile = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("user_internal_profile")
-          .select("*")
-          .eq("user_id", user.id)
-          .single();
+  if (!data) {
+    return null;
+  }
 
-        if (error && error.code !== "PGRST116") {
-          // PGRST116 = no rows returned (perfil ainda não existe)
-          console.error("Error fetching internal profile:", error);
-        }
-
-        if (data) {
-          setProfile({
-            emotional_patterns: (data.emotional_patterns as unknown as EmotionalPattern[]) || [],
-            recurring_themes: (data.recurring_themes as unknown as RecurringTheme[]) || [],
-            communication_style: (data.communication_style as unknown as CommunicationStyle) || {},
-            blind_spots: (data.blind_spots as unknown as BlindSpot[]) || [],
-            journey_summary: data.journey_summary,
-            effective_approaches: (data.effective_approaches as unknown as EffectiveApproach[]) || [],
-            conversations_analyzed: data.conversations_analyzed || 0,
-            last_consolidated_at: data.last_consolidated_at,
-          });
-        }
-      } catch (error) {
-        console.error("Error fetching internal profile:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProfile();
-  }, [user]);
-
-  return { profile, loading };
+  return {
+    emotional_patterns: (data.emotional_patterns as unknown as EmotionalPattern[]) || [],
+    recurring_themes: (data.recurring_themes as unknown as RecurringTheme[]) || [],
+    communication_style: (data.communication_style as unknown as CommunicationStyle) || {},
+    blind_spots: (data.blind_spots as unknown as BlindSpot[]) || [],
+    journey_summary: data.journey_summary,
+    clinical_insights: data.clinical_insights ?? null,
+    effective_approaches: (data.effective_approaches as unknown as EffectiveApproach[]) || [],
+    conversations_analyzed: data.conversations_analyzed || 0,
+    last_consolidated_at: data.last_consolidated_at,
+  };
 }
 
+export function useInternalProfile() {
+  const { user } = useAuth();
+  const userId = user?.id;
+
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: queryKeys.internalProfile(userId ?? ''),
+    queryFn: () => fetchInternalProfile(userId!),
+    enabled: !!userId,
+  });
+
+  return {
+    profile: data ?? null,
+    loading: !!userId && (isLoading || (isFetching && data === undefined)),
+  };
+}

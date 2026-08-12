@@ -53,7 +53,12 @@ export function getMessageInputBarStyles(params: {
   layout: MessageInputBarLayout;
   prominentVoice?: boolean;
 }) {
-  const { colors, bottomInset, layout, prominentVoice = false } = params;
+  const {
+    colors,
+    bottomInset,
+    layout,
+    prominentVoice = false,
+  } = params;
   const {
     pillHeight,
     sendTouchSize,
@@ -95,15 +100,20 @@ export function getMessageInputBarStyles(params: {
       {
         width: sendTouchSize,
         height: sendTouchSize,
+        borderRadius: sendTouchSize / 2,
         right: sendButtonInset,
         top: sendButtonTop,
+        backgroundColor: colors['chat-accent-mint'],
       },
     ] satisfies ViewStyle[],
     sendHitSlop: baseStyles.sendHitSlop,
     voiceSlot: [
       baseStyles.voiceSlot,
       prominentVoice
-        ? { minHeight: pillHeight }
+        ? {
+            minHeight: pillHeight,
+            width: layout.prominentVoiceWidth,
+          }
         : {
             width: layout.voiceSlotWidth,
             height: pillHeight,

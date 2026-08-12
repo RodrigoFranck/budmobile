@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Share,
   Linking,
-  Appearance,
   Platform,
   Modal,
   Pressable,
@@ -42,7 +41,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { showAlert } = useAppAlert();
   const { user, signOut, deleteAccount, refreshOnboardingStatus } = useAuth();
-  const { mode, loaded: themeLoaded, setMode, setPreference } = useTheme();
+  const { mode, preference, loaded: themeLoaded, setMode, setPreference } = useTheme();
   const {
     enabled: notificationsEnabled,
     dailyTimeLabel,
@@ -57,7 +56,7 @@ export default function SettingsScreen() {
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [timePickerVisible, setTimePickerVisible] = useState(false);
 
-  const deepModeValue = useMemo(() => darkMode, [darkMode]);
+  const deepModeValue = preference === "dark";
   const colors = useMemo(
     () => (darkMode ? DARK_COLORS : LIGHT_COLORS),
     [darkMode],
@@ -66,14 +65,12 @@ export default function SettingsScreen() {
 
   const handleToggleDeepMode = useCallback(
     async (enabled: boolean) => {
-      const nextMode = enabled ? "dark" : "light";
-      const deviceMode =
-        Appearance.getColorScheme() === "light" ? "light" : "dark";
-      if (nextMode === deviceMode) {
-        await setPreference("system");
+      // ON → force dark; OFF → follow the device (Appearance / system theme)
+      if (enabled) {
+        await setMode("dark");
         return;
       }
-      await setMode(nextMode);
+      await setPreference("system");
     },
     [setMode, setPreference],
   );

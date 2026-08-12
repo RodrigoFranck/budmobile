@@ -1,25 +1,38 @@
-import { useCallback, useEffect } from 'react';
-import { KeyboardAvoidingView, Pressable, View } from 'react-native';
+import { useCallback } from 'react';
+import { KeyboardAvoidingView, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { ChevronLeft } from 'lucide-react-native';
+import {
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+  type RouteProp,
+} from '@react-navigation/native';
+import { Book, Settings } from 'lucide-react-native';
 
 import { ChatContainer } from '@/components/chat/ChatContainer';
 import { MessageInputBar } from '@/components/chat/MessageInputBar';
 import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
 import { TabScreenHeader } from '@/components/ui/TabScreenHeader';
+import { WeekCalendarHeader } from '@/components/ui/WeekCalendarHeader';
 import { Spacing } from '@/constants/styles';
 import { PlatformConstants } from '@/constants/layout';
 import { useTabScreenLoading } from '@/contexts/TabScreenContext';
 import { useChatSession } from '@/features/chat/ChatSessionProvider';
 import { useAppColors } from '@/lib/colors';
-import type { ChatStackNavigationProp } from '@/types/chatNavigation.types';
+import type {
+  ChatStackNavigationProp,
+  ChatStackParamList,
+} from '@/types/chatNavigation.types';
+import type { MainTabNavigationProp, RootNavigationProp } from '@/types/navigation';
 import { VoiceMode } from '@/voice/VoiceMode';
 
 export default function TextChatScreen() {
   const colors = useAppColors();
   const tabLoading = useTabScreenLoading('Chat');
   const navigation = useNavigation<ChatStackNavigationProp>();
+  const tabNavigation = useNavigation<MainTabNavigationProp>();
+  const rootNavigation = useNavigation<RootNavigationProp>();
+  const route = useRoute<RouteProp<ChatStackParamList, 'TextChat'>>();
   const {
     allMessages,
     isStreaming,
@@ -37,36 +50,52 @@ export default function TextChatScreen() {
     setVoiceTranscript,
     isBudSpeaking,
     setIsBudSpeaking,
+    isVoicePaused,
+    setIsVoicePaused,
+    isVoiceMicMuted,
+    setIsVoiceMicMuted,
     userContext,
     messageHistory,
     recentInsights,
+    chatHomeResetToken,
     handleSendMessage,
     handleVoiceUserMessage,
     handleVoiceAssistantMessage,
     handleEndVoiceSession,
+    handleToggleVoicePause,
+    handleToggleVoiceMute,
     handleAssistantRevealComplete,
+    requestAutoStartVoice,
     bootstrapInsightSession,
   } = useChatSession();
 
   useFocusEffect(
     useCallback(() => {
       if (tabLoading) return;
+
+      if (route.params?.autoStartVoice) {
+        requestAutoStartVoice();
+        navigation.setParams({ autoStartVoice: undefined });
+      }
+
       bootstrapInsightSession();
-    }, [bootstrapInsightSession, tabLoading]),
+    }, [
+      bootstrapInsightSession,
+      navigation,
+      requestAutoStartVoice,
+      route.params?.autoStartVoice,
+      tabLoading,
+    ]),
   );
 
-  useEffect(() => {
-    if (tabLoading) return;
-    bootstrapInsightSession();
-  }, [bootstrapInsightSession, tabLoading]);
-
-  const handleBack = useCallback(() => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-      return;
-    }
-    navigation.navigate('ChatHome');
-  }, [navigation]);
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        void voiceInterfaceRef.current?.endConversation({ force: true });
+        setIsVoiceModeActive(false);
+      };
+    }, [setIsVoiceModeActive, voiceInterfaceRef]),
+  );
 
   return (
     <ScreenLoadingGate loading={tabLoading}>
@@ -82,20 +111,19 @@ export default function TextChatScreen() {
           keyboardVerticalOffset={PlatformConstants.keyboardVerticalOffset}
         >
           <TabScreenHeader>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Voltar para início do chat"
-              onPress={handleBack}
-              hitSlop={12}
-              style={{ alignSelf: 'flex-start', paddingVertical: 4 }}
-            >
-              <ChevronLeft size={28} color={colors.foreground} />
-            </Pressable>
+            <WeekCalendarHeader
+              leftIcon={Book}
+              onPressLeft={() => tabNavigation.navigate('Explore')}
+              showLeftIndicatorDot
+              rightIcon={Settings}
+              onPressRight={() => rootNavigation.navigate('Settings')}
+            />
           </TabScreenHeader>
           <ChatContainer
             messages={allMessages}
             loading={isStreaming || messagesLoading}
             topPadding={Spacing.base}
+            scrollResetToken={chatHomeResetToken}
             onAssistantRevealComplete={handleAssistantRevealComplete}
           />
           <MessageInputBar
@@ -107,6 +135,8 @@ export default function TextChatScreen() {
             onVoiceModeChange={setIsVoiceModeActive}
             onVoiceConnectingChange={setIsVoiceConnecting}
             onVoiceSessionBusyChange={setIsVoiceSessionBusy}
+            onVoicePausedChange={setIsVoicePaused}
+            onVoiceMicMutedChange={setIsVoiceMicMuted}
             onVoiceUserMessage={handleVoiceUserMessage}
             onVoiceAssistantMessage={handleVoiceAssistantMessage}
             onVoiceTranscript={setVoiceTranscript}
@@ -121,10 +151,14 @@ export default function TextChatScreen() {
           visible={isVoiceModeActive}
           onClose={() => setIsVoiceModeActive(false)}
           onEndVoice={handleEndVoiceSession}
+          onTogglePause={handleToggleVoicePause}
+          onToggleMute={handleToggleVoiceMute}
           transcript={voiceTranscript}
           isBudSpeaking={isBudSpeaking}
           isConnecting={isVoiceConnecting}
           isSessionBusy={isVoiceSessionBusy}
+          isPaused={isVoicePaused}
+          isMicMuted={isVoiceMicMuted}
         />
       </View>
     </ScreenLoadingGate>

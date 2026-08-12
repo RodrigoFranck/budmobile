@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import Reactotron from 'reactotron-react-native';
 
 declare global {
@@ -7,9 +8,15 @@ declare global {
 }
 
 if (__DEV__) {
+  // Android emulator: 10.0.2.2 = host machine. iOS simulator: localhost.
+  // Physical devices: set EXPO_PUBLIC_REACTOTRON_HOST to your computer LAN IP.
+  const host =
+    process.env.EXPO_PUBLIC_REACTOTRON_HOST ||
+    (Platform.OS === 'android' ? '10.0.2.2' : 'localhost');
+
   Reactotron.configure({
     name: 'Bud Mobile',
-    host: 'localhost', // IP do seu computador para dispositivos físicos
+    host,
   })
     .useReactNative({
       asyncStorage: false, // Desabilitado pois usamos SecureStore
@@ -28,11 +35,7 @@ if (__DEV__) {
   // Limpa logs anteriores ao iniciar
   Reactotron.clear();
 
-  console.log('🔧 Reactotron configurado!');
+  console.log(`🔧 Reactotron configurado! host=${host}`);
 }
 
 export default Reactotron;
-
-
-
-

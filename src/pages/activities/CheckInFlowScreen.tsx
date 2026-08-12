@@ -24,10 +24,10 @@ import { getCheckInSteps } from '@/features/checkin/checkInSteps';
 import type { CheckInStepConfig } from '@/features/checkin/checkInFlow.types';
 import { useCheckIns, type CheckinType } from '@/hooks/useCheckIns';
 import { resolveCheckInGradient, useActivitiesTheme } from '@/lib/activitiesTheme';
-import type { ActivitiesStackParamList } from '@/types/activitiesNavigation.types';
+import type { CheckInStackParamList } from '@/types/checkInNavigation.types';
 
-type Route = RouteProp<ActivitiesStackParamList, 'CheckInFlow'>;
-type Nav = NativeStackNavigationProp<ActivitiesStackParamList, 'CheckInFlow'>;
+type Route = RouteProp<CheckInStackParamList, 'CheckInFlow'>;
+type Nav = NativeStackNavigationProp<CheckInStackParamList, 'CheckInFlow'>;
 
 function isStepAnswered(step: CheckInStepConfig, value: unknown): boolean {
   if (step.optional) return true;

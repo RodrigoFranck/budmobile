@@ -11,7 +11,7 @@ import {
   getTodayInBrasilia,
 } from '@/utils/dateUtils';
 
-export type CheckinType = 'morning' | 'post_training';
+export type CheckinType = 'morning' | 'post_training' | 'post_game';
 export type FeedbackType = 'negative' | 'positive' | 'love';
 
 export interface CheckinReport {
@@ -176,10 +176,12 @@ export function useCheckIns() {
 
   const todayMorning = todayCheckins.find((c) => c.checkin_type === 'morning') ?? null;
   const todayPostTraining = todayCheckins.find((c) => c.checkin_type === 'post_training') ?? null;
+  const todayPostGame = todayCheckins.find((c) => c.checkin_type === 'post_game') ?? null;
 
   return {
     todayMorning,
     todayPostTraining,
+    todayPostGame,
     recentCheckins,
     loading,
     submitCheckin,

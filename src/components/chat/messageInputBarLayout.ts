@@ -13,18 +13,23 @@ export interface MessageInputBarLayout {
   textLineHeight: number;
   voiceSlotWidth: number;
   prominentVoiceSize: number;
+  prominentVoiceWidth: number;
 }
 
 const ROW_GAP = 12;
 
 /** Compact single-line pill height as a share of screen height */
 const PILL_HEIGHT_SCREEN_RATIO = 0.065;
-/** Voice button column as a share of screen width */
+/** Companion voice button column as a share of screen width */
 const VOICE_SLOT_WIDTH_RATIO = 0.11;
+/** Prominent voice control is a circle matching pill height */
+const PROMINENT_VOICE_WIDTH_RATIO = 1;
 /** Send icon touch area as a share of screen width */
-const SEND_TOUCH_WIDTH_RATIO = 0.09;
+const SEND_TOUCH_WIDTH_RATIO = 0.085;
 /** Inset from the right curve of the pill to the send icon */
-const SEND_BUTTON_INSET_WIDTH_RATIO = 0.012;
+const SEND_BUTTON_INSET_WIDTH_RATIO = 0.028;
+/** Minimum gap between send button and pill edges */
+const SEND_BUTTON_EDGE_GAP = 8;
 /** Text left inset as a share of screen width */
 const TEXT_PADDING_LEFT_WIDTH_RATIO = 0.05;
 
@@ -40,9 +45,15 @@ export function getMessageInputBarLayout(
     (pillHeight - textLineHeight) / 2,
   );
   const sendTouchSize = Math.round(
-    Math.min(width * SEND_TOUCH_WIDTH_RATIO, pillHeight - 4),
+    Math.min(
+      width * SEND_TOUCH_WIDTH_RATIO,
+      pillHeight - SEND_BUTTON_EDGE_GAP * 2,
+    ),
   );
-  const sendButtonInset = Math.max(4, Math.round(width * SEND_BUTTON_INSET_WIDTH_RATIO));
+  const sendButtonInset = Math.max(
+    SEND_BUTTON_EDGE_GAP,
+    Math.round(width * SEND_BUTTON_INSET_WIDTH_RATIO),
+  );
   const textPaddingLeft = Math.round(width * TEXT_PADDING_LEFT_WIDTH_RATIO);
   const voiceSlotWidth = Math.round(width * VOICE_SLOT_WIDTH_RATIO);
 
@@ -56,6 +67,7 @@ export function getMessageInputBarLayout(
     textLineHeight,
     voiceSlotWidth,
     prominentVoiceSize: pillHeight,
+    prominentVoiceWidth: Math.round(pillHeight * PROMINENT_VOICE_WIDTH_RATIO),
   };
 }
 

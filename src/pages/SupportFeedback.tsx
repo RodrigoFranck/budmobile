@@ -15,11 +15,13 @@ import { useNavigation } from '@react-navigation/native';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppAlert } from '@/contexts/AppAlertContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Spacing } from '@/constants/styles';
 import type { NavigationProp } from '@/types/navigation';
 import {
-  SUPPORT_FEEDBACK_COLORS,
-  supportFeedbackStyles as styles,
+  createSupportFeedbackStyles,
+  DARK_COLORS,
+  LIGHT_COLORS,
 } from '@/pages/SupportFeedback.styles';
 
 export default function SupportFeedbackScreen() {
@@ -27,6 +29,10 @@ export default function SupportFeedbackScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { showAlert } = useAppAlert();
+  const { mode } = useTheme();
+
+  const colors = useMemo(() => (mode === 'dark' ? DARK_COLORS : LIGHT_COLORS), [mode]);
+  const styles = useMemo(() => createSupportFeedbackStyles(colors), [colors]);
 
   const [reason, setReason] = useState('');
   const [message, setMessage] = useState('');
@@ -118,7 +124,7 @@ export default function SupportFeedbackScreen() {
             accessibilityRole="button"
             accessibilityLabel="Voltar"
           >
-            <ArrowLeft size={20} color={SUPPORT_FEEDBACK_COLORS.text} />
+            <ArrowLeft size={20} color={colors.text} />
           </TouchableOpacity>
 
           <Text style={styles.title}>Suporte e Feedback</Text>
@@ -133,7 +139,7 @@ export default function SupportFeedbackScreen() {
               value={reason}
               onChangeText={setReason}
               placeholder=""
-              placeholderTextColor={SUPPORT_FEEDBACK_COLORS.textMuted}
+              placeholderTextColor={colors.textMuted}
               style={styles.input}
               maxLength={120}
               accessibilityLabel="Motivo da solicitação"
@@ -146,7 +152,7 @@ export default function SupportFeedbackScreen() {
               value={message}
               onChangeText={setMessage}
               placeholder=""
-              placeholderTextColor={SUPPORT_FEEDBACK_COLORS.textMuted}
+              placeholderTextColor={colors.textMuted}
               style={[styles.input, styles.textarea]}
               multiline
               maxLength={1000}
@@ -170,4 +176,3 @@ export default function SupportFeedbackScreen() {
     </View>
   );
 }
-

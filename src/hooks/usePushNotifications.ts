@@ -5,7 +5,7 @@ import type { NavigationContainerRefWithCurrent } from '@react-navigation/native
 import * as Notifications from 'expo-notifications';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { useAppProfileQuery } from '@/hooks/useAppProfileQuery';
 import {
   clearStoredPushToken,
   displayRemoteMessageAsNotification,
@@ -26,25 +26,20 @@ export function usePushNotifications(
   navigationRef: NavigationContainerRefWithCurrent<RootStackParamList>
 ) {
   const { user, onboardingCompleted } = useAuth();
+  const { data: profile, isFetched } = useAppProfileQuery();
 
   useEffect(() => {
-    if (Platform.OS === 'web' || !user?.id) {
+    if (Platform.OS === 'web' || !user?.id || !isFetched) {
+      return;
+    }
+
+    if (profile?.push_notifications_enabled === false) {
       return;
     }
 
     let cancelled = false;
 
     const register = async () => {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('push_notifications_enabled')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (profile?.push_notifications_enabled === false) {
-        return;
-      }
-
       const token = await registerForPushNotificationsAsync();
       if (cancelled || !token) {
         return;
@@ -67,7 +62,7 @@ export function usePushNotifications(
       cancelled = true;
       tokenRefreshUnsubscribe();
     };
-  }, [user?.id]);
+  }, [user?.id, isFetched, profile?.push_notifications_enabled]);
 
   useEffect(() => {
     if (Platform.OS === 'web' || !user?.id || !onboardingCompleted) {

@@ -1,7 +1,7 @@
 import { StyleSheet } from 'react-native';
 
 import type { AppColors } from '@/lib/colors';
-import { Spacing, Typography } from '@/constants/styles';
+import { Spacing } from '@/constants/styles';
 
 export function createVoiceModeStyles(params: {
   colors: AppColors;
@@ -29,18 +29,59 @@ export function createVoiceModeStyles(params: {
     },
     main: {
       flex: 1,
-      paddingHorizontal: 47,
+      paddingHorizontal: 40,
       paddingTop: topInset + 90,
     },
     scrollContent: {
       flexGrow: 1,
       justifyContent: 'center',
+      alignItems: 'center',
+      paddingBottom: 24,
+    },
+    // When text overflows, drop vertical centering so Android can scroll the top/bottom.
+    scrollContentOverflow: {
+      justifyContent: 'flex-start',
+    },
+    heroLabel: {
+      fontFamily: 'Fraunces_400Regular',
+      fontSize: 36,
+      lineHeight: 44,
+      color: colors['chat-body'],
+      textAlign: 'center',
+      marginBottom: 12,
+    },
+    heroLabelConnecting: {
+      color: colors['chat-accent-mint'],
+    },
+    heroHint: {
+      fontFamily: 'InstrumentSans',
+      fontSize: 16,
+      lineHeight: 22,
+      color: colors['chat-body'],
+      textAlign: 'center',
+      opacity: 0.78,
+      maxWidth: 280,
+    },
+    heroBlock: {
+      alignItems: 'center',
+    },
+    statusHintSpacer: {
+      marginBottom: 18,
+    },
+    transcriptBlock: {
+      width: '100%',
+      alignItems: 'center',
     },
     transcript: {
       fontFamily: 'Fraunces_400Regular',
       fontSize: 24,
       lineHeight: 32,
-      color: colors['chat-label-muted'],
+      color: colors['chat-body'],
+      textAlign: 'center',
+      width: '100%',
+    },
+    transcriptStanza: {
+      marginTop: 20,
     },
     bottom: {
       paddingBottom: Math.max(bottomInset, 24) + 18,
@@ -48,11 +89,21 @@ export function createVoiceModeStyles(params: {
     },
     status: {
       fontFamily: 'InstrumentSans',
-      fontSize: 15,
-      lineHeight: 20,
-      color: colors['chat-label-muted'],
+      fontSize: 16,
+      lineHeight: 22,
+      fontWeight: '500',
+      color: colors['chat-body'],
       textAlign: 'center',
-      marginBottom: 16,
+      marginBottom: 8,
+    },
+    statusHint: {
+      fontFamily: 'InstrumentSans',
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors['chat-body'],
+      textAlign: 'center',
+      opacity: 0.72,
+      marginBottom: 18,
     },
     actionsRow: {
       flexDirection: 'row',
@@ -68,22 +119,38 @@ export function createVoiceModeStyles(params: {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    actionButtonMuted: {
+      backgroundColor: 'rgba(239, 68, 68, 0.18)',
+    },
     actionButtonDisabled: {
       opacity: 0.4,
     },
     activityBarsWrap: {
-      flexDirection: 'row',
-      alignItems: 'flex-end',
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: colors['chat-body'],
+      alignItems: 'center',
       justifyContent: 'center',
-      gap: 5,
-      height: 44,
+    },
+    activityBarsWrapConnecting: {
+      backgroundColor: colors['chat-accent-mint'],
+    },
+    activityBarsWrapPaused: {
+      backgroundColor: colors['chat-accent-mint'],
+    },
+    activityBarsInner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 4,
+      height: 28,
     },
     activityBar: {
       width: 4,
-      height: 36,
+      height: 28,
       borderRadius: 2,
-      backgroundColor: colors.foreground,
+      backgroundColor: colors['chat-warm-bg'],
     },
   });
 }
-

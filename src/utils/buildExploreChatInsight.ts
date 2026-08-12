@@ -61,6 +61,7 @@ export function buildExploreChatInsight(
     insightType,
     badge: config.badge,
     title: insight.title,
+    // Card-facing summary stays short; rich JSON (analysis + source transcripts) lives in internalContext.
     contextSummary: insight.contextSummary ?? insight.title,
     internalContext: insight.internalContext ?? insight.description,
     cardDescription: insight.description,
