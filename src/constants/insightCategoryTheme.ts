@@ -16,6 +16,7 @@ export type InsightCardPalette = {
   badgeBg: string;
   badgeText: string;
   title: string;
+  muted: string;
 };
 
 const CHECKIN_ACCENTS: Record<
@@ -29,13 +30,24 @@ const CHECKIN_ACCENTS: Record<
 
 const INSPIRED_ACCENT = '#8BA3B0';
 
-function hexToRgba(hex: string, alpha: number): string {
+function hexToRgb(hex: string): [number, number, number] {
   const normalized = hex.replace('#', '');
   const value = parseInt(normalized, 16);
-  const r = (value >> 16) & 255;
-  const g = (value >> 8) & 255;
-  const b = value & 255;
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const [r, g, b] = hexToRgb(hex);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function mixHex(fromHex: string, toHex: string, amount: number): string {
+  const [fr, fg, fb] = hexToRgb(fromHex);
+  const [tr, tg, tb] = hexToRgb(toHex);
+  const r = Math.round(fr + (tr - fr) * amount);
+  const g = Math.round(fg + (tg - fg) * amount);
+  const b = Math.round(fb + (tb - fb) * amount);
+  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
 }
 
 function getExploreAccent(key: ExploreInsightKey, isDark: boolean): string {
@@ -94,14 +106,17 @@ export function getInsightCardPalette(
   }
 
   const title = isDark ? darkColors['chat-body'] : lightColors['chat-body'];
+  const ink = lightColors['chat-body'];
+  const wash = isDark ? accent : mixHex(accent, ink, 0.22);
 
   return {
     accent,
-    border: hexToRgba(accent, isDark ? 0.42 : 0.48),
-    fillFrom: hexToRgba(accent, isDark ? 0.28 : 0.2),
-    fillTo: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(29,25,22,0.03)',
-    badgeBg: hexToRgba(accent, isDark ? 0.2 : 0.16),
-    badgeText: isDark ? 'rgba(255,255,255,0.82)' : hexToRgba(accent, 0.92),
+    border: hexToRgba(wash, isDark ? 0.42 : 0.62),
+    fillFrom: hexToRgba(wash, isDark ? 0.28 : 0.4),
+    fillTo: isDark ? 'rgba(255,255,255,0.04)' : hexToRgba(wash, 0.18),
+    badgeBg: hexToRgba(wash, isDark ? 0.2 : 0.3),
+    badgeText: isDark ? 'rgba(255,255,255,0.82)' : mixHex(accent, ink, 0.48),
     title,
+    muted: isDark ? 'rgba(239, 234, 230, 0.62)' : lightColors['chat-label-muted'],
   };
 }

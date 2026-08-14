@@ -13,6 +13,10 @@ export function buildInsightVoiceFirstMessage(
     return 'Por onde entramos nisso?';
   }
 
+  if (insightType === 'deep_insight') {
+    return 'Fiquei com o que surgiu da sua semana. Por onde você quer entrar?';
+  }
+
   if (insightType === 'frequency') {
     return 'Quer olhar isso comigo agora?';
   }

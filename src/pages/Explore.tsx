@@ -11,7 +11,6 @@ import { Carousel, Pagination, type CarouselRef } from 'react-native-reanimated-
 import type { Insight } from '@/hooks/useExploreInsights';
 import { buildExploreChatInsight } from '@/utils/buildExploreChatInsight';
 import { navigateToChatTab } from '@/utils/navigateToChat';
-import { ExploreProgressBackground } from '@/components/explore/ExploreProgressBackground';
 import { InsightCard } from '@/components/explore/InsightCard';
 import { InsightNavControls } from '@/components/explore/InsightNavControls';
 import {
@@ -23,6 +22,7 @@ import {
   useTabScreenContext,
   useTabScreenLoading,
 } from '@/contexts/TabScreenContext';
+import { useAppColors } from '@/lib/colors';
 import type {
   MainTabNavigationProp,
   RootNavigationProp,
@@ -73,6 +73,7 @@ const ExploreInsightSlide = memo(function ExploreInsightSlide({
       }}
     >
       <InsightCard
+        category={item.key}
         badge={item.badge}
         title={item.insight.title}
         description={item.insight.description}
@@ -93,6 +94,7 @@ const ExploreInsightSlide = memo(function ExploreInsightSlide({
 export default function ExploreScreen() {
   const navigation = useNavigation<MainTabNavigationProp>();
   const rootNavigation = useNavigation<RootNavigationProp>();
+  const colors = useAppColors();
   const isFocused = useIsFocused();
   const tabLoading = useTabScreenLoading('Explore');
   const {
@@ -204,21 +206,18 @@ export default function ExploreScreen() {
 
   return (
     <ScreenLoadingGate loading={tabLoading}>
-      <View style={{ flex: 1 }}>
-        <ExploreProgressBackground progress={progress} />
+      <View style={{ flex: 1, backgroundColor: colors['chat-warm-bg'] }}>
+        <TabScreenHeader>
+          <WeekCalendarHeader
+            leftIcon={Book}
+            onPressLeft={() => navigation.navigate('Explore')}
+            showLeftIndicatorDot
+            rightIcon={Settings}
+            onPressRight={() => rootNavigation.navigate('Settings')}
+          />
+        </TabScreenHeader>
 
-        <View style={{ flex: 1, zIndex: 1 }}>
-          <TabScreenHeader>
-            <WeekCalendarHeader
-              leftIcon={Book}
-              onPressLeft={() => navigation.navigate('Explore')}
-              showLeftIndicatorDot
-              rightIcon={Settings}
-              onPressRight={() => rootNavigation.navigate('Settings')}
-            />
-          </TabScreenHeader>
-
-          <View style={{ flex: 1 }} onLayout={handleListLayout}>
+        <View style={{ flex: 1 }} onLayout={handleListLayout}>
             {pageHeight > 0 && pageWidth > 0 ? (
               <Carousel
                 ref={carouselRef}
@@ -260,13 +259,13 @@ export default function ExploreScreen() {
                   width: 6,
                   height: 6,
                   borderRadius: 3,
-                  backgroundColor: 'rgba(255, 255, 255, 0.28)',
+                  backgroundColor: `${colors['chat-body']}47`,
                 }}
                 activeDotStyle={{
                   width: 6,
                   height: 18,
                   borderRadius: 3,
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  backgroundColor: colors['chat-body'],
                 }}
               />
             </View>
@@ -277,7 +276,6 @@ export default function ExploreScreen() {
             onPrev={handlePrev}
             onNext={handleNext}
           />
-        </View>
       </View>
     </ScreenLoadingGate>
   );

@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 
-import { frauncesFont } from '@/constants/onboardingTheme';
+import { frauncesFont, instrumentSansFont } from '@/constants/onboardingTheme';
 
 export const deepInsightSheetStyles = StyleSheet.create({
   modalRoot: {
@@ -205,19 +205,22 @@ export const deepInsightSheetStyles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 8,
   },
-  ctaButton: {
-    marginTop: 24,
-    height: 56,
-    borderRadius: 12,
+  ctaCard: {
+    paddingVertical: 20,
+    paddingHorizontal: 18,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: 'rgba(255, 255, 255, 0.55)',
+    gap: 16,
   },
-  ctaButtonText: {
-    fontFamily: frauncesFont,
+  ctaLabel: {
+    fontFamily: instrumentSansFont,
     fontSize: 16,
+    fontWeight: '500',
+    lineHeight: 22,
     color: '#ffffff',
+    textAlign: 'center',
   },
   feedbackSection: {
     paddingHorizontal: 24,

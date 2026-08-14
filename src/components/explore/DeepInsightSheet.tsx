@@ -11,14 +11,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Heart, ThumbsDown, ThumbsUp } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 
+import { InsightChatActions } from '@/components/explore/InsightChatActions';
 import { deepInsightSheetStyles as styles } from '@/components/explore/DeepInsightSheet.styles';
 import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useTabScreenContext } from '@/contexts/TabScreenContext';
 import { useDeepInsight } from '@/hooks/useDeepInsight';
 import { supabase } from '@/integrations/supabase/client';
-import { formatDateBrasilia, getWeekStartBrasilia } from '@/utils/dateUtils';
-import { navigateToChatTab } from '@/utils/navigateToChat';
+import type { Json } from '@/integrations/supabase/types';
 import type { MainTabNavigationProp } from '@/types/navigation';
+import {
+  openDeepInsightChat,
+  type DeepInsightChatMode,
+} from '@/utils/buildDeepInsightChatInsight';
+import { formatDateBrasilia, getWeekStartBrasilia } from '@/utils/dateUtils';
 
 const inspiredBg = require('@/assets/inspired-bg.png');
 
@@ -139,33 +144,15 @@ export function DeepInsightSheet({ visible, onClose, weekStart }: DeepInsightShe
     })();
   }, [status, insight?.headline]);
 
-  const handleTalkAbout = useCallback(() => {
-    if (!insight) return;
+  const handleTalkAbout = useCallback(
+    (mode: DeepInsightChatMode = 'text') => {
+      if (!insight) return;
 
-    onClose();
-    navigateToChatTab(navigation, {
-      chatInsight: {
-        insightType: 'deep_insight',
-        badge: 'INSPIRADO EM VOCÊ',
-        title: insight.headline || 'Deep Insight',
-        contextSummary: insight.intro || insight.headline,
-        internalContext: JSON.stringify({
-          headline: insight.headline,
-          intro: insight.intro,
-          what_i_noticed: insight.what_i_noticed,
-          reflection: insight.reflection,
-          key_takeaway: insight.key_takeaway,
-          next_steps: insight.next_steps,
-        }),
-        cardDescription: insight.intro || insight.headline,
-        backgroundType: 'inspired',
-        initialUserMessage: insight.intro
-          ? `Quero conversar sobre isso: ${insight.intro}`
-          : 'Quero conversar sobre esse insight.',
-        autoStartVoice: true,
-      },
-    });
-  }, [insight, navigation, onClose]);
+      onClose();
+      openDeepInsightChat(navigation, insight, mode);
+    },
+    [insight, navigation, onClose],
+  );
 
   const handleFeedback = async (type: 'negative' | 'positive' | 'love') => {
     setFeedbackGiven(type);
@@ -182,8 +169,9 @@ export function DeepInsightSheet({ visible, onClose, weekStart }: DeepInsightShe
         insight_type: 'deep_insight',
         feedback_type: type,
         insight_headline: insight?.headline,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        insight_content: insight as any,
+        insight_content: insight
+          ? (JSON.parse(JSON.stringify(insight)) as Json)
+          : null,
       });
       showAlert({ title: 'Obrigado', message: 'Obrigado pelo feedback!' });
     } catch (err) {
@@ -361,12 +349,21 @@ export function DeepInsightSheet({ visible, onClose, weekStart }: DeepInsightShe
               </View>
             </ImageBackground>
 
-            <View style={styles.ctaSection}>
+            <View style={styles.section}>
               <Text style={styles.sectionTitle}>{insight.next_steps.title}</Text>
               <Text style={styles.sectionBody}>{insight.next_steps.content}</Text>
-              <Pressable style={styles.ctaButton} onPress={handleTalkAbout}>
-                <Text style={styles.ctaButtonText}>Vamos conversar sobre isso</Text>
-              </Pressable>
+            </View>
+
+            <View style={styles.ctaSection}>
+              <View style={styles.ctaCard}>
+                <Text style={styles.ctaLabel}>Vamos conversar sobre isso</Text>
+                <InsightChatActions
+                  onMessage={() => handleTalkAbout('text')}
+                  onVoice={() => handleTalkAbout('voice')}
+                  messageAccessibilityLabel="Enviar mensagem sobre esse insight"
+                  voiceAccessibilityLabel="Conversar por voz sobre esse insight"
+                />
+              </View>
             </View>
 
             <View style={styles.feedbackSection}>

@@ -11,6 +11,7 @@ import {
   insightNavControlsStyles,
 } from '@/components/explore/InsightCard.styles';
 import { EXPLORE_INSIGHT_COUNT } from '@/constants/exploreInsights';
+import { useAppColors } from '@/lib/colors';
 
 interface InsightNavControlsProps {
   progress: SharedValue<number>;
@@ -23,6 +24,7 @@ export function InsightNavControls({
   onPrev,
   onNext,
 }: InsightNavControlsProps) {
+  const colors = useAppColors();
   const iconSize = Math.round(insightCardActionLayout.height * 0.55);
   const lastIndex = EXPLORE_INSIGHT_COUNT - 1;
 
@@ -57,7 +59,7 @@ export function InsightNavControls({
           style={insightNavControlsStyles.button}
           hitSlop={insightCardActionLayout.voiceHitSlop}
         >
-          <ChevronLeft size={iconSize} color="#FFFFFF" strokeWidth={2} />
+          <ChevronLeft size={iconSize} color={colors['chat-body']} strokeWidth={2} />
         </TouchableOpacity>
       </Animated.View>
 
@@ -70,7 +72,7 @@ export function InsightNavControls({
           style={insightNavControlsStyles.button}
           hitSlop={insightCardActionLayout.voiceHitSlop}
         >
-          <ChevronRight size={iconSize} color="#FFFFFF" strokeWidth={2} />
+          <ChevronRight size={iconSize} color={colors['chat-body']} strokeWidth={2} />
         </TouchableOpacity>
       </Animated.View>
     </View>

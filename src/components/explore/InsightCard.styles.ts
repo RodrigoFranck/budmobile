@@ -1,195 +1,145 @@
 import { StyleSheet } from 'react-native';
+
 import { SCREEN } from '@/constants/layout';
+import type { InsightCardPalette } from '@/constants/insightCategoryTheme';
 import { frauncesFont, instrumentSansFont } from '@/constants/onboardingTheme';
-import { darkColors } from '@/lib/colors';
 
-const ACTION_HEIGHT = 38;
-const SEND_TOUCH_SIZE = 22;
-const SEND_BUTTON_INSET = 8;
+export { insightCardActionLayout } from '@/components/explore/InsightChatActions.styles';
 
-export const insightCardActionLayout = {
-  height: ACTION_HEIGHT,
-  sendTouchSize: SEND_TOUCH_SIZE,
-  sendButtonInset: SEND_BUTTON_INSET,
-  sendIconSize: Math.round(SEND_TOUCH_SIZE * 0.48),
-  voiceHitSlop: { top: 10, bottom: 10, left: 10, right: 10 },
-} as const;
-
-export const insightCardStyles = StyleSheet.create({
-  cardContainer: {
-    backgroundColor: 'rgba(33, 33, 33, 0.85)',
-    borderRadius: 20,
-    minHeight: 340,
-    overflow: 'hidden',
-  },
-  cardLocked: {
-    opacity: 0.75,
-  },
-  cardFillParent: {
-    flex: 1,
-  },
-  loadingContainer: {
-    backgroundColor: 'rgba(33, 33, 33, 0.85)',
-    borderRadius: 20,
-    minHeight: 340,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  contentContainer: {
-    flex: 1,
-    paddingTop: 28,
-    paddingHorizontal: 28,
-    paddingBottom: 80,
-  },
-  contentContainerNoActions: {
-    paddingBottom: 32,
-  },
-  badgeWrap: {
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  badgeContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 16,
-    minHeight: 32,
-    minWidth: 180,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  badgeText: {
-    fontFamily: instrumentSansFont,
-    fontWeight: '500',
-    fontSize: 12,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    color: 'rgba(255, 255, 255, 0.5)',
-    textAlign: 'center',
-  },
-  contentGap: {
-    flex: 1,
-    justifyContent: 'center',
-    gap: 28,
-    alignItems: 'center',
-    paddingVertical: 16,
-    width: '100%',
-  },
-  titleText: {
-    fontFamily: frauncesFont,
-    fontSize: 34,
-    lineHeight: 42,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    paddingHorizontal: 4,
-  },
-  descriptionText: {
-    fontFamily: instrumentSansFont,
-    fontSize: 19,
-    lineHeight: 28,
-    color: 'rgba(255, 255, 255, 0.62)',
-    textAlign: 'center',
-    paddingHorizontal: 4,
-  },
-  progressWrap: {
-    marginTop: 4,
-    gap: 8,
-    width: '100%',
-  },
-  progressLabel: {
-    fontFamily: instrumentSansFont,
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.75)',
-    textAlign: 'center',
-  },
-  progressTrack: {
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 999,
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-  },
-  secondaryButtonWrap: {
-    marginTop: 16,
-    alignItems: 'center',
-  },
-  secondaryButton: {
-    alignSelf: 'center',
-  },
-  secondaryButtonLocked: {
-    opacity: 0.5,
-  },
-  secondaryButtonEnabled: {
-    opacity: 1,
-  },
-  secondaryButtonText: {
-    fontFamily: instrumentSansFont,
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  actionsRow: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  actionButton: {
-    flex: 1,
-    height: ACTION_HEIGHT,
-    borderRadius: 69,
-    paddingLeft: 14,
-    paddingRight: SEND_TOUCH_SIZE + SEND_BUTTON_INSET + 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: darkColors['chat-input-pill'],
-  },
-  actionButtonLocked: {
-    opacity: 0.55,
-  },
-  actionButtonEnabled: {
-    opacity: 1,
-  },
-  actionButtonText: {
-    fontFamily: instrumentSansFont,
-    fontSize: 15,
-    color: darkColors['chat-label-muted'],
-    flexShrink: 1,
-  },
-  sendButton: {
-    position: 'absolute',
-    right: SEND_BUTTON_INSET,
-    top: (ACTION_HEIGHT - SEND_TOUCH_SIZE) / 2,
-    width: SEND_TOUCH_SIZE,
-    height: SEND_TOUCH_SIZE,
-    borderRadius: SEND_TOUCH_SIZE / 2,
-    backgroundColor: `${darkColors['chat-accent-mint']}59`,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  voiceButton: {
-    width: ACTION_HEIGHT,
-    height: ACTION_HEIGHT,
-    borderRadius: ACTION_HEIGHT / 2,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  voiceButtonEnabled: {
-    opacity: 1,
-  },
-  voiceButtonDisabled: {
-    opacity: 0.55,
-  },
-});
+export function createInsightCardStyles(palette: InsightCardPalette) {
+  return StyleSheet.create({
+    cardContainer: {
+      borderRadius: 24,
+      minHeight: 340,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: palette.border,
+    },
+    cardLocked: {
+      opacity: 0.75,
+    },
+    cardFillParent: {
+      flex: 1,
+    },
+    loadingContainer: {
+      borderRadius: 24,
+      minHeight: 340,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.fillTo,
+    },
+    gradient: {
+      flex: 1,
+    },
+    contentContainer: {
+      flex: 1,
+      paddingTop: 28,
+      paddingHorizontal: 28,
+      paddingBottom: 80,
+    },
+    contentContainerNoActions: {
+      paddingBottom: 32,
+    },
+    badgeWrap: {
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    badgeContainer: {
+      backgroundColor: palette.badgeBg,
+      borderRadius: 999,
+      minHeight: 32,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+    },
+    badgeText: {
+      fontFamily: instrumentSansFont,
+      fontWeight: '500',
+      fontSize: 11,
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+      color: palette.badgeText,
+      textAlign: 'center',
+    },
+    contentGap: {
+      flex: 1,
+      justifyContent: 'center',
+      gap: 28,
+      alignItems: 'center',
+      paddingVertical: 16,
+      width: '100%',
+    },
+    titleText: {
+      fontFamily: frauncesFont,
+      fontSize: 34,
+      lineHeight: 42,
+      fontWeight: '400',
+      color: palette.title,
+      textAlign: 'center',
+      paddingHorizontal: 4,
+    },
+    descriptionText: {
+      fontFamily: frauncesFont,
+      fontSize: 18,
+      lineHeight: 26,
+      fontWeight: '400',
+      color: palette.title,
+      textAlign: 'center',
+      paddingHorizontal: 4,
+    },
+    progressWrap: {
+      marginTop: 4,
+      gap: 8,
+      width: '100%',
+    },
+    progressLabel: {
+      fontFamily: instrumentSansFont,
+      fontSize: 13,
+      color: palette.muted,
+      textAlign: 'center',
+    },
+    progressTrack: {
+      height: 6,
+      borderRadius: 999,
+      backgroundColor: palette.badgeBg,
+      overflow: 'hidden',
+    },
+    progressFill: {
+      height: '100%',
+      borderRadius: 999,
+      backgroundColor: palette.accent,
+    },
+    secondaryButtonWrap: {
+      marginTop: 16,
+      alignItems: 'center',
+    },
+    secondaryButton: {
+      alignSelf: 'center',
+    },
+    secondaryButtonLocked: {
+      opacity: 0.5,
+    },
+    secondaryButtonEnabled: {
+      opacity: 1,
+    },
+    secondaryButtonText: {
+      fontFamily: instrumentSansFont,
+      fontSize: 14,
+      color: palette.muted,
+    },
+    actionsRow: {
+      position: 'absolute',
+      left: 16,
+      right: 16,
+      bottom: 20,
+    },
+  });
+}
 
 export const insightNavControlsStyles = StyleSheet.create({
   wrap: {
@@ -230,5 +180,3 @@ export const insightPaginationStyles = StyleSheet.create({
     zIndex: 3,
   },
 });
-
-export const insightCardImageStyle = { opacity: 0.6, borderRadius: 20 } as const;
