@@ -33,7 +33,7 @@ ext.findNodeFromFnm = {
 
 ext.resolveNodeExecutable = { File androidRoot ->
     def fromEnv = System.getenv("NODE_BINARY")
-    if (fromEnv != null && !fromEnv.isEmpty()) {
+    if (fromEnv != null && !fromEnv.isEmpty() && new File(fromEnv).canExecute()) {
         return fromEnv
     }
 
@@ -42,7 +42,7 @@ ext.resolveNodeExecutable = { File androidRoot ->
     if (localPropertiesFile.exists()) {
         localPropertiesFile.withReader("UTF-8") { reader -> localProperties.load(reader) }
         def fromLocal = localProperties.getProperty("node.executable")
-        if (fromLocal != null && !fromLocal.isEmpty()) {
+        if (fromLocal != null && !fromLocal.isEmpty() && new File(fromLocal).canExecute()) {
             return fromLocal
         }
     }

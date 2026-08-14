@@ -39,8 +39,45 @@
   --chat-assistant-bg: 30 38% 95%;
 }
 
-.dark :root,
-:root.dark {
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: 0 0% 11.8%;
+    --foreground: 0 0% 100%;
+    --foreground-muted: 0 0% 92%;
+
+    --card: 0 0% 16.5%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 0 0% 16.5%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 11.8%;
+
+    --secondary: 0 0% 18.4%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 0 0% 16.5%;
+    --muted-foreground: 0 0% 71%;
+
+    --accent: 167 40% 82%;
+    --accent-foreground: 0 0% 11.8%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 20%;
+    --input: 0 0% 16.5%;
+    --ring: 0 0% 71%;
+
+    --radius: 0.75rem;
+
+    --chat-user-bg: 0 0% 14%;
+    --chat-assistant-bg: 0 0% 11.8%;
+  }
+}
+
+.dark:root {
   /* Dark Mode */
   --background: 0 0% 11.8%; /* #1E1E1E */
   --foreground: 0 0% 100%; /* #FFFFFF */
