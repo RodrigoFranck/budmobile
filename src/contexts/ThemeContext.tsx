@@ -1,6 +1,17 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Appearance } from 'react-native';
-import { useColorScheme } from 'nativewind';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  Appearance,
+  AppState,
+  type AppStateStatus,
+  type ColorSchemeName,
+} from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { appAlert } from '@/contexts/AppAlertContext';
@@ -13,8 +24,24 @@ import type { AppProfile } from '@/services/profileQuery';
 type ThemeMode = 'light' | 'dark';
 type ThemePreference = ThemeMode | 'system';
 
-function resolveSystemMode(scheme: string | null | undefined): ThemeMode {
-  return scheme === 'light' ? 'light' : 'dark';
+function resolveSystemMode(scheme: ColorSchemeName): ThemeMode {
+  return scheme === 'dark' ? 'dark' : 'light';
+}
+
+function readSystemMode(): ThemeMode {
+  return resolveSystemMode(Appearance.getColorScheme());
+}
+
+function preferenceFromProfile(darkMode: boolean | null | undefined): ThemePreference {
+  if (darkMode === true) return 'dark';
+  if (darkMode === false) return 'light';
+  return 'system';
+}
+
+function darkModeFromPreference(preference: ThemePreference): boolean | null {
+  if (preference === 'dark') return true;
+  if (preference === 'light') return false;
+  return null;
 }
 
 interface ThemeContextType {
@@ -34,37 +61,33 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: profile, isPending, isFetched } = useAppProfileQuery();
-  const { colorScheme, setColorScheme } = useColorScheme();
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
   const [loaded, setLoaded] = useState(false);
-  const [systemMode, setSystemMode] = useState<ThemeMode>(() =>
-    resolveSystemMode(Appearance.getColorScheme()),
-  );
+  const [systemMode, setSystemMode] = useState<ThemeMode>(readSystemMode);
 
   useEffect(() => {
-    const subscription = Appearance.addChangeListener(({ colorScheme: nextScheme }) => {
+    const syncSystemMode = () => {
+      setSystemMode(readSystemMode());
+    };
+
+    syncSystemMode();
+
+    const appearanceSub = Appearance.addChangeListener(({ colorScheme: nextScheme }) => {
       setSystemMode(resolveSystemMode(nextScheme));
     });
-    return () => subscription.remove();
+
+    const appStateSub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState !== 'active') return;
+      syncSystemMode();
+    });
+
+    return () => {
+      appearanceSub.remove();
+      appStateSub.remove();
+    };
   }, []);
 
-  const resolvedMode: ThemeMode = useMemo(() => {
-    if (preference !== 'system') {
-      return preference;
-    }
-    if (colorScheme === 'light' || colorScheme === 'dark') {
-      return colorScheme;
-    }
-    return systemMode;
-  }, [colorScheme, preference, systemMode]);
-
-  useEffect(() => {
-    if (preference === 'system') {
-      setColorScheme('system');
-      return;
-    }
-    setColorScheme(preference);
-  }, [preference, setColorScheme]);
+  const resolvedMode: ThemeMode = preference === 'system' ? systemMode : preference;
 
   useEffect(() => {
     if (!user?.id) {
@@ -78,40 +101,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (profile?.dark_mode === true) {
-      setPreferenceState('dark');
-    } else {
-      setPreferenceState('system');
-      if (profile?.dark_mode === false) {
-        void supabase
-          .from('profiles')
-          .update({ dark_mode: null })
-          .eq('user_id', user.id)
-          .then(() => {
-            queryClient.setQueryData<AppProfile | null>(
-              queryKeys.profile(user.id),
-              (current) => (current ? { ...current, dark_mode: null } : current),
-            );
-          });
-      }
-    }
+    setPreferenceState(preferenceFromProfile(profile?.dark_mode));
     setLoaded(true);
-  }, [user?.id, profile?.dark_mode, isPending, isFetched, queryClient]);
+  }, [user?.id, profile?.dark_mode, isPending, isFetched]);
 
   const setPreference = useCallback(
     async (nextPreference: ThemePreference) => {
-      const normalized: ThemePreference =
-        nextPreference === 'light' ? 'system' : nextPreference;
-      setPreferenceState(normalized);
+      setPreferenceState(nextPreference);
       if (!user?.id) return;
       try {
-        const nextDark = normalized === 'dark' ? true : null;
+        const nextDark = darkModeFromPreference(nextPreference);
         const { error } = await supabase
           .from('profiles')
           .update({ dark_mode: nextDark })
           .eq('user_id', user.id);
         if (error) {
-          setPreferenceState((current) => (current === 'dark' ? 'system' : 'dark'));
+          setPreferenceState(preferenceFromProfile(profile?.dark_mode));
           appAlert({ title: 'Erro', message: 'Não foi possível salvar sua preferência de tema.' });
           return;
         }
@@ -121,16 +126,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           (current) => (current ? { ...current, dark_mode: nextDark } : current),
         );
       } catch {
-        setPreferenceState((current) => (current === 'dark' ? 'system' : 'dark'));
+        setPreferenceState(preferenceFromProfile(profile?.dark_mode));
         appAlert({ title: 'Erro', message: 'Não foi possível salvar sua preferência de tema.' });
       }
     },
-    [queryClient, user?.id],
+    [profile?.dark_mode, queryClient, user?.id],
   );
 
   const setMode = useCallback(
     async (nextMode: ThemeMode) => {
-      await setPreference(nextMode === 'light' ? 'system' : nextMode);
+      await setPreference(nextMode);
     },
     [setPreference],
   );

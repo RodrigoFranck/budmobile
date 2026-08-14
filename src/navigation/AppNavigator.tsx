@@ -68,6 +68,10 @@ export default function AppNavigator() {
         <Stack.Navigator
           screenOptions={{
             headerShown: false,
+            freezeOnBlur: false,
+            contentStyle: {
+              backgroundColor: mode === 'dark' ? '#1D1916' : '#F7F1ED',
+            },
           }}
         >
           {passwordRecoveryPending ? (

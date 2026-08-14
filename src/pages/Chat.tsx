@@ -396,7 +396,7 @@ export default function ChatScreen() {
 
   return (
     <ScreenLoadingGate loading={tabLoading}>
-      <View className="flex-1 bg-background">
+      <View style={{ flex: 1, backgroundColor: colors['chat-warm-bg'] }}>
       <LinearGradient
         colors={[colors['chat-warm-bg'], colors['chat-gradient-end']]}
         locations={[0.35, 1]}

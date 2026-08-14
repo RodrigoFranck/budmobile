@@ -38,7 +38,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { showAlert } = useAppAlert();
   const { user, signOut, deleteAccount, refreshOnboardingStatus } = useAuth();
-  const { mode, preference, loaded: themeLoaded, setMode, setPreference } = useTheme();
+  const { mode, loaded: themeLoaded, setMode } = useTheme();
   const {
     enabled: notificationsEnabled,
     loaded: notificationsLoaded,
@@ -50,7 +50,6 @@ export default function SettingsScreen() {
   const [resettingOnboarding, setResettingOnboarding] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
-  const deepModeValue = preference === "dark";
   const colors = useMemo(
     () => (darkMode ? DARK_COLORS : LIGHT_COLORS),
     [darkMode],
@@ -59,14 +58,9 @@ export default function SettingsScreen() {
 
   const handleToggleDeepMode = useCallback(
     async (enabled: boolean) => {
-      // ON → force dark; OFF → follow the device (Appearance / system theme)
-      if (enabled) {
-        await setMode("dark");
-        return;
-      }
-      await setPreference("system");
+      await setMode(enabled ? "dark" : "light");
     },
-    [setMode, setPreference],
+    [setMode],
   );
 
   const handleToggleNotifications = useCallback(
@@ -256,7 +250,7 @@ export default function SettingsScreen() {
               <ActivityIndicator size="small" color={colors.icon} />
             ) : (
               <Switch
-                value={deepModeValue}
+                value={darkMode}
                 onValueChange={handleToggleDeepMode}
                 trackColor={{
                   false: colors.switchTrackOff,
