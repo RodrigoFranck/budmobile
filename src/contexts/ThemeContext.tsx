@@ -1,20 +1,6 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import {
-  Appearance,
-  AppState,
-  View,
-  type AppStateStatus,
-  type ColorSchemeName,
-} from 'react-native';
-import { colorScheme as nativeWindColorScheme, vars } from 'nativewind';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Appearance } from 'react-native';
+import { useColorScheme } from 'nativewind';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { appAlert } from '@/contexts/AppAlertContext';
@@ -27,73 +13,9 @@ import type { AppProfile } from '@/services/profileQuery';
 type ThemeMode = 'light' | 'dark';
 type ThemePreference = ThemeMode | 'system';
 
-function resolveSystemMode(scheme: ColorSchemeName): ThemeMode {
-  return scheme === 'dark' ? 'dark' : 'light';
+function resolveSystemMode(scheme: string | null | undefined): ThemeMode {
+  return scheme === 'light' ? 'light' : 'dark';
 }
-
-function readSystemMode(): ThemeMode {
-  return resolveSystemMode(Appearance.getColorScheme());
-}
-
-function applyNativeColorScheme(next: ThemePreference) {
-  if (next === 'dark') {
-    nativeWindColorScheme.set('dark');
-    return;
-  }
-
-  nativeWindColorScheme.set('system');
-  Appearance.setColorScheme(null);
-}
-
-const lightCssVars = vars({
-  '--background': '30 38% 95%',
-  '--foreground': '20 16% 10%',
-  '--foreground-muted': '20 12% 28%',
-  '--card': '0 0% 100%',
-  '--card-foreground': '20 16% 10%',
-  '--popover': '0 0% 100%',
-  '--popover-foreground': '20 16% 10%',
-  '--primary': '177 45% 33%',
-  '--primary-foreground': '0 0% 100%',
-  '--secondary': '24 24% 90%',
-  '--secondary-foreground': '20 16% 10%',
-  '--muted': '24 24% 90%',
-  '--muted-foreground': '20 12% 32%',
-  '--accent': '167 40% 82%',
-  '--accent-foreground': '20 16% 10%',
-  '--destructive': '0 84.2% 60.2%',
-  '--destructive-foreground': '0 0% 100%',
-  '--border': '20 10% 82%',
-  '--input': '0 0% 100%',
-  '--ring': '20 12% 48%',
-  '--chat-user-bg': '30 22% 92%',
-  '--chat-assistant-bg': '30 38% 95%',
-});
-
-const darkCssVars = vars({
-  '--background': '0 0% 11.8%',
-  '--foreground': '0 0% 100%',
-  '--foreground-muted': '0 0% 92%',
-  '--card': '0 0% 16.5%',
-  '--card-foreground': '0 0% 100%',
-  '--popover': '0 0% 16.5%',
-  '--popover-foreground': '0 0% 100%',
-  '--primary': '0 0% 100%',
-  '--primary-foreground': '0 0% 11.8%',
-  '--secondary': '0 0% 18.4%',
-  '--secondary-foreground': '0 0% 100%',
-  '--muted': '0 0% 16.5%',
-  '--muted-foreground': '0 0% 71%',
-  '--accent': '167 40% 82%',
-  '--accent-foreground': '0 0% 11.8%',
-  '--destructive': '0 84.2% 60.2%',
-  '--destructive-foreground': '0 0% 100%',
-  '--border': '0 0% 20%',
-  '--input': '0 0% 16.5%',
-  '--ring': '0 0% 71%',
-  '--chat-user-bg': '0 0% 14%',
-  '--chat-assistant-bg': '0 0% 11.8%',
-});
 
 interface ThemeContextType {
   mode: ThemeMode;
@@ -108,59 +30,41 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const themeRootStyle = { flex: 1 } as const;
-
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: profile, isPending, isFetched } = useAppProfileQuery();
+  const { colorScheme, setColorScheme } = useColorScheme();
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
   const [loaded, setLoaded] = useState(false);
-  const [systemMode, setSystemMode] = useState<ThemeMode>(readSystemMode);
-  const preferenceRef = useRef(preference);
-  preferenceRef.current = preference;
+  const [systemMode, setSystemMode] = useState<ThemeMode>(() =>
+    resolveSystemMode(Appearance.getColorScheme()),
+  );
 
   useEffect(() => {
-    const syncSystemMode = () => {
-      if (preferenceRef.current === 'dark') return;
-      setSystemMode(readSystemMode());
-    };
-
-    syncSystemMode();
-    const bootTimer = setTimeout(syncSystemMode, 80);
-
-    const appearanceSub = Appearance.addChangeListener(({ colorScheme: nextScheme }) => {
-      if (preferenceRef.current === 'dark') return;
+    const subscription = Appearance.addChangeListener(({ colorScheme: nextScheme }) => {
       setSystemMode(resolveSystemMode(nextScheme));
     });
-
-    const appStateSub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
-      if (nextState !== 'active') return;
-      syncSystemMode();
-      requestAnimationFrame(syncSystemMode);
-    });
-
-    return () => {
-      clearTimeout(bootTimer);
-      appearanceSub.remove();
-      appStateSub.remove();
-    };
+    return () => subscription.remove();
   }, []);
 
-  const resolvedMode: ThemeMode = preference === 'dark' ? 'dark' : systemMode;
+  const resolvedMode: ThemeMode = useMemo(() => {
+    if (preference !== 'system') {
+      return preference;
+    }
+    if (colorScheme === 'light' || colorScheme === 'dark') {
+      return colorScheme;
+    }
+    return systemMode;
+  }, [colorScheme, preference, systemMode]);
 
   useEffect(() => {
-    applyNativeColorScheme(preference);
-
-    if (preference !== 'system') return;
-
-    const frame = requestAnimationFrame(() => {
-      applyNativeColorScheme('system');
-      setSystemMode(readSystemMode());
-    });
-
-    return () => cancelAnimationFrame(frame);
-  }, [preference]);
+    if (preference === 'system') {
+      setColorScheme('system');
+      return;
+    }
+    setColorScheme(preference);
+  }, [preference, setColorScheme]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -199,10 +103,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       const normalized: ThemePreference =
         nextPreference === 'light' ? 'system' : nextPreference;
       setPreferenceState(normalized);
-      applyNativeColorScheme(normalized);
-      if (normalized === 'system') {
-        setSystemMode(readSystemMode());
-      }
       if (!user?.id) return;
       try {
         const nextDark = normalized === 'dark' ? true : null;
@@ -249,13 +149,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     [loaded, preference, resolvedMode, setMode, setPreference],
   );
 
-  return (
-    <ThemeContext.Provider value={value}>
-      <View style={[themeRootStyle, resolvedMode === 'dark' ? darkCssVars : lightCssVars]}>
-        {children}
-      </View>
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {

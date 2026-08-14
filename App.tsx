@@ -10,14 +10,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConversationProvider } from '@elevenlabs/react-native';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AppAlertProvider } from '@/contexts/AppAlertContext';
-import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import AppNavigator from '@/navigation/AppNavigator';
 import { AppQueryProvider } from '@/providers/AppQueryProvider';
-
-function ThemedStatusBar() {
-  const { isDarkMode } = useTheme();
-  return <StatusBar style={isDarkMode ? 'light' : 'dark'} />;
-}
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -61,7 +56,7 @@ export default function App() {
             <ThemeProvider>
               <AppAlertProvider>
                 <AppNavigator />
-                <ThemedStatusBar />
+                <StatusBar style="auto" />
               </AppAlertProvider>
             </ThemeProvider>
           </AuthProvider>
