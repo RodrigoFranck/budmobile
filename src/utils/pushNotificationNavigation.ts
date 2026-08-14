@@ -146,7 +146,7 @@ function navigateToMainTabs(
     return false;
   }
 
-  navigationRef.navigate('MainTabs', target);
+  navigationRef.navigate('MainTabs', target, { pop: true });
   return true;
 }
 

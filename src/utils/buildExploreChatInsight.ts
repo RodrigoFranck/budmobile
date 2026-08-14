@@ -1,5 +1,8 @@
+import type { NavigationProp, ParamListBase } from '@react-navigation/native';
+
 import type { Insight } from '@/hooks/useExploreInsights';
 import type { ChatInsightParam } from '@/types/chatInsight';
+import { navigateToChatTab } from '@/utils/navigateToChat';
 
 const EXPLORE_INSIGHT_CONFIG: Record<
   string,
@@ -76,4 +79,15 @@ export function buildExploreChatInsight(
     ...(mode === 'voice' ? { autoStartVoice: true } : {}),
     initialUserMessage: buildExploreInitialUserMessage(insightType, insight),
   };
+}
+
+export function openExploreChat(
+  navigation: NavigationProp<ParamListBase>,
+  insightType: string,
+  insight: Insight,
+  mode: ExploreChatMode = 'text',
+) {
+  navigateToChatTab(navigation, {
+    chatInsight: buildExploreChatInsight(insightType, insight, mode),
+  });
 }

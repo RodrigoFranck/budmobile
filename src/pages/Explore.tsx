@@ -9,8 +9,7 @@ import { Book, Settings } from 'lucide-react-native';
 import { Easing, useSharedValue } from 'react-native-reanimated';
 import { Carousel, Pagination, type CarouselRef } from 'react-native-reanimated-carousel';
 import type { Insight } from '@/hooks/useExploreInsights';
-import { buildExploreChatInsight } from '@/utils/buildExploreChatInsight';
-import { navigateToChatTab } from '@/utils/navigateToChat';
+import { openExploreChat } from '@/utils/buildExploreChatInsight';
 import { InsightCard } from '@/components/explore/InsightCard';
 import { InsightNavControls } from '@/components/explore/InsightNavControls';
 import {
@@ -143,9 +142,7 @@ export default function ExploreScreen() {
         return;
       }
 
-      navigateToChatTab(navigation, {
-        chatInsight: buildExploreChatInsight(insightType, insight, 'text'),
-      });
+      openExploreChat(navigation, insightType, insight, 'text');
     },
     [navigation],
   );
@@ -156,9 +153,7 @@ export default function ExploreScreen() {
         return;
       }
 
-      navigateToChatTab(navigation, {
-        chatInsight: buildExploreChatInsight(insightType, insight, 'voice'),
-      });
+      openExploreChat(navigation, insightType, insight, 'voice');
     },
     [navigation],
   );

@@ -10,7 +10,7 @@ import {
   type RefObject,
 } from 'react';
 
-import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useTabScreenContext } from '@/contexts/TabScreenContext';
@@ -18,10 +18,12 @@ import { countUserTurns, matchApproach } from '@/utils/approachMatcher';
 import { buildInsightApproachContext } from '@/utils/buildInsightApproachContext';
 import { streamChat, type InsightContext, type UserContext } from '@/utils/chatStream';
 import type { ChatInsightParam } from '@/types/chatInsight';
+import type { ChatTabParams, MainTabNavigationProp } from '@/types/navigation';
 import {
   clearPendingChatInsight,
   consumePendingChatInsight,
   registerChatInsightConsumer,
+  takePendingChatInsight,
 } from '@/utils/navigateToChat';
 import {
   clearMessageClientIds,
@@ -36,7 +38,6 @@ import { scheduleSessionMemory } from '@/utils/scheduleSessionMemory';
 import type { StreamingMessage } from '@/types/messages';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
 import { getResumableAssistantTranscript } from '@/voice/voiceTranscript';
-import type { MainTabNavigationProp } from '@/types/navigation';
 
 interface ChatSessionContextValue {
   currentConversationId: string | null;
@@ -94,6 +95,7 @@ const ChatSessionContext = createContext<ChatSessionContextValue | undefined>(un
 export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const navigation = useNavigation<MainTabNavigationProp>();
+  const route = useRoute();
   const isChatFocused = useIsFocused();
   const {
     chatConversationId: currentConversationId,
@@ -591,9 +593,17 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const processIncomingChatInsight = useCallback(
     (insight: ChatInsightParam) => {
       const insightKey = `${insight.insightType}:${insight.title}:${insight.initialUserMessage ?? ''}:${insight.autoStartVoice ? 'voice' : 'text'}`;
-      if (handledInsightKeyRef.current === insightKey) return;
-      handledInsightKeyRef.current = insightKey;
+      const isSamePending =
+        handledInsightKeyRef.current === insightKey && pendingChatInsightRef.current;
 
+      if (isSamePending) {
+        requestAnimationFrame(() => {
+          bootstrapInsightSessionRef.current();
+        });
+        return;
+      }
+
+      handledInsightKeyRef.current = insightKey;
       applyChatInsight(insight);
       requestAnimationFrame(() => {
         bootstrapInsightSessionRef.current();
@@ -604,7 +614,6 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     registerChatInsightConsumer(processIncomingChatInsight);
-    consumePendingChatInsight();
 
     return () => {
       registerChatInsightConsumer(null);
@@ -613,8 +622,20 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
 
   useFocusEffect(
     useCallback(() => {
+      const fromParams = (route.params as ChatTabParams | undefined)?.chatInsight;
+      const fromStash = takePendingChatInsight();
+      const insight = fromParams ?? fromStash;
+      if (insight) {
+        processIncomingChatInsight(insight);
+        if (fromParams) {
+          navigation.setParams({ chatInsight: undefined });
+        }
+        return;
+      }
+
       consumePendingChatInsight();
-    }, []),
+      bootstrapInsightSessionRef.current();
+    }, [navigation, processIncomingChatInsight, route.params]),
   );
 
   useEffect(() => {

@@ -148,8 +148,11 @@ export function DeepInsightSheet({ visible, onClose, weekStart }: DeepInsightShe
     (mode: DeepInsightChatMode = 'text') => {
       if (!insight) return;
 
+      const insightToOpen = insight;
       onClose();
-      openDeepInsightChat(navigation, insight, mode);
+      requestAnimationFrame(() => {
+        openDeepInsightChat(navigation, insightToOpen, mode);
+      });
     },
     [insight, navigation, onClose],
   );
