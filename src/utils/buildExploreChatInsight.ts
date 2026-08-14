@@ -25,24 +25,30 @@ const EXPLORE_INSIGHT_CONFIG: Record<
 
 const DEFAULT_EXPLORE_START_MESSAGE = 'Quero conversar sobre esse insight.';
 
+function resolveExploreInsightContent(insight: Insight): string {
+  return (
+    insight.description.trim() ||
+    insight.contextSummary?.trim() ||
+    insight.title.trim()
+  );
+}
+
 function buildExploreInitialUserMessage(insightType: string, insight: Insight): string {
-  const title = insight.title.trim();
+  const content = resolveExploreInsightContent(insight);
+
+  if (!content) {
+    return DEFAULT_EXPLORE_START_MESSAGE;
+  }
 
   if (insightType === 'yesterday_journey') {
-    return title
-      ? `Quero continuar nossa conversa de ontem sobre "${title}".`
-      : 'Quero continuar nossa conversa de ontem.';
+    return `Quero continuar nossa conversa de ontem a partir disso: ${content}`;
   }
 
   if (insightType === 'habit') {
-    return title
-      ? `Quero trabalhar no hábito: "${title}".`
-      : 'Quero trabalhar nesse hábito.';
+    return `Quero trabalhar nesse hábito a partir disso: ${content}`;
   }
 
-  return title
-    ? `Quero conversar sobre "${title}".`
-    : DEFAULT_EXPLORE_START_MESSAGE;
+  return `Quero conversar sobre isso: ${content}`;
 }
 
 export type ExploreChatMode = 'text' | 'voice';
@@ -56,19 +62,18 @@ export function buildExploreChatInsight(
     badge: 'INSIGHT',
     backgroundType: 'inspired' as const,
   };
+  const content = resolveExploreInsightContent(insight);
 
   return {
     insightType,
     badge: config.badge,
     title: insight.title,
-    // Card-facing summary stays short; rich JSON (analysis + source transcripts) lives in internalContext.
-    contextSummary: insight.contextSummary ?? insight.title,
+    contextSummary: content,
     internalContext: insight.internalContext ?? insight.description,
-    cardDescription: insight.description,
+    cardDescription: content,
     backgroundType: config.backgroundType,
     ...(insight.conversationId ? { conversationId: insight.conversationId } : {}),
-    ...(mode === 'text'
-      ? { initialUserMessage: buildExploreInitialUserMessage(insightType, insight) }
-      : { autoStartVoice: true }),
+    ...(mode === 'voice' ? { autoStartVoice: true } : {}),
+    initialUserMessage: buildExploreInitialUserMessage(insightType, insight),
   };
 }

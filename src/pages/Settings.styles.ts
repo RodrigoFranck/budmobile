@@ -35,8 +35,6 @@ export type SettingsColors = {
   switchTrackOff: string;
 };
 
-export const HOUR_OPTIONS = Array.from({ length: 18 }, (_, index) => index + 6);
-
 export function createSettingsStyles(colors: SettingsColors) {
   return StyleSheet.create({
     screen: {
@@ -74,11 +72,6 @@ export function createSettingsStyles(colors: SettingsColors) {
       fontSize: 22,
       fontFamily: 'InriaSerif-Regular',
     },
-    rowTextValue: {
-      color: colors.primary,
-      fontSize: 18,
-      fontFamily: 'InriaSerif-Regular',
-    },
     rightSlot: {
       height: 56,
       justifyContent: 'center',
@@ -111,40 +104,6 @@ export function createSettingsStyles(colors: SettingsColors) {
     },
     destructiveText: {
       color: '#E05252',
-    },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      justifyContent: 'flex-end',
-    },
-    modalSheet: {
-      backgroundColor: colors.card,
-      borderTopLeftRadius: 16,
-      borderTopRightRadius: 16,
-      paddingHorizontal: 18,
-      paddingTop: 16,
-      paddingBottom: 24,
-      maxHeight: '50%',
-    },
-    modalTitle: {
-      color: colors.text,
-      fontSize: 20,
-      fontFamily: 'InriaSerif-Regular',
-      marginBottom: 12,
-    },
-    hourOption: {
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.cardBorder,
-    },
-    hourOptionText: {
-      color: colors.text,
-      fontSize: 18,
-      fontFamily: 'InriaSerif-Regular',
-    },
-    hourOptionTextSelected: {
-      color: colors.primary,
-      fontWeight: '700',
     },
   });
 }

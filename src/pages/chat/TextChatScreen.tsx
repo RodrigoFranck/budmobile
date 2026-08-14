@@ -127,7 +127,6 @@ export default function TextChatScreen() {
             onAssistantRevealComplete={handleAssistantRevealComplete}
           />
           <MessageInputBar
-            autoFocus
             onSendMessage={handleSendMessage}
             disabled={isStreaming}
             voiceAppearance="prominent"

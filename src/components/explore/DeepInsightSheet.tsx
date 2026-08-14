@@ -33,9 +33,10 @@ const loadingMessages = [
 interface DeepInsightSheetProps {
   visible: boolean;
   onClose: () => void;
+  weekStart?: string;
 }
 
-export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
+export function DeepInsightSheet({ visible, onClose, weekStart }: DeepInsightSheetProps) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainTabNavigationProp>();
   const { showAlert } = useAppAlert();
@@ -54,15 +55,17 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
 
   const [feedbackGiven, setFeedbackGiven] = useState<'negative' | 'positive' | 'love' | null>(null);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
-  const [selectedWeekStart] = useState(() => formatDateBrasilia(getWeekStartBrasilia()));
+  const currentWeekStart = formatDateBrasilia(getWeekStartBrasilia());
+  const selectedWeekStart = weekStart ?? currentWeekStart;
+  const isCurrentWeek = selectedWeekStart === currentWeekStart;
 
   useEffect(() => {
-    if (!deepInsightContent) {
+    if (!deepInsightContent || !isCurrentWeek) {
       return;
     }
 
     hydrateInsight(deepInsightContent, selectedWeekStart);
-  }, [deepInsightContent, hydrateInsight, selectedWeekStart]);
+  }, [deepInsightContent, hydrateInsight, isCurrentWeek, selectedWeekStart]);
 
   useEffect(() => {
     if (!visible) {
@@ -70,7 +73,7 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
       return;
     }
 
-    if (deepInsightContent || status !== 'idle') {
+    if ((isCurrentWeek && deepInsightContent) || status !== 'idle') {
       return;
     }
 
@@ -82,6 +85,7 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
   }, [
     visible,
     status,
+    isCurrentWeek,
     deepInsightContent,
     generateDeepInsight,
     refreshExploreInsights,
@@ -144,9 +148,20 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
         insightType: 'deep_insight',
         badge: 'INSPIRADO EM VOCÊ',
         title: insight.headline || 'Deep Insight',
-        contextSummary: insight.headline,
-        internalContext: insight.intro,
+        contextSummary: insight.intro || insight.headline,
+        internalContext: JSON.stringify({
+          headline: insight.headline,
+          intro: insight.intro,
+          what_i_noticed: insight.what_i_noticed,
+          reflection: insight.reflection,
+          key_takeaway: insight.key_takeaway,
+          next_steps: insight.next_steps,
+        }),
+        cardDescription: insight.intro || insight.headline,
         backgroundType: 'inspired',
+        initialUserMessage: insight.intro
+          ? `Quero conversar sobre isso: ${insight.intro}`
+          : 'Quero conversar sobre esse insight.',
         autoStartVoice: true,
       },
     });

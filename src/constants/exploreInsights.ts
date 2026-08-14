@@ -22,18 +22,19 @@ type InsightGradientTheme = {
 
 /**
  * Screen background gradients per explore insight.
+ * Yesterday uses a dusk purple so it stays distinct from morning check-in gold.
  * Habit uses Bud's mint/teal theme accent.
  */
 export const ExploreInsightGradients: Record<ExploreInsightKey, InsightGradientTheme> = {
   yesterday_journey: {
     screen: {
       dark: {
-        base: ['#1D1916', '#2A2210', '#E0C35A'],
-        animated: ['#1D1916', '#332910', '#E8D06A'],
+        base: ['#1D1916', '#26182E', '#C4A5E0'],
+        animated: ['#1D1916', '#322040', '#D2B6EC'],
       },
       light: {
-        base: ['#F7F1ED', '#F3E8C8', '#E8C96A'],
-        animated: ['#F7F1ED', '#F0E0B0', '#E0C35A'],
+        base: ['#F7F1ED', '#E9DCF3', '#C4A5E0'],
+        animated: ['#F7F1ED', '#DDCEE8', '#B48FD4'],
       },
     },
   },

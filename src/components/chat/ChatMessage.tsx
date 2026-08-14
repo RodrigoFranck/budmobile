@@ -5,7 +5,9 @@ import { useAppColors } from '@/lib/colors';
 import type { MessageRole } from '@/types/messages';
 import { useStaggeredReveal, STANZA_FADE_MS } from '@/hooks/useStaggeredReveal';
 import { splitMessageStanzas } from '@/utils/splitMessageStanzas';
+import { parseInsightContextMessage } from '@/utils/insightContextMessage';
 import { createChatMessageStyles } from '@/components/chat/ChatMessage.styles';
+import { InsightContextCard } from '@/components/chat/InsightContextCard';
 
 interface ChatMessageProps {
   role: MessageRole;
@@ -176,6 +178,18 @@ export const ChatMessage = memo(function ChatMessage({
   }
 
   if (isContext) {
+    const contextCard = parseInsightContextMessage(content);
+    if (contextCard) {
+      return (
+        <InsightContextCard
+          badge={contextCard.badge}
+          title={contextCard.title}
+          description={contextCard.description}
+          category={contextCard.category}
+        />
+      );
+    }
+
     return (
       <View className="my-4 px-2">
         <Text

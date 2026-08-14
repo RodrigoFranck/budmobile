@@ -19,7 +19,6 @@ import { getMessageInputBarStyles } from '@/components/chat/MessageInputBar.styl
 import { useMessageInputBarLayout } from '@/components/chat/messageInputBarLayout';
 
 interface MessageInputBarProps {
-  autoFocus?: boolean;
   onSendMessage?: (message: string) => void;
   disabled?: boolean;
   voiceInterfaceRef?: React.RefObject<VoiceInterfaceRef | null>;
@@ -45,7 +44,6 @@ interface MessageInputBarProps {
 }
 
 export function MessageInputBar({
-  autoFocus = false,
   onSendMessage,
   disabled,
   voiceInterfaceRef,
@@ -74,14 +72,11 @@ export function MessageInputBar({
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    if (!autoFocus || !isFocused) return;
+    if (isFocused) return;
 
-    const timer = setTimeout(() => {
-      inputRef.current?.focus();
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [autoFocus, isFocused]);
+    inputRef.current?.blur();
+    Keyboard.dismiss();
+  }, [isFocused]);
 
   const hasMessage = message.trim().length > 0;
 

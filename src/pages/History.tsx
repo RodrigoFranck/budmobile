@@ -28,6 +28,10 @@ import {
   groupConversationsByDate,
   groupConversationsByWeek,
 } from '@/utils/dateGrouping';
+import {
+  formatDateBrasilia,
+  getWeekStartBrasilia,
+} from '@/utils/dateUtils';
 import { createHistoryStyles } from '@/pages/History.styles';
 import type { MainTabNavigationProp, MainTabParamList } from '@/types/navigation';
 
@@ -64,6 +68,8 @@ export default function HistoryScreen() {
   const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
   const [deepInsightOpen, setDeepInsightOpen] = useState(false);
   const [pendingDeepInsightOpen, setPendingDeepInsightOpen] = useState(false);
+  const [forceOpenDeepInsight, setForceOpenDeepInsight] = useState(false);
+  const [insightWeekStart, setInsightWeekStart] = useState<string | null>(null);
 
   const weekGroups = useMemo(
     () => groupConversationsByWeek(conversations),
@@ -102,18 +108,42 @@ export default function HistoryScreen() {
       return;
     }
 
+    const weekStart = route.params.weekStart;
+    if (weekStart) {
+      setInsightWeekStart(weekStart);
+      setForceOpenDeepInsight(true);
+    }
+
     setPendingDeepInsightOpen(true);
-    navigation.setParams({ openDeepInsight: undefined });
-  }, [navigation, route.params?.openDeepInsight]);
+    navigation.setParams({ openDeepInsight: undefined, weekStart: undefined });
+  }, [navigation, route.params?.openDeepInsight, route.params?.weekStart]);
 
   useEffect(() => {
-    if (!pendingDeepInsightOpen || !canOpenDeepInsight) {
+    if (!insightWeekStart || weekGroups.length === 0) {
+      return;
+    }
+
+    const matchingIndex = weekGroups.findIndex(
+      (group) => formatDateBrasilia(group.weekStart) === insightWeekStart,
+    );
+    if (matchingIndex >= 0 && matchingIndex !== selectedWeekIndex) {
+      setSelectedWeekIndex(matchingIndex);
+    }
+  }, [insightWeekStart, selectedWeekIndex, weekGroups]);
+
+  useEffect(() => {
+    if (!pendingDeepInsightOpen) {
+      return;
+    }
+
+    if (!forceOpenDeepInsight && !canOpenDeepInsight) {
       return;
     }
 
     setDeepInsightOpen(true);
     setPendingDeepInsightOpen(false);
-  }, [canOpenDeepInsight, pendingDeepInsightOpen]);
+    setForceOpenDeepInsight(false);
+  }, [canOpenDeepInsight, forceOpenDeepInsight, pendingDeepInsightOpen]);
 
   if (selectedConversation) {
     return (
@@ -234,7 +264,7 @@ export default function HistoryScreen() {
                       </View>
                       <Text style={styles.inspiredProgressMessage}>{progressMessage}</Text>
                       <Text style={styles.inspiredReleaseText}>
-                        Libera domingo, 8h da manhã
+        Libera domingo, 9h da manhã
                       </Text>
                     </>
                   )}
@@ -285,7 +315,17 @@ export default function HistoryScreen() {
           )}
         </ScrollView>
 
-        <DeepInsightSheet visible={deepInsightOpen} onClose={() => setDeepInsightOpen(false)} />
+        <DeepInsightSheet
+          visible={deepInsightOpen}
+          onClose={() => {
+            setDeepInsightOpen(false);
+            setInsightWeekStart(null);
+          }}
+          weekStart={
+            insightWeekStart ??
+            formatDateBrasilia(currentWeek?.weekStart ?? getWeekStartBrasilia())
+          }
+        />
       </View>
     </ScreenLoadingGate>
   );

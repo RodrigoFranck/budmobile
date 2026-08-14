@@ -6,28 +6,19 @@ import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, MessageSquare } from 'lucide-react-native';
 
 import { InsightContextCard } from '@/components/chat/InsightContextCard';
-import type { InsightContextBackgroundType } from '@/components/chat/InsightContextCard';
 import { useMessages } from '@/hooks/useMessages';
 import { useOnboardingColors } from '@/constants/onboardingTheme';
 import { useConversationDetailStyles } from '@/components/history/ConversationDetail.styles';
+import {
+  isUserMessageAfterContext,
+  parseInsightContextMessage,
+} from '@/utils/insightContextMessage';
 
 interface ConversationDetailProps {
   conversationId: string;
   conversationTitle: string;
   conversationDate: string;
   onBack: () => void;
-}
-
-function parseContextBackgroundType(value: unknown): InsightContextBackgroundType {
-  if (
-    value === 'yesterday' ||
-    value === 'inspired' ||
-    value === 'frequency' ||
-    value === 'habit'
-  ) {
-    return value;
-  }
-  return 'inspired';
 }
 
 function capitalizeFirst(value: string): string {
@@ -97,24 +88,30 @@ export default function ConversationDetail({
           </View>
         ) : (
           <View style={styles.messages}>
-            {messages.map((message, index) => (
-              <View
-                key={`message-${conversationId}-${message.id}-${message.created_at}-${index}`}
-                style={styles.messageRow}
-              >
-                {message.role === 'context' ? (
-                  (() => {
-                    try {
-                      const contextData = JSON.parse(message.content);
-                      return (
-                        <InsightContextCard
-                          badge={contextData.badge}
-                          title={contextData.title}
-                          description={contextData.description}
-                          backgroundType={parseContextBackgroundType(contextData.backgroundType)}
-                        />
-                      );
-                    } catch {
+            {messages.map((message, index) => {
+              if (isUserMessageAfterContext(messages, index)) {
+                return null;
+              }
+
+              return (
+                <View
+                  key={`message-${conversationId}-${message.id}-${message.created_at}-${index}`}
+                  style={styles.messageRow}
+                >
+                  {message.role === 'context' ? (
+                    (() => {
+                      const contextData = parseInsightContextMessage(message.content);
+                      if (contextData) {
+                        return (
+                          <InsightContextCard
+                            badge={contextData.badge}
+                            title={contextData.title}
+                            description={contextData.description}
+                            category={contextData.category}
+                          />
+                        );
+                      }
+
                       return (
                         <View style={styles.contextFallbackWrap}>
                           <View style={styles.contextFallbackCard}>
@@ -122,21 +119,21 @@ export default function ConversationDetail({
                           </View>
                         </View>
                       );
-                    }
-                  })()
-                ) : message.role === 'user' ? (
-                  <View style={styles.userWrap}>
-                    <Text style={styles.roleLabelUser}>Você</Text>
-                    <Text style={styles.userBody}>{message.content}</Text>
-                  </View>
-                ) : message.role === 'assistant' ? (
-                  <View style={styles.assistantWrap}>
-                    <Text style={styles.roleLabelBud}>Bud.</Text>
-                    <Text style={styles.assistantBody}>{message.content}</Text>
-                  </View>
-                ) : null}
-              </View>
-            ))}
+                    })()
+                  ) : message.role === 'user' ? (
+                    <View style={styles.userWrap}>
+                      <Text style={styles.roleLabelUser}>Você</Text>
+                      <Text style={styles.userBody}>{message.content}</Text>
+                    </View>
+                  ) : message.role === 'assistant' ? (
+                    <View style={styles.assistantWrap}>
+                      <Text style={styles.roleLabelBud}>Bud.</Text>
+                      <Text style={styles.assistantBody}>{message.content}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
           </View>
         )}
       </ScrollView>

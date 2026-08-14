@@ -10,7 +10,7 @@ import {
   type RefObject,
 } from 'react';
 
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useTabScreenContext } from '@/contexts/TabScreenContext';
@@ -29,6 +29,8 @@ import {
   mergeDbAndStreamingMessages,
   registerMessageClientId,
 } from '@/utils/mergeChatMessages';
+import { serializeInsightContextMessage } from '@/utils/insightContextMessage';
+import { buildInsightVoiceFirstMessage } from '@/utils/insightVoiceOpening';
 import { syncExploreInsights } from '@/utils/syncExploreInsights';
 import { scheduleSessionMemory } from '@/utils/scheduleSessionMemory';
 import type { StreamingMessage } from '@/types/messages';
@@ -92,6 +94,7 @@ const ChatSessionContext = createContext<ChatSessionContextValue | undefined>(un
 export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const navigation = useNavigation<MainTabNavigationProp>();
+  const isChatFocused = useIsFocused();
   const {
     chatConversationId: currentConversationId,
     chatHomeResetToken,
@@ -131,6 +134,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const [shouldAutoStartVoice, setShouldAutoStartVoice] = useState(false);
   const pendingChatInsightRef = useRef<ChatInsightParam | null>(null);
   const didAutoSendInsightRef = useRef(false);
+  const didPersistContextRef = useRef(false);
   const messageClientIdsRef = useRef<Map<string, string | number>>(new Map());
   const wasVoiceModeActiveRef = useRef(false);
 
@@ -155,19 +159,18 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     (insight: ChatInsightParam) => {
       pendingChatInsightRef.current = insight;
       didAutoSendInsightRef.current = false;
+      didPersistContextRef.current = false;
       const mappedContext = mapChatInsightToContext(insight);
       insightContextRef.current = mappedContext;
       setInsightContext(mappedContext);
       setRecentInsights([
         {
           insight_type: insight.insightType,
-          title: insight.contextSummary,
+          title: insight.cardDescription || insight.contextSummary || insight.title,
           description: insight.internalContext,
         },
       ]);
-      if (insight.autoStartVoice) {
-        setShouldAutoStartVoice(true);
-      }
+      setShouldAutoStartVoice(Boolean(insight.autoStartVoice));
     },
     [mapChatInsightToContext],
   );
@@ -213,6 +216,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     setShouldAutoStartVoice(false);
     pendingChatInsightRef.current = null;
     didAutoSendInsightRef.current = false;
+    didPersistContextRef.current = false;
     wasVoiceModeActiveRef.current = false;
     clearPendingChatInsight();
     navigation.setParams({ voiceInsight: undefined, chatInsight: undefined });
@@ -263,9 +267,9 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
 
   const userContext = useMemo<UserContext>(() => {
     const todayMessages = dbMessages.filter(
-      (msg) => msg.conversation_id === currentConversationId,
+      (msg) => msg.conversation_id === currentConversationId && msg.role !== 'context',
     );
-    const isFirstInteractionOfDay = todayMessages.length === 0;
+    const isFirstInteractionOfDay = todayMessages.length === 0 || Boolean(insightContext);
 
     return {
       name: profile?.name || null,
@@ -278,7 +282,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       hobbies: profile?.hobbies || null,
       isFirstInteractionOfDay,
     };
-  }, [profile, dbMessages, currentConversationId]);
+  }, [profile, dbMessages, currentConversationId, insightContext]);
 
   const messageHistory = useMemo(
     () => dbMessages.map((msg) => ({ role: msg.role, content: msg.content })),
@@ -324,6 +328,39 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       ),
     );
   }, []);
+
+  const persistInsightContextCard = useCallback(
+    async (insight: ChatInsightParam) => {
+      if (didPersistContextRef.current || !currentConversationId) {
+        return;
+      }
+
+      didPersistContextRef.current = true;
+      const content = serializeInsightContextMessage(insight);
+      const contextMessageId = createStreamingMessageId('context');
+      registerMessageClientId(
+        messageClientIdsRef.current,
+        'context',
+        content,
+        contextMessageId,
+      );
+      setStreamingMessages((prev) => [
+        ...prev,
+        {
+          id: contextMessageId,
+          role: 'context',
+          content,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      try {
+        await addMessage(content, 'context');
+      } catch {
+        didPersistContextRef.current = false;
+      }
+    },
+    [addMessage, currentConversationId],
+  );
 
   const handleSendMessage = useCallback(
     async (message: string, contextOverride?: InsightContext | null) => {
@@ -463,7 +500,53 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   );
 
   const bootstrapInsightSession = useCallback(() => {
+    if (!isChatFocused) return;
+
     const pending = pendingChatInsightRef.current;
+    const shouldStartVoice = pending
+      ? Boolean(pending.autoStartVoice)
+      : shouldAutoStartVoice;
+
+    if (
+      shouldStartVoice &&
+      currentConversationId &&
+      !isVoiceAutoStartInFlightRef.current
+    ) {
+      if (!voiceInterfaceRef.current) {
+        requestAnimationFrame(() => {
+          bootstrapInsightSessionRef.current();
+        });
+        return;
+      }
+
+      isVoiceAutoStartInFlightRef.current = true;
+      const insight = pending;
+      pendingChatInsightRef.current = null;
+
+      void (async () => {
+        try {
+          if (insight) {
+            try {
+              await persistInsightContextCard(insight);
+            } catch {
+              didPersistContextRef.current = false;
+            }
+          }
+          const firstMessage = insight
+            ? buildInsightVoiceFirstMessage(insight)
+            : undefined;
+          await voiceInterfaceRef.current?.startConversation(
+            firstMessage ? { firstMessage } : undefined,
+          );
+        } catch {
+          // startConversation already alerts on most failures
+        } finally {
+          isVoiceAutoStartInFlightRef.current = false;
+          setShouldAutoStartVoice(false);
+        }
+      })();
+      return;
+    }
 
     if (
       pending?.initialUserMessage?.trim() &&
@@ -474,43 +557,26 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       !sendInFlightRef.current
     ) {
       didAutoSendInsightRef.current = true;
-      const message = pending.initialUserMessage.trim();
-      const context = mapChatInsightToContext(pending);
+      const insight = pending;
+      const message = insight.initialUserMessage?.trim() ?? '';
+      const context = mapChatInsightToContext(insight);
       pendingChatInsightRef.current = null;
-      void handleSendMessage(message, context);
-      return;
+      void (async () => {
+        try {
+          await persistInsightContextCard(insight);
+        } catch {
+          didPersistContextRef.current = false;
+        }
+        await handleSendMessage(message, context);
+      })();
     }
-
-    if (
-      !shouldAutoStartVoice ||
-      !currentConversationId ||
-      isVoiceAutoStartInFlightRef.current
-    ) {
-      return;
-    }
-
-    if (!voiceInterfaceRef.current) {
-      requestAnimationFrame(() => {
-        bootstrapInsightSessionRef.current();
-      });
-      return;
-    }
-
-    isVoiceAutoStartInFlightRef.current = true;
-    void voiceInterfaceRef.current
-      .startConversation()
-      .catch(() => {
-        // startConversation already alerts on most failures
-      })
-      .finally(() => {
-        isVoiceAutoStartInFlightRef.current = false;
-        setShouldAutoStartVoice(false);
-      });
   }, [
     currentConversationId,
     handleSendMessage,
+    isChatFocused,
     isStreaming,
     mapChatInsightToContext,
+    persistInsightContextCard,
     shouldAutoStartVoice,
     user,
   ]);
