@@ -201,12 +201,15 @@ function buildInsightPromptSection(insightCtx?: InsightContext): string {
 
   const insightType = insightCtx?.insightType?.trim();
   const typeLabel = insightType ? ` (${insightType})` : "";
+  const yesterdayRule = insightType === "yesterday_journey"
+    ? "\nA conversa de ontem é somente o recorte deste insight. Não retome temas de outros dias como se fossem ontem."
+    : "";
 
   return `
 INSIGHT ATIVO${typeLabel}:
 ${internalContext}
 
-Use esse conteúdo para retomar o tema com naturalidade.
+Use esse conteúdo para retomar o tema com naturalidade.${yesterdayRule}
 Não peça para a pessoa especificar o assunto — ela já escolheu falar sobre aquele insight.
 Não cite IDs técnicos nem diga que está lendo um JSON.
 Não se limite ao título do card.

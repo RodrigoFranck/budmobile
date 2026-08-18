@@ -6,6 +6,7 @@ import type { Insight } from '@/hooks/useExploreInsights';
 import type { ChatInsightParam } from '@/types/chatInsight';
 import type { MainTabParamList, RootStackParamList } from '@/types/navigation';
 import { buildExploreChatInsight } from '@/utils/buildExploreChatInsight';
+import { getTodayInBrasilia } from '@/utils/dateUtils';
 import { stashPendingChatInsight } from '@/utils/navigateToChat';
 
 export type MainTabsPushNavigationParams = NavigatorScreenParams<MainTabParamList>;
@@ -170,13 +171,19 @@ async function fetchYesterdayJourneyInsight(userId: string): Promise<Insight | n
   const { data, error } = await supabase
     .from('user_insights')
     .select(
-      'title, description, locked, context_summary, internal_context, conversation_id',
+      'title, description, locked, context_summary, internal_context, conversation_id, insight_date',
     )
     .eq('user_id', userId)
     .eq('insight_type', 'yesterday_journey')
     .maybeSingle();
 
-  if (error || !data || data.locked) {
+  if (
+    error ||
+    !data ||
+    data.locked ||
+    data.insight_date !== getTodayInBrasilia() ||
+    !data.internal_context?.trim()
+  ) {
     return null;
   }
 

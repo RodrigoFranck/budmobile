@@ -83,6 +83,23 @@ async function fetchConversationDates(userId: string): Promise<string[]> {
     .filter((date): date is string => !!date);
 }
 
+async function countYesterdayConversations(userId: string): Promise<number> {
+  const yesterday = getYesterdayInBrasilia();
+  const { count, error } = await supabase
+    .from('conversations')
+    .select('id, messages!inner(id)', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('is_archived', false)
+    .eq('conversation_date', yesterday);
+
+  if (error) {
+    console.error('Error counting yesterday conversations:', error);
+    return 0;
+  }
+
+  return count ?? 0;
+}
+
 async function fetchCheckInDates(userId: string): Promise<string[]> {
   const { data, error } = await supabase
     .from('daily_checkins')
@@ -101,8 +118,13 @@ function countForScope(
   scope: InsightCountScope,
   conversationDates: string[],
   checkInDates: string[],
+  yesterdayCount?: number,
 ): number {
   if (scope === 'yesterday_with_messages') {
+    if (typeof yesterdayCount === 'number') {
+      return yesterdayCount;
+    }
+
     const yesterday = getYesterdayInBrasilia();
     return conversationDates.filter((date) => date === yesterday).length;
   }
@@ -150,12 +172,15 @@ export async function countConversationsForScope(
   scope: InsightCountScope,
 ): Promise<number> {
   const needsCheckIns = scope === 'total_active_days' || scope === 'weekly_active_days';
-  const [conversationDates, checkInDates] = await Promise.all([
+  const [conversationDates, checkInDates, yesterdayCount] = await Promise.all([
     fetchConversationDates(userId),
     needsCheckIns ? fetchCheckInDates(userId) : Promise.resolve([] as string[]),
+    scope === 'yesterday_with_messages'
+      ? countYesterdayConversations(userId)
+      : Promise.resolve(undefined as number | undefined),
   ]);
 
-  return countForScope(scope, conversationDates, checkInDates);
+  return countForScope(scope, conversationDates, checkInDates, yesterdayCount);
 }
 
 export function computeInsightUnlockProgress(
@@ -198,14 +223,17 @@ export async function buildInsightProgressMap(
     (scope) => scope === 'total_active_days' || scope === 'weekly_active_days',
   );
 
-  const [conversationDates, checkInDates] = await Promise.all([
+  const [conversationDates, checkInDates, yesterdayCount] = await Promise.all([
     fetchConversationDates(userId),
     needsCheckIns ? fetchCheckInDates(userId) : Promise.resolve([] as string[]),
+    scopes.includes('yesterday_with_messages')
+      ? countYesterdayConversations(userId)
+      : Promise.resolve(undefined as number | undefined),
   ]);
 
   const counts = new Map<InsightCountScope, number>();
   for (const scope of scopes) {
-    counts.set(scope, countForScope(scope, conversationDates, checkInDates));
+    counts.set(scope, countForScope(scope, conversationDates, checkInDates, yesterdayCount));
   }
 
   return rules.reduce<Record<string, InsightUnlockProgress>>((acc, rule) => {
