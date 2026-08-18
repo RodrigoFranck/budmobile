@@ -37,21 +37,23 @@ function resolveExploreInsightContent(insight: Insight): string {
 }
 
 function buildExploreInitialUserMessage(insightType: string, insight: Insight): string {
-  const content = resolveExploreInsightContent(insight);
-
-  if (!content) {
-    return DEFAULT_EXPLORE_START_MESSAGE;
-  }
+  const title = insight.title.trim();
 
   if (insightType === 'yesterday_journey') {
-    return `Quero continuar nossa conversa de ontem a partir disso: ${content}`;
+    return title
+      ? `Quero continuar nossa conversa de ontem sobre "${title}".`
+      : 'Quero continuar nossa conversa de ontem.';
   }
 
   if (insightType === 'habit') {
-    return `Quero trabalhar nesse hábito a partir disso: ${content}`;
+    return title
+      ? `Quero trabalhar no hábito: "${title}".`
+      : 'Quero trabalhar nesse hábito.';
   }
 
-  return `Quero conversar sobre isso: ${content}`;
+  return title
+    ? `Quero conversar sobre "${title}".`
+    : DEFAULT_EXPLORE_START_MESSAGE;
 }
 
 export type ExploreChatMode = 'text' | 'voice';

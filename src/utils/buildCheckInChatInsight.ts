@@ -58,11 +58,10 @@ export function buildCheckInChatInsight({
     clicked_question: reflectionTopic ?? null,
   };
 
-  const userMessage = reflectionTopic
-    ? `Quero conversar sobre isso: ${reflectionTopic}`
-    : report.analysis.trim()
-      ? `Quero conversar sobre isso: ${report.analysis.trim()}`
-      : 'Quero conversar sobre o que surgiu no meu check-in de hoje.';
+  const title = reflectionTopic || report.headline.trim();
+  const userMessage = title
+    ? `Quero conversar sobre "${title}".`
+    : 'Quero conversar sobre o que surgiu no meu check-in de hoje.';
   const content = reflectionTopic || report.analysis.trim() || report.headline;
 
   return {

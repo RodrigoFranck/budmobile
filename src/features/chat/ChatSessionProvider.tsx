@@ -142,13 +142,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
 
   const mapChatInsightToContext = useCallback((insight: ChatInsightParam): InsightContext => ({
     insightType: insight.insightType,
-    badge: insight.badge,
-    title: insight.title,
-    contextSummary: insight.contextSummary,
     internalContext: insight.internalContext,
-    backgroundType: insight.backgroundType,
-    cardDescription: insight.cardDescription,
-    conversationId: insight.conversationId,
   }), []);
 
   const trySendPendingInsightRef = useRef<() => void>(() => {});
@@ -168,7 +162,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       setRecentInsights([
         {
           insight_type: insight.insightType,
-          title: insight.cardDescription || insight.contextSummary || insight.title,
+          title: insight.title,
           description: insight.internalContext,
         },
       ]);

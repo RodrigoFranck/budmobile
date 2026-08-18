@@ -174,22 +174,9 @@ Nome: {{name}} | Idade: {{age}} | Gênero: {{gender}} | Profissão: {{occupation
 Relacionamento: {{relationship}} | Hobbies: {{hobbies}}
 Objetivo: {{conversationGoal}} | Pensamentos ao abrir: {{initialThoughts}}
 Primeira interação do dia: {{isFirstInteractionOfDay}}
-Insight ativo: {{insightType}}
-Contexto recente: {{contextSummary}}
-Contexto interno: {{internalContext}}
-Conversa anterior: {{conversationId}}
-Hábito: {{habitTitle}}
 
 Use esses dados naturalmente. Fale como quem já conhece {{name}}.
-
-Quando houver insight ativo (Explorar, check-in ou Inspirado em você):
-O "Contexto recente" é o conteúdo do insight (não o título).
-O "Contexto interno" pode ser um JSON com analysis_notes, source_transcripts ou as respostas do check-in.
-Use esse conteúdo para retomar o tema com naturalidade.
-Não peça para a pessoa especificar o assunto — ela já escolheu falar sobre aquele insight.
-Não cite IDs técnicos nem diga que está lendo um JSON.
-Não se limite ao título do card.
-
+{{insightBlock}}
 SAUDAÇÃO:
 
 Se insight ativo: a first message já abriu no tema do card. Não cumprimente de novo nem peça o assunto — continue a partir daí, usando o contexto interno.
@@ -206,6 +193,26 @@ Se {{name}} disse "tô gostando de conversar" ou trouxe algo novo, NÃO encerre.
 Só pergunte "como está saindo dessa conversa?" quando {{name}} já sinalizou que quer ir.
 `;
 
+function buildInsightPromptSection(insightCtx?: InsightContext): string {
+  const internalContext = insightCtx?.internalContext?.trim();
+  if (!internalContext) {
+    return "";
+  }
+
+  const insightType = insightCtx?.insightType?.trim();
+  const typeLabel = insightType ? ` (${insightType})` : "";
+
+  return `
+INSIGHT ATIVO${typeLabel}:
+${internalContext}
+
+Use esse conteúdo para retomar o tema com naturalidade.
+Não peça para a pessoa especificar o assunto — ela já escolheu falar sobre aquele insight.
+Não cite IDs técnicos nem diga que está lendo um JSON.
+Não se limite ao título do card.
+`;
+}
+
 export function interpolatePrompt(
   template: string,
   userCtx?: UserContext,
@@ -221,11 +228,7 @@ export function interpolatePrompt(
   result = result.replace(/\{\{conversationGoal\}\}/g, userCtx?.conversationGoal || "não informado");
   result = result.replace(/\{\{initialThoughts\}\}/g, userCtx?.initialThoughts || "não informado");
   result = result.replace(/\{\{isFirstInteractionOfDay\}\}/g, userCtx?.isFirstInteractionOfDay ? "Sim" : "Não");
-  result = result.replace(/\{\{insightType\}\}/g, insightCtx?.insightType || "nenhum");
-  result = result.replace(/\{\{contextSummary\}\}/g, insightCtx?.contextSummary || "não disponível");
-  result = result.replace(/\{\{internalContext\}\}/g, insightCtx?.internalContext || "não disponível");
-  result = result.replace(/\{\{conversationId\}\}/g, insightCtx?.conversationId || "não disponível");
-  result = result.replace(/\{\{habitTitle\}\}/g, insightCtx?.habitTitle || "não disponível");
+  result = result.replace(/\{\{insightBlock\}\}/g, buildInsightPromptSection(insightCtx));
   return result;
 }
 
@@ -244,7 +247,6 @@ export function buildVoicePrompt(
     const insight = recentInsights[0];
     insightContext = {
       insightType: insight.insight_type,
-      contextSummary: insight.title,
       internalContext: insight.description,
     };
   }

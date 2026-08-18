@@ -45,12 +45,12 @@ function resolveDeepInsightContent(insight: DeepInsight): string {
 }
 
 function buildDeepInsightInitialUserMessage(insight: DeepInsight): string {
-  const content = resolveDeepInsightContent(insight);
-  if (!content) {
+  const title = insight.headline.trim();
+  if (!title) {
     return DEFAULT_DEEP_INSIGHT_START_MESSAGE;
   }
 
-  return `Quero conversar sobre isso: ${content}`;
+  return `Quero conversar sobre "${title}".`;
 }
 
 export function buildDeepInsightChatInsight(
