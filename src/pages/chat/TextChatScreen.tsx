@@ -1,6 +1,5 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { KeyboardAvoidingView, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   useFocusEffect,
   useNavigation,
@@ -26,8 +25,11 @@ import type {
 import type { MainTabNavigationProp, RootNavigationProp } from '@/types/navigation';
 import { VoiceMode } from '@/voice/VoiceMode';
 
+import { createTextChatScreenStyles } from './TextChatScreen.styles';
+
 export default function TextChatScreen() {
   const colors = useAppColors();
+  const styles = useMemo(() => createTextChatScreenStyles(colors), [colors]);
   const tabLoading = useTabScreenLoading('Chat');
   const navigation = useNavigation<ChatStackNavigationProp>();
   const tabNavigation = useNavigation<MainTabNavigationProp>();
@@ -99,15 +101,10 @@ export default function TextChatScreen() {
 
   return (
     <ScreenLoadingGate loading={tabLoading}>
-      <View className="flex-1 bg-background">
-        <LinearGradient
-          colors={[colors['chat-warm-bg'], colors['chat-gradient-end']]}
-          locations={[0.35, 1]}
-          style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
-        />
+      <View style={styles.root}>
         <KeyboardAvoidingView
           behavior={PlatformConstants.keyboardBehavior}
-          className="flex-1"
+          style={styles.keyboard}
           keyboardVerticalOffset={PlatformConstants.keyboardVerticalOffset}
         >
           <TabScreenHeader>
@@ -127,7 +124,6 @@ export default function TextChatScreen() {
             onAssistantRevealComplete={handleAssistantRevealComplete}
           />
           <MessageInputBar
-            autoFocus
             onSendMessage={handleSendMessage}
             disabled={isStreaming}
             voiceAppearance="prominent"

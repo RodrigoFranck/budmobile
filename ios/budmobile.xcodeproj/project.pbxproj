@@ -385,7 +385,7 @@
 				CODE_SIGN_ENTITLEMENTS = budmobile/budmobile.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 23;
+				CURRENT_PROJECT_VERSION = 28;
 				DEVELOPMENT_TEAM = AGY252M7WQ;
 				ENABLE_BITCODE = NO;
 				ENABLE_ONLY_ACTIVE_RESOURCES = NO;
@@ -401,7 +401,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0.13;
+				MARKETING_VERSION = 2.0.18;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -428,7 +428,7 @@
 				CODE_SIGN_ENTITLEMENTS = budmobile/budmobileRelease.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 23;
+				CURRENT_PROJECT_VERSION = 28;
 				DEVELOPMENT_TEAM = AGY252M7WQ;
 				INFOPLIST_FILE = budmobile/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Bud.;
@@ -438,7 +438,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0.13;
+				MARKETING_VERSION = 2.0.18;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",

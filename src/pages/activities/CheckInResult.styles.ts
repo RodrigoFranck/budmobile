@@ -1,7 +1,9 @@
 import { StyleSheet } from 'react-native';
 
+import { insightCardActionLayout } from '@/components/explore/InsightCard.styles';
 import { frauncesFont, instrumentSansFont } from '@/constants/onboardingTheme';
 import type { ActivitiesThemeTokens } from '@/lib/activitiesTheme';
+import { darkColors, lightColors } from '@/lib/colors';
 
 export function createCheckInResultStyles(t: ActivitiesThemeTokens) {
   return StyleSheet.create({
@@ -83,6 +85,7 @@ export function createCheckInResultStyles(t: ActivitiesThemeTokens) {
       borderColor: t.controlBorder,
       backgroundColor: t.chipBg,
       marginBottom: 10,
+      gap: 12,
     },
     questionText: {
       fontFamily: instrumentSansFont,
@@ -90,6 +93,48 @@ export function createCheckInResultStyles(t: ActivitiesThemeTokens) {
       lineHeight: 20,
       color: t.foreground,
       opacity: 0.85,
+    },
+    questionActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    questionMessageButton: {
+      flex: 1,
+      height: insightCardActionLayout.height,
+      borderRadius: 69,
+      paddingLeft: 14,
+      paddingRight:
+        insightCardActionLayout.sendTouchSize + insightCardActionLayout.sendButtonInset + 4,
+      justifyContent: 'center',
+      backgroundColor: t.isDark
+        ? darkColors['chat-input-pill']
+        : lightColors['chat-input-pill'],
+    },
+    questionMessageText: {
+      fontFamily: instrumentSansFont,
+      fontSize: 15,
+      color: t.isDark ? darkColors['chat-label-muted'] : lightColors['chat-label-muted'],
+    },
+    questionSendButton: {
+      position: 'absolute',
+      right: insightCardActionLayout.sendButtonInset,
+      top:
+        (insightCardActionLayout.height - insightCardActionLayout.sendTouchSize) / 2,
+      width: insightCardActionLayout.sendTouchSize,
+      height: insightCardActionLayout.sendTouchSize,
+      borderRadius: insightCardActionLayout.sendTouchSize / 2,
+      backgroundColor: `${t.isDark ? darkColors['chat-accent-mint'] : lightColors['chat-accent-mint']}59`,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    questionVoiceButton: {
+      width: insightCardActionLayout.height,
+      height: insightCardActionLayout.height,
+      borderRadius: insightCardActionLayout.height / 2,
+      backgroundColor: '#FFFFFF',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     ctaButton: {
       height: 48,

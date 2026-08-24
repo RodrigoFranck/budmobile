@@ -174,23 +174,12 @@ Nome: {{name}} | Idade: {{age}} | Gênero: {{gender}} | Profissão: {{occupation
 Relacionamento: {{relationship}} | Hobbies: {{hobbies}}
 Objetivo: {{conversationGoal}} | Pensamentos ao abrir: {{initialThoughts}}
 Primeira interação do dia: {{isFirstInteractionOfDay}}
-Insight ativo: {{insightType}}
-Contexto recente: {{contextSummary}}
-Contexto interno: {{internalContext}}
-Conversa anterior: {{conversationId}}
-Hábito: {{habitTitle}}
 
 Use esses dados naturalmente. Fale como quem já conhece {{name}}.
-
-Quando houver insight ativo vindo do Explorar (yesterday_journey, general_insight, frequency, habit):
-O "Contexto interno" pode ser um JSON com analysis_notes e source_transcripts (trechos das conversas usadas para gerar o card).
-Use essa análise e esses trechos para retomar o tema do card com naturalidade.
-Não peça para a pessoa especificar o assunto — ela já escolheu falar sobre aquele insight.
-Não cite IDs técnicos nem diga que está lendo um JSON.
-
+{{insightBlock}}
 SAUDAÇÃO:
 
-Se insight ativo do Explorar: não use saudação genérica pedindo o assunto — responda já no tema do card, usando o contexto interno.
+Se insight ativo: a first message já abriu no tema do card. Não cumprimente de novo nem peça o assunto — continue a partir daí, usando o contexto interno.
 Se primeira interação do dia (sem insight ativo): "Oi, {{name}}. Bom te ver por aqui. O que te trouxe aqui hoje?"
 Se retorno no mesmo dia (sem insight ativo): "Oi, {{name}}. Quer retomar ou tem outro assunto?"
 Se retorno após momento difícil: "Oi, {{name}}. Fiquei pensando em você. Como tá?"
@@ -203,6 +192,29 @@ Antes de encerrar ou mudar de assunto, verifique: o tema ainda tem energia? {{na
 Se {{name}} disse "tô gostando de conversar" ou trouxe algo novo, NÃO encerre.
 Só pergunte "como está saindo dessa conversa?" quando {{name}} já sinalizou que quer ir.
 `;
+
+function buildInsightPromptSection(insightCtx?: InsightContext): string {
+  const internalContext = insightCtx?.internalContext?.trim();
+  if (!internalContext) {
+    return "";
+  }
+
+  const insightType = insightCtx?.insightType?.trim();
+  const typeLabel = insightType ? ` (${insightType})` : "";
+  const yesterdayRule = insightType === "yesterday_journey"
+    ? "\nA conversa de ontem é somente o recorte deste insight. Não retome temas de outros dias como se fossem ontem."
+    : "";
+
+  return `
+INSIGHT ATIVO${typeLabel}:
+${internalContext}
+
+Use esse conteúdo para retomar o tema com naturalidade.${yesterdayRule}
+Não peça para a pessoa especificar o assunto — ela já escolheu falar sobre aquele insight.
+Não cite IDs técnicos nem diga que está lendo um JSON.
+Não se limite ao título do card.
+`;
+}
 
 export function interpolatePrompt(
   template: string,
@@ -219,11 +231,7 @@ export function interpolatePrompt(
   result = result.replace(/\{\{conversationGoal\}\}/g, userCtx?.conversationGoal || "não informado");
   result = result.replace(/\{\{initialThoughts\}\}/g, userCtx?.initialThoughts || "não informado");
   result = result.replace(/\{\{isFirstInteractionOfDay\}\}/g, userCtx?.isFirstInteractionOfDay ? "Sim" : "Não");
-  result = result.replace(/\{\{insightType\}\}/g, insightCtx?.insightType || "nenhum");
-  result = result.replace(/\{\{contextSummary\}\}/g, insightCtx?.contextSummary || "não disponível");
-  result = result.replace(/\{\{internalContext\}\}/g, insightCtx?.internalContext || "não disponível");
-  result = result.replace(/\{\{conversationId\}\}/g, insightCtx?.conversationId || "não disponível");
-  result = result.replace(/\{\{habitTitle\}\}/g, insightCtx?.habitTitle || "não disponível");
+  result = result.replace(/\{\{insightBlock\}\}/g, buildInsightPromptSection(insightCtx));
   return result;
 }
 
@@ -242,7 +250,6 @@ export function buildVoicePrompt(
     const insight = recentInsights[0];
     insightContext = {
       insightType: insight.insight_type,
-      contextSummary: insight.title,
       internalContext: insight.description,
     };
   }

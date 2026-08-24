@@ -5,6 +5,15 @@ import type { ChatInsightParam } from '@/types/chatInsight';
 
 export type ChatTabParams = NonNullable<MainTabParamList['Chat']>;
 
+type StackLikeNavigation = NavigationProp<ParamListBase> & {
+  popTo?: (name: string, params?: object) => void;
+  navigate: (
+    name: string,
+    params?: object,
+    options?: { merge?: boolean; pop?: boolean },
+  ) => void;
+};
+
 function findNavigatorWithRoutes(
   navigation: NavigationProp<ParamListBase>,
   requiredRoutes: string[],
@@ -52,22 +61,43 @@ export function consumePendingChatInsight() {
   chatInsightConsumer?.(insight);
 }
 
+function buildChatScreenParams(params: ChatTabParams): ChatTabParams {
+  return {
+    ...params,
+    screen: 'TextChat',
+    params: params.chatInsight?.autoStartVoice
+      ? { autoStartVoice: true }
+      : params.params,
+  };
+}
+
+function popToMainTabsChat(
+  rootNav: NavigationProp<ParamListBase>,
+  chatParams: ChatTabParams,
+) {
+  const nested = {
+    screen: 'Chat' as const,
+    params: chatParams,
+  };
+  const nav = rootNav as StackLikeNavigation;
+
+  if (typeof nav.popTo === 'function') {
+    nav.popTo('MainTabs', nested);
+    return;
+  }
+
+  nav.navigate('MainTabs', nested, { pop: true });
+}
+
 export function navigateToChatTab(
   navigation: NavigationProp<ParamListBase>,
   params: ChatTabParams,
 ) {
   if (params.chatInsight) {
-    if (chatInsightConsumer) {
-      chatInsightConsumer(params.chatInsight);
-    } else {
-      stashPendingChatInsight(params.chatInsight);
-    }
+    stashPendingChatInsight(params.chatInsight);
   }
 
-  const chatParams = {
-    ...params,
-    screen: 'TextChat' as const,
-  };
+  const chatParams = buildChatScreenParams(params);
 
   // Within MainTabs (Explore, Activities, History, Chat).
   const tabNav = findNavigatorWithRoutes(navigation, ['Chat', 'Explore']);
@@ -77,12 +107,11 @@ export function navigateToChatTab(
   }
 
   // Outside MainTabs (e.g. CheckIn on the root stack) — pop back into tabs.
+  // React Navigation 7 `navigate` pushes a new screen instead of returning to
+  // MainTabs, so we must popTo / { pop: true } or the insight never lands on Chat.
   const rootNav = findNavigatorWithRoutes(navigation, ['MainTabs']);
   if (rootNav) {
-    rootNav.navigate('MainTabs', {
-      screen: 'Chat',
-      params: chatParams,
-    });
+    popToMainTabsChat(rootNav, chatParams);
     return;
   }
 

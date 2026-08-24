@@ -5,6 +5,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { ActivitiesStackParamList } from '@/types/activitiesNavigation.types';
 import type { ChatInsightParam } from '@/types/chatInsight';
 import type { ChatStackParamList } from '@/types/chatNavigation.types';
+import type { CheckInStackParamList } from '@/types/checkInNavigation.types';
 
 /**
  * Root navigation stack parameter list
@@ -24,9 +25,8 @@ export type RootStackParamList = {
   History: undefined;
   Settings: undefined;
   CrisisResources: undefined;
-  SupportFeedback: undefined;
   PsychologicalAssessment: undefined;
-  CheckIn: undefined;
+  CheckIn: NavigatorScreenParams<CheckInStackParamList> | undefined;
   Onboarding: undefined;
 };
 
@@ -50,7 +50,7 @@ export type MainTabParamList = {
   Chat: ChatTabParams | undefined;
   Explore: undefined;
   Activities: NavigatorScreenParams<ActivitiesStackParamList> | undefined;
-  History: { openDeepInsight?: boolean } | undefined;
+  History: { openDeepInsight?: boolean; weekStart?: string } | undefined;
 };
 
 /**

@@ -40,9 +40,11 @@ function MainTabsNavigator() {
             <MessageSquare color={color} size={size ?? TAB_BAR_ICON_SIZE} />
           ),
         }}
-        listeners={() => ({
+        listeners={({ navigation: tabNavigation }) => ({
           tabPress: () => {
-            resetChatToHome();
+            if (tabNavigation.isFocused()) {
+              resetChatToHome();
+            }
           },
         })}
       />

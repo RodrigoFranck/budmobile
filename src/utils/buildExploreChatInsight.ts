@@ -1,5 +1,8 @@
+import type { NavigationProp, ParamListBase } from '@react-navigation/native';
+
 import type { Insight } from '@/hooks/useExploreInsights';
 import type { ChatInsightParam } from '@/types/chatInsight';
+import { navigateToChatTab } from '@/utils/navigateToChat';
 
 const EXPLORE_INSIGHT_CONFIG: Record<
   string,
@@ -24,6 +27,14 @@ const EXPLORE_INSIGHT_CONFIG: Record<
 };
 
 const DEFAULT_EXPLORE_START_MESSAGE = 'Quero conversar sobre esse insight.';
+
+function resolveExploreInsightContent(insight: Insight): string {
+  return (
+    insight.description.trim() ||
+    insight.contextSummary?.trim() ||
+    insight.title.trim()
+  );
+}
 
 function buildExploreInitialUserMessage(insightType: string, insight: Insight): string {
   const title = insight.title.trim();
@@ -56,19 +67,29 @@ export function buildExploreChatInsight(
     badge: 'INSIGHT',
     backgroundType: 'inspired' as const,
   };
+  const content = resolveExploreInsightContent(insight);
 
   return {
     insightType,
     badge: config.badge,
     title: insight.title,
-    // Card-facing summary stays short; rich JSON (analysis + source transcripts) lives in internalContext.
-    contextSummary: insight.contextSummary ?? insight.title,
+    contextSummary: content,
     internalContext: insight.internalContext ?? insight.description,
-    cardDescription: insight.description,
+    cardDescription: content,
     backgroundType: config.backgroundType,
     ...(insight.conversationId ? { conversationId: insight.conversationId } : {}),
-    ...(mode === 'text'
-      ? { initialUserMessage: buildExploreInitialUserMessage(insightType, insight) }
-      : { autoStartVoice: true }),
+    ...(mode === 'voice' ? { autoStartVoice: true } : {}),
+    initialUserMessage: buildExploreInitialUserMessage(insightType, insight),
   };
+}
+
+export function openExploreChat(
+  navigation: NavigationProp<ParamListBase>,
+  insightType: string,
+  insight: Insight,
+  mode: ExploreChatMode = 'text',
+) {
+  navigateToChatTab(navigation, {
+    chatInsight: buildExploreChatInsight(insightType, insight, mode),
+  });
 }

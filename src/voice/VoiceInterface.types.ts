@@ -1,5 +1,9 @@
+export type StartVoiceConversationOptions = {
+  firstMessage?: string;
+};
+
 export interface VoiceInterfaceRef {
-  startConversation: () => Promise<void>;
+  startConversation: (options?: StartVoiceConversationOptions) => Promise<void>;
   endConversation: (options?: { force?: boolean }) => Promise<void>;
   setPaused: (paused: boolean) => void;
   togglePaused: () => void;

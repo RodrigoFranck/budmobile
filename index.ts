@@ -1,4 +1,7 @@
 import 'react-native-gesture-handler';
+import { enableFreeze } from 'react-native-screens';
+
+enableFreeze(false);
 
 // Reactotron deve ser importado PRIMEIRO
 if (__DEV__) {

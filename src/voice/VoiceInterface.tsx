@@ -36,8 +36,8 @@ import {
 } from '@/voice/VoiceInterface.styles';
 import { ProminentVoiceButton } from '@/voice/ProminentVoiceButton';
 import { WavesIcon } from '@/voice/WavesIcon';
-import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
-import { buildVoiceSessionStartOptions, type VoiceSessionStartOptions } from '@/voice/voiceElevenLabsSession';
+import type { VoiceInterfaceRef, StartVoiceConversationOptions } from '@/voice/VoiceInterface.types';
+import { buildVoiceSessionStartOptions, omitVoiceFirstMessage, type VoiceSessionStartOptions } from '@/voice/voiceElevenLabsSession';
 import { playVoiceMuteSound } from '@/voice/voiceCallSounds';
 
 type VoiceSessionPhase = 'idle' | 'connecting' | 'connected' | 'disconnecting';
@@ -106,7 +106,7 @@ export interface VoiceInterfaceProps {
   internalProfile?: string | null;
 }
 
-export type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
+export type { VoiceInterfaceRef, StartVoiceConversationOptions } from '@/voice/VoiceInterface.types';
 
 function VoiceButtonVisual({
   appearance,
@@ -166,6 +166,21 @@ function VoiceButtonVisual({
         <WavesIcon size={iconSize} color={iconColor} />
       )}
     </TouchableOpacity>
+  );
+}
+
+function resolveVoiceFirstMessage(
+  options?: StartVoiceConversationOptions,
+): string | undefined {
+  const firstMessage = options?.firstMessage?.trim();
+  return firstMessage ? firstMessage : undefined;
+}
+
+function toVoiceSessionMessages(
+  messages?: Array<{ role: string; content: string }>,
+): VoiceChatMessage[] {
+  return cloneVoiceMessages(
+    messages?.filter((message) => message.role === 'user' || message.role === 'assistant'),
   );
 }
 
@@ -229,6 +244,14 @@ function VoiceInterfaceNativeInner(
   >(null);
   const processVoiceUserTurnRef = useRef<(text: string) => void>(() => {});
   const processVoiceAssistantTurnRef = useRef<(text: string) => void>(() => {});
+  const userContextRef = useRef(userContext);
+  const messageHistoryRef = useRef(messageHistory);
+  const recentInsightsRef = useRef(recentInsights);
+  const internalProfileRef = useRef(internalProfile);
+  userContextRef.current = userContext;
+  messageHistoryRef.current = messageHistory;
+  recentInsightsRef.current = recentInsights;
+  internalProfileRef.current = internalProfile;
   const isSessionLocked =
     sessionPhase === 'connecting' || sessionPhase === 'disconnecting';
 
@@ -669,7 +692,7 @@ function VoiceInterfaceNativeInner(
     return true;
   }, []);
 
-  const startConversation = useCallback(async () => {
+  const startConversation = useCallback(async (options?: StartVoiceConversationOptions) => {
     if (sessionPhase !== 'idle') {
       return;
     }
@@ -717,7 +740,7 @@ function VoiceInterfaceNativeInner(
         return;
       }
 
-      sessionMessagesRef.current = cloneVoiceMessages(messageHistory);
+      sessionMessagesRef.current = toVoiceSessionMessages(messageHistoryRef.current);
 
       const serverContext = await fetchVoiceServerContext(
         sessionMessagesRef.current,
@@ -739,18 +762,19 @@ function VoiceInterfaceNativeInner(
         data: { user },
       } = await supabase.auth.getUser();
       const prompt = assembleVoicePrompt(
-        userContext,
-        recentInsights,
-        internalProfile,
+        userContextRef.current,
+        recentInsightsRef.current,
+        internalProfileRef.current,
         serverContext,
       );
       const sessionOptions = buildVoiceSessionStartOptions({
         conversationToken: token,
         prompt,
         userId: user?.id,
-        userContext,
+        userContext: userContextRef.current,
+        firstMessage: resolveVoiceFirstMessage(options),
       });
-      lastSessionConfigRef.current = sessionOptions;
+      lastSessionConfigRef.current = omitVoiceFirstMessage(sessionOptions);
       const startPromise = Promise.resolve(conversation.startSession(sessionOptions));
       startSessionPromiseRef.current = startPromise;
       await startPromise;
@@ -778,13 +802,9 @@ function VoiceInterfaceNativeInner(
     clearPausedState,
     conversation,
     ensureMicrophonePermission,
-    internalProfile,
-    messageHistory,
     onConnectingChange,
     onVoiceModeChange,
-    recentInsights,
     sessionPhase,
-    userContext,
   ]);
 
   useImperativeHandle(
@@ -809,7 +829,7 @@ function VoiceInterfaceNativeInner(
       prominentSize={prominentSize}
       isConnected={isConnected}
       isLoading={isLoading || sessionPhase === 'disconnecting'}
-      onPress={isConnected ? endConversation : startConversation}
+      onPress={isConnected ? endConversation : () => { void startConversation(); }}
       disabled={isSessionLocked}
     />
   );
@@ -872,6 +892,14 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
     >(null);
     const processVoiceUserTurnRef = useRef<(text: string) => void>(() => {});
     const processVoiceAssistantTurnRef = useRef<(text: string) => void>(() => {});
+    const userContextRef = useRef(userContext);
+    const messageHistoryRef = useRef(messageHistory);
+    const recentInsightsRef = useRef(recentInsights);
+    const internalProfileRef = useRef(internalProfile);
+    userContextRef.current = userContext;
+    messageHistoryRef.current = messageHistory;
+    recentInsightsRef.current = recentInsights;
+    internalProfileRef.current = internalProfile;
     const isSessionLocked =
       sessionPhase === 'connecting' || sessionPhase === 'disconnecting';
 
@@ -1025,7 +1053,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
       sessionPhase,
     ]);
 
-    const startConversation = useCallback(async () => {
+    const startConversation = useCallback(async (options?: StartVoiceConversationOptions) => {
       if (sessionPhase !== 'idle') {
         return;
       }
@@ -1039,7 +1067,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
       onConnectingChange?.(true);
       setIsLoading(true);
       try {
-        sessionMessagesRef.current = cloneVoiceMessages(messageHistory);
+        sessionMessagesRef.current = toVoiceSessionMessages(messageHistoryRef.current);
 
         const serverContext = await fetchVoiceServerContext(
           sessionMessagesRef.current,
@@ -1061,18 +1089,19 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
           data: { user },
         } = await supabase.auth.getUser();
         const prompt = assembleVoicePrompt(
-          userContext,
-          recentInsights,
-          internalProfile,
+          userContextRef.current,
+          recentInsightsRef.current,
+          internalProfileRef.current,
           serverContext,
         );
         const sessionOptions = buildVoiceSessionStartOptions({
           signedUrl,
           prompt,
           userId: user?.id,
-          userContext,
+          userContext: userContextRef.current,
+          firstMessage: resolveVoiceFirstMessage(options),
         });
-        lastSessionConfigRef.current = sessionOptions;
+        lastSessionConfigRef.current = omitVoiceFirstMessage(sessionOptions);
         const { Conversation } = await import('@elevenlabs/client');
         conversationRef.current = await Conversation.startSession({
           ...sessionOptions,
@@ -1164,10 +1193,6 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
         setIsLoading(false);
       }
     }, [
-      userContext,
-      messageHistory,
-      recentInsights,
-      internalProfile,
       clearMicMutedState,
       clearPausedState,
       onConnectingChange,
@@ -1210,7 +1235,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
         prominentSize={prominentSize}
         isConnected={isConnected}
         isLoading={isLoading || sessionPhase === 'disconnecting'}
-        onPress={isConnected ? endConversation : startConversation}
+        onPress={isConnected ? endConversation : () => { void startConversation(); }}
         disabled={isSessionLocked}
       />
     );

@@ -19,6 +19,7 @@ import {
 } from '@/utils/insightUnlock';
 import {
   formatDateBrasilia,
+  getTodayInBrasilia,
   getWeekStartBrasilia,
 } from '@/utils/dateUtils';
 import {
@@ -87,6 +88,27 @@ function applyDeveloperAccess(insight: Insight, cycleRequired?: number): Insight
   };
 }
 
+function isUsableStoredInsight(
+  storedInsight:
+    | {
+        locked: boolean | null;
+        insight_date?: string | null;
+      }
+    | null
+    | undefined,
+  requireInsightDate?: string,
+): boolean {
+  if (!storedInsight || storedInsight.locked !== false) {
+    return false;
+  }
+
+  if (requireInsightDate && storedInsight.insight_date !== requireInsightDate) {
+    return false;
+  }
+
+  return true;
+}
+
 function buildInsightFromSources(
   progress: InsightUnlockProgress,
   ruleTitle: string,
@@ -98,11 +120,13 @@ function buildInsightFromSources(
     context_summary: string | null;
     internal_context: string | null;
     conversation_id: string | null;
+    insight_date?: string | null;
   } | null,
+  requireInsightDate?: string,
 ): Insight {
-  const locked = progress.locked;
+  const storedUsable = isUsableStoredInsight(storedInsight, requireInsightDate);
 
-  if (!locked && storedInsight && storedInsight.locked === false) {
+  if (!progress.locked && storedUsable && storedInsight) {
     return {
       title: storedInsight.title,
       description: storedInsight.description,
@@ -118,15 +142,12 @@ function buildInsightFromSources(
   }
 
   return {
-    title: locked ? ruleTitle : storedInsight?.title || ruleTitle,
-    description: locked ? ruleDescription : storedInsight?.description || ruleDescription,
-    locked,
+    title: ruleTitle,
+    description: ruleDescription,
+    locked: true,
     remaining: progress.remaining,
     cycleProgress: progress.progress,
     cycleRequired: progress.required,
-    contextSummary: storedInsight?.context_summary ?? undefined,
-    internalContext: storedInsight?.internal_context ?? undefined,
-    conversationId: storedInsight?.conversation_id ?? undefined,
     loading: false,
   };
 }
@@ -242,6 +263,8 @@ export function useExploreInsights(refreshToken = 0) {
       });
     }
 
+    const today = getTodayInBrasilia();
+
     const buildForType = (insightType: ExploreInsightType) => {
       const rule = ruleByType.get(insightType);
       const progress = progressMap[insightType];
@@ -254,11 +277,14 @@ export function useExploreInsights(refreshToken = 0) {
         rule.locked_title,
         rule.locked_description,
         storedByType.get(insightType) ?? null,
+        insightType === 'yesterday_journey' ? today : undefined,
       );
 
-      return isDeveloper
-        ? applyDeveloperAccess(insight, progress.required)
-        : insight;
+      if (isDeveloper && !(insightType === 'yesterday_journey' && insight.locked)) {
+        return applyDeveloperAccess(insight, progress.required);
+      }
+
+      return insight;
     };
 
     setYesterdayInsight(buildForType('yesterday_journey'));
@@ -342,10 +368,6 @@ export function useExploreInsights(refreshToken = 0) {
 
         if (snapshot.deepUnlocked && !snapshot.hasDeepContent) {
           void syncDeepInsightIfNeeded(snapshot.weekStartStr);
-        }
-
-        if (options.cacheOnly) {
-          return;
         }
 
         const needsSync =

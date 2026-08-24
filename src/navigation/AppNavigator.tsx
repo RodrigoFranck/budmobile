@@ -13,7 +13,6 @@ import ResetPasswordScreen from '@/pages/ResetPassword';
 import OnboardingNavigator from '@/navigation/OnboardingNavigator';
 import SettingsScreen from '@/pages/Settings';
 import CrisisResourcesScreen from '@/pages/CrisisResources';
-import SupportFeedbackScreen from '@/pages/SupportFeedback';
 import CheckInNavigator from '@/navigation/CheckInNavigator';
 import PsychologicalAssessmentNavigator from '@/navigation/PsychologicalAssessmentNavigator';
 import MainTabs from '@/navigation/MainTabs';
@@ -69,6 +68,10 @@ export default function AppNavigator() {
         <Stack.Navigator
           screenOptions={{
             headerShown: false,
+            freezeOnBlur: false,
+            contentStyle: {
+              backgroundColor: mode === 'dark' ? '#1D1916' : '#F7F1ED',
+            },
           }}
         >
           {passwordRecoveryPending ? (
@@ -87,7 +90,6 @@ export default function AppNavigator() {
               <Stack.Screen name="MainTabs" component={MainTabs} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
               <Stack.Screen name="CrisisResources" component={CrisisResourcesScreen} />
-              <Stack.Screen name="SupportFeedback" component={SupportFeedbackScreen} />
               <Stack.Screen
                 name="PsychologicalAssessment"
                 component={PsychologicalAssessmentNavigator}

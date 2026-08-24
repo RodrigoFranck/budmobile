@@ -187,6 +187,12 @@ export type PushNotificationData = {
   notification_type?: string;
   openDeepInsight?: boolean | string;
   conversationId?: string;
+  checkInType?: string;
+  checkinType?: string;
+  checkin_type?: string;
+  insightType?: string;
+  weekStart?: string;
+  week_start?: string;
   [key: string]: unknown;
 };
 

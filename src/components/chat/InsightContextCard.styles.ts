@@ -1,58 +1,60 @@
 import { StyleSheet } from 'react-native';
 
-import { frauncesFont } from '@/constants/onboardingTheme';
+import { frauncesFont, instrumentSansFont } from '@/constants/onboardingTheme';
+import type { InsightCardPalette } from '@/constants/insightCategoryTheme';
 
-export const insightContextCardStyles = StyleSheet.create({
-  wrapper: {
-    alignItems: 'center',
-    marginVertical: 12,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 400,
-    borderRadius: 16,
-    overflow: 'hidden',
-    minHeight: 120,
-  },
-  cardImage: {
-    borderRadius: 16,
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-  },
-  content: {
-    padding: 16,
-    alignItems: 'center',
-  },
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    marginBottom: 10,
-  },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-    color: '#ffffff',
-  },
-  title: {
-    fontFamily: frauncesFont,
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-    textAlign: 'center',
-    marginBottom: 6,
-  },
-  description: {
-    fontFamily: frauncesFont,
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.9)',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-});
+export function createInsightContextCardStyles(palette: InsightCardPalette) {
+  return StyleSheet.create({
+    wrapper: {
+      alignItems: 'center',
+      marginTop: 8,
+      marginBottom: 24,
+      width: '100%',
+    },
+    card: {
+      width: '100%',
+      borderRadius: 24,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: palette.border,
+    },
+    content: {
+      paddingHorizontal: 24,
+      paddingTop: 22,
+      paddingBottom: 26,
+      alignItems: 'center',
+    },
+    badge: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 999,
+      backgroundColor: palette.badgeBg,
+      marginBottom: 16,
+    },
+    badgeText: {
+      fontFamily: instrumentSansFont,
+      fontSize: 11,
+      fontWeight: '500',
+      letterSpacing: 1.4,
+      textTransform: 'uppercase',
+      color: palette.badgeText,
+      textAlign: 'center',
+    },
+    title: {
+      fontFamily: frauncesFont,
+      fontSize: 22,
+      lineHeight: 30,
+      fontWeight: '400',
+      color: palette.title,
+      textAlign: 'center',
+    },
+    body: {
+      fontFamily: frauncesFont,
+      fontSize: 18,
+      lineHeight: 26,
+      fontWeight: '400',
+      color: palette.title,
+      textAlign: 'center',
+    },
+  });
+}

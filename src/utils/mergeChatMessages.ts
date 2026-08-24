@@ -9,7 +9,7 @@ type DbMessage = {
 
 let streamingMessageSeq = 0;
 
-export function createStreamingMessageId(role: 'user' | 'assistant'): string {
+export function createStreamingMessageId(role: 'user' | 'assistant' | 'context'): string {
   streamingMessageSeq += 1;
   return `${role}-${Date.now()}-${streamingMessageSeq}`;
 }

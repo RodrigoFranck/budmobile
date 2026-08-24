@@ -1,5 +1,5 @@
 import messaging from '@react-native-firebase/messaging';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import type { NavigationContainerRefWithCurrent } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
@@ -18,7 +18,7 @@ import {
 } from '@/services/pushNotifications';
 import type { RootStackParamList } from '@/types/navigation';
 import {
-  flushPendingMainTabsNavigation,
+  flushPendingPushNavigation,
   navigateFromPushNotification,
 } from '@/utils/pushNotificationNavigation';
 
@@ -27,6 +27,8 @@ export function usePushNotifications(
 ) {
   const { user, onboardingCompleted } = useAuth();
   const { data: profile, isFetched } = useAppProfileQuery();
+  const userIdRef = useRef(user?.id);
+  userIdRef.current = user?.id;
 
   useEffect(() => {
     if (Platform.OS === 'web' || !user?.id || !isFetched) {
@@ -69,7 +71,7 @@ export function usePushNotifications(
       return;
     }
 
-    flushPendingMainTabsNavigation(navigationRef);
+    flushPendingPushNavigation(navigationRef, user.id);
   }, [navigationRef, onboardingCompleted, user?.id]);
 
   useEffect(() => {
@@ -84,11 +86,19 @@ export function usePushNotifications(
           return;
         }
 
-        navigateFromPushNotification(navigationRef, getPushDataFromRemoteMessage(remoteMessage));
+        navigateFromPushNotification(
+          navigationRef,
+          getPushDataFromRemoteMessage(remoteMessage),
+          userIdRef.current,
+        );
       });
 
     const openedAppUnsubscribe = messaging().onNotificationOpenedApp((remoteMessage) => {
-      navigateFromPushNotification(navigationRef, getPushDataFromRemoteMessage(remoteMessage));
+      navigateFromPushNotification(
+        navigationRef,
+        getPushDataFromRemoteMessage(remoteMessage),
+        userIdRef.current,
+      );
     });
 
     const foregroundUnsubscribe = messaging().onMessage(async (remoteMessage) => {
@@ -100,7 +110,7 @@ export function usePushNotifications(
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
         const data = response.notification.request.content.data as PushNotificationData;
-        navigateFromPushNotification(navigationRef, data);
+        navigateFromPushNotification(navigationRef, data, userIdRef.current);
       }
     );
 

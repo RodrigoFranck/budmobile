@@ -9,6 +9,7 @@ interface BuildCheckInChatInsightParams {
   report: CheckinReport;
   responses?: Record<string, unknown> | null;
   clickedQuestion?: string;
+  mode?: 'text' | 'voice';
 }
 
 function getCheckInMeta(type: CheckinType): {
@@ -42,8 +43,10 @@ export function buildCheckInChatInsight({
   report,
   responses = null,
   clickedQuestion,
+  mode = 'text',
 }: BuildCheckInChatInsightParams): ChatInsightParam {
   const { badge, checkinLabel, backgroundType } = getCheckInMeta(type);
+  const reflectionTopic = clickedQuestion?.trim();
 
   const richContext = {
     checkin_type: type,
@@ -52,21 +55,25 @@ export function buildCheckInChatInsight({
     analysis: report.analysis,
     reflection_questions: report.reflection_questions ?? [],
     user_responses: responses,
-    clicked_question: clickedQuestion ?? null,
+    clicked_question: reflectionTopic ?? null,
   };
 
-  const userMessage =
-    clickedQuestion?.trim() ||
-    'Quero conversar sobre o que surgiu no meu check-in de hoje.';
+  const title = reflectionTopic || report.headline.trim();
+  const userMessage = title
+    ? `Quero conversar sobre "${title}".`
+    : 'Quero conversar sobre o que surgiu no meu check-in de hoje.';
+  const content = reflectionTopic || report.analysis.trim() || report.headline;
 
   return {
-    insightType: 'checkin',
+    insightType: `checkin_${type}`,
     badge,
-    title: report.headline,
-    contextSummary: clickedQuestion ?? report.analysis,
+    title: reflectionTopic || report.headline,
+    contextSummary: content,
     internalContext: JSON.stringify(richContext),
+    cardDescription: content,
     backgroundType,
     initialUserMessage: userMessage,
+    autoStartVoice: mode === 'voice',
   };
 }
 

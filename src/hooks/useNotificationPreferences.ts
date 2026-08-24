@@ -14,12 +14,7 @@ import {
   savePushTokenForUser,
 } from '@/services/pushNotifications';
 
-const DEFAULT_TIME = '20:00:00';
 const DEFAULT_TIMEZONE = 'America/Sao_Paulo';
-
-function formatTimeForDisplay(time: string): string {
-  return time.slice(0, 5);
-}
 
 function getDeviceTimezone(): string {
   try {
@@ -38,7 +33,6 @@ export function useNotificationPreferences() {
   const queryClient = useQueryClient();
   const { data: profile, isFetched } = useAppProfileQuery();
   const [enabled, setEnabled] = useState(true);
-  const [dailyTime, setDailyTime] = useState(DEFAULT_TIME);
   const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -46,7 +40,6 @@ export function useNotificationPreferences() {
   useEffect(() => {
     if (!user?.id) {
       setEnabled(true);
-      setDailyTime(DEFAULT_TIME);
       setTimezone(DEFAULT_TIMEZONE);
       setLoaded(true);
       return;
@@ -59,7 +52,6 @@ export function useNotificationPreferences() {
 
     if (profile) {
       setEnabled(profile.push_notifications_enabled !== false);
-      setDailyTime(profile.notification_daily_time ?? DEFAULT_TIME);
       setTimezone(profile.timezone ?? getDeviceTimezone());
     } else {
       setTimezone(getDeviceTimezone());
@@ -135,60 +127,11 @@ export function useNotificationPreferences() {
     [queryClient, user?.id],
   );
 
-  const setDailyNotificationTime = useCallback(
-    async (hour: number) => {
-      if (!user?.id) {
-        return;
-      }
-
-      const nextTime = `${String(hour).padStart(2, '0')}:00:00`;
-      const nextTimezone = getDeviceTimezone();
-      setSaving(true);
-      setDailyTime(nextTime);
-
-      try {
-        const { error } = await supabase
-          .from('profiles')
-          .update({
-            notification_daily_time: nextTime,
-            timezone: nextTimezone,
-          })
-          .eq('user_id', user.id);
-
-        if (error) {
-          throw error;
-        }
-
-        queryClient.setQueryData<AppProfile | null>(
-          queryKeys.profile(user.id),
-          (current) =>
-            current
-              ? {
-                  ...current,
-                  notification_daily_time: nextTime,
-                  timezone: nextTimezone,
-                }
-              : current,
-        );
-      } catch (error) {
-        const previousHour = Number.parseInt(dailyTime.slice(0, 2), 10);
-        setDailyTime(`${String(previousHour).padStart(2, '0')}:00:00`);
-        throw error;
-      } finally {
-        setSaving(false);
-      }
-    },
-    [dailyTime, queryClient, user?.id],
-  );
-
   return {
     enabled,
-    dailyTime,
-    dailyTimeLabel: formatTimeForDisplay(dailyTime),
     timezone,
     loaded,
     saving,
     setNotificationsEnabled,
-    setDailyNotificationTime,
   };
 }

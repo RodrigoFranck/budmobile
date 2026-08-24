@@ -1,51 +1,63 @@
-import React from 'react';
-import { ImageBackground, Text, View } from 'react-native';
+import { useMemo } from 'react';
+import { Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
-import { insightContextCardStyles } from '@/components/chat/InsightContextCard.styles';
+import { createInsightContextCardStyles } from '@/components/chat/InsightContextCard.styles';
+import {
+  getInsightCardPalette,
+  type InsightVisualCategory,
+} from '@/constants/insightCategoryTheme';
+import { useTheme } from '@/contexts/ThemeContext';
 
-const backgroundImages = {
-  yesterday: require('@/assets/yesterday-journey-bg.png'),
-  inspired: require('@/assets/inspired-bg.png'),
-  frequency: require('@/assets/frequency-bg.png'),
-  habit: require('@/assets/habit-bg.png'),
-} as const;
-
-export type InsightContextBackgroundType = keyof typeof backgroundImages;
+export type InsightContextBackgroundType = 'yesterday' | 'inspired' | 'frequency' | 'habit';
 
 interface InsightContextCardProps {
   badge: string;
   title: string;
-  description: string;
-  backgroundType: InsightContextBackgroundType;
+  description?: string;
+  category?: InsightVisualCategory;
+  backgroundType?: InsightContextBackgroundType;
 }
 
 export function InsightContextCard({
   badge,
   title,
   description,
-  backgroundType,
+  category = 'inspired',
 }: InsightContextCardProps) {
-  const styles = insightContextCardStyles;
+  const { isDarkMode } = useTheme();
+  const palette = useMemo(
+    () => getInsightCardPalette(category, isDarkMode),
+    [category, isDarkMode],
+  );
+  const styles = useMemo(() => createInsightContextCardStyles(palette), [palette]);
+  const body = description?.trim() || title;
+  const accessibilityText = description?.trim()
+    ? `${badge}. ${description}`
+    : `${badge}. ${title}`;
 
   return (
-    <View style={styles.wrapper}>
-      <ImageBackground
-        source={backgroundImages[backgroundType]}
+    <View
+      style={styles.wrapper}
+      accessible
+      accessibilityRole="summary"
+      accessibilityLabel={accessibilityText}
+    >
+      <LinearGradient
+        colors={[palette.fillFrom, palette.fillTo]}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
         style={styles.card}
-        imageStyle={styles.cardImage}
-        resizeMode="cover"
       >
-        <View style={styles.overlay} />
         <View style={styles.content}>
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{badge}</Text>
           </View>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.description} numberOfLines={3}>
-            {description}
+          <Text style={styles.body} numberOfLines={10}>
+            {body}
           </Text>
         </View>
-      </ImageBackground>
+      </LinearGradient>
     </View>
   );
 }

@@ -5,15 +5,19 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X } from 'lucide-react-native';
+import { ArrowUp, X } from 'lucide-react-native';
 
+import { insightCardActionLayout } from '@/components/explore/InsightCard.styles';
 import { CHECKIN_LOADING_MESSAGES } from '@/features/checkin/checkInResult.constants';
 import { useCheckIns, type CheckinReport } from '@/hooks/useCheckIns';
-import { openCheckInChat } from '@/utils/buildCheckInChatInsight';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { supabase } from '@/integrations/supabase/client';
 import { resolveCheckInGradient, useActivitiesTheme } from '@/lib/activitiesTheme';
+import { useAppColors } from '@/lib/colors';
 import type { CheckInStackParamList } from '@/types/checkInNavigation.types';
+import { openCheckInChat } from '@/utils/buildCheckInChatInsight';
+import { WavesIcon } from '@/voice/WavesIcon';
+
 import { createCheckInResultStyles } from './CheckInResult.styles';
 
 type Route = RouteProp<CheckInStackParamList, 'CheckInResult'>;
@@ -46,7 +50,10 @@ export default function CheckInResultScreen() {
   const { profile } = useUserProfile();
   const { updateReport } = useCheckIns();
   const theme = useActivitiesTheme();
+  const colors = useAppColors();
   const styles = useMemo(() => createCheckInResultStyles(theme), [theme]);
+  const sendIconColor = `${colors['chat-warm-bg']}8C`;
+  const voiceIconSize = Math.round(insightCardActionLayout.height * 0.42);
 
   const { type, checkinId, pendingReport, responses, checkinResponses } = route.params;
   const initialReport = route.params.report;
@@ -143,13 +150,14 @@ export default function CheckInResultScreen() {
     return () => subscription.remove();
   }, [generateFailed, loading, pendingReport, report, responses]);
 
-  const handleTalkAbout = (question?: string) => {
+  const handleTalkAbout = (question?: string, mode: 'text' | 'voice' = 'text') => {
     if (!report) return;
     openCheckInChat(navigation, {
       type,
       report,
       responses: checkinResponses ?? responses ?? null,
       clickedQuestion: question,
+      mode,
     });
   };
 
@@ -229,15 +237,37 @@ export default function CheckInResultScreen() {
               <>
                 <Text style={styles.reflectTitle}>Pra refletir</Text>
                 {questions.map((q) => (
-                  <Pressable
-                    key={q}
-                    style={styles.questionCard}
-                    onPress={() => handleTalkAbout(q)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Conversar sobre: ${q}`}
-                  >
+                  <View key={q} style={styles.questionCard}>
                     <Text style={styles.questionText}>{q}</Text>
-                  </Pressable>
+                    <View style={styles.questionActions}>
+                      <Pressable
+                        style={styles.questionMessageButton}
+                        onPress={() => handleTalkAbout(q)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Enviar mensagem sobre: ${q}`}
+                      >
+                        <Text style={styles.questionMessageText} numberOfLines={1}>
+                          Envie uma mensagem
+                        </Text>
+                        <View style={styles.questionSendButton}>
+                          <ArrowUp
+                            size={insightCardActionLayout.sendIconSize}
+                            color={sendIconColor}
+                            strokeWidth={3}
+                          />
+                        </View>
+                      </Pressable>
+                      <Pressable
+                        style={styles.questionVoiceButton}
+                        onPress={() => handleTalkAbout(q, 'voice')}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Conversar por voz sobre: ${q}`}
+                        hitSlop={insightCardActionLayout.voiceHitSlop}
+                      >
+                        <WavesIcon size={voiceIconSize} color="#373737" />
+                      </Pressable>
+                    </View>
+                  </View>
                 ))}
               </>
             ) : null}

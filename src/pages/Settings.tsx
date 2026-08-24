@@ -9,8 +9,6 @@ import {
   Share,
   Linking,
   Platform,
-  Modal,
-  Pressable,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -32,7 +30,6 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   createSettingsStyles,
   DARK_COLORS,
-  HOUR_OPTIONS,
   LIGHT_COLORS,
 } from "@/pages/Settings.styles";
 
@@ -41,22 +38,18 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { showAlert } = useAppAlert();
   const { user, signOut, deleteAccount, refreshOnboardingStatus } = useAuth();
-  const { mode, preference, loaded: themeLoaded, setMode, setPreference } = useTheme();
+  const { mode, loaded: themeLoaded, setMode } = useTheme();
   const {
     enabled: notificationsEnabled,
-    dailyTimeLabel,
     loaded: notificationsLoaded,
     saving: notificationsSaving,
     setNotificationsEnabled,
-    setDailyNotificationTime,
   } = useNotificationPreferences();
   const darkMode = mode === "dark";
   const darkModeLoading = !themeLoaded;
   const [resettingOnboarding, setResettingOnboarding] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
-  const [timePickerVisible, setTimePickerVisible] = useState(false);
 
-  const deepModeValue = preference === "dark";
   const colors = useMemo(
     () => (darkMode ? DARK_COLORS : LIGHT_COLORS),
     [darkMode],
@@ -65,14 +58,9 @@ export default function SettingsScreen() {
 
   const handleToggleDeepMode = useCallback(
     async (enabled: boolean) => {
-      // ON → force dark; OFF → follow the device (Appearance / system theme)
-      if (enabled) {
-        await setMode("dark");
-        return;
-      }
-      await setPreference("system");
+      await setMode(enabled ? "dark" : "light");
     },
-    [setMode, setPreference],
+    [setMode],
   );
 
   const handleToggleNotifications = useCallback(
@@ -87,28 +75,9 @@ export default function SettingsScreen() {
     [setNotificationsEnabled, showAlert],
   );
 
-  const handleSelectHour = useCallback(
-    async (hour: number) => {
-      setTimePickerVisible(false);
-      try {
-        await setDailyNotificationTime(hour);
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : "Erro desconhecido";
-        showAlert({ title: "Erro", message });
-      }
-    },
-    [setDailyNotificationTime, showAlert],
-  );
-
-  const selectedHour = Number.parseInt(dailyTimeLabel.split(":")[0] ?? "20", 10);
-
   const openHelp = useCallback(() => {
     WebBrowser.openBrowserAsync(BUDMIND_HELP_URL);
   }, []);
-
-  const openSupportFeedback = useCallback(() => {
-    navigation.navigate("SupportFeedback");
-  }, [navigation]);
 
   const openCrisisResources = useCallback(() => {
     navigation.navigate("CrisisResources");
@@ -275,13 +244,13 @@ export default function SettingsScreen() {
         </TouchableOpacity>
 
         <View style={styles.row}>
-          <Text style={styles.rowText}>Modo profundo</Text>
+          <Text style={styles.rowText}>Modo escuro</Text>
           <View style={styles.rightSlot}>
             {darkModeLoading ? (
               <ActivityIndicator size="small" color={colors.icon} />
             ) : (
               <Switch
-                value={deepModeValue}
+                value={darkMode}
                 onValueChange={handleToggleDeepMode}
                 trackColor={{
                   false: colors.switchTrackOff,
@@ -313,30 +282,6 @@ export default function SettingsScreen() {
             )}
           </View>
         </View>
-
-        {notificationsEnabled ? (
-          <TouchableOpacity
-            onPress={() => setTimePickerVisible(true)}
-            activeOpacity={0.8}
-            style={styles.row}
-            accessibilityRole="button"
-            accessibilityLabel={`Horário da notificação diária, ${dailyTimeLabel}`}
-            disabled={notificationsSaving}
-          >
-            <Text style={styles.rowText}>Horário diário</Text>
-            <Text style={styles.rowTextValue}>{dailyTimeLabel}</Text>
-          </TouchableOpacity>
-        ) : null}
-
-        <TouchableOpacity
-          onPress={openSupportFeedback}
-          activeOpacity={0.8}
-          style={styles.row}
-          accessibilityRole="button"
-          accessibilityLabel="Suporte e Feedback"
-        >
-          <Text style={styles.rowText}>Suporte e Feedback</Text>
-        </TouchableOpacity>
 
         <TouchableOpacity
           onPress={shareBud}
@@ -400,44 +345,6 @@ export default function SettingsScreen() {
           </Text>
         </View>
       </ScrollView>
-
-      <Modal
-        visible={timePickerVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setTimePickerVisible(false)}
-      >
-        <Pressable style={styles.modalOverlay} onPress={() => setTimePickerVisible(false)}>
-          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Horário da notificação diária</Text>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {HOUR_OPTIONS.map((hour) => {
-                const label = `${String(hour).padStart(2, "0")}:00`;
-                const isSelected = hour === selectedHour;
-                return (
-                  <TouchableOpacity
-                    key={hour}
-                    style={styles.hourOption}
-                    onPress={() => handleSelectHour(hour)}
-                    accessibilityRole="button"
-                    accessibilityLabel={label}
-                    accessibilityState={{ selected: isSelected }}
-                  >
-                    <Text
-                      style={[
-                        styles.hourOptionText,
-                        isSelected ? styles.hourOptionTextSelected : null,
-                      ]}
-                    >
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </View>
   );
 }

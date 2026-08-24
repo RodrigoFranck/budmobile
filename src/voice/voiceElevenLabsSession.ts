@@ -31,17 +31,40 @@ function buildVoiceSessionClientData(params: {
   prompt: string;
   userId?: string | null;
   userContext?: UserContext;
+  firstMessage?: string;
 }): VoiceSessionClientData {
+  const firstMessage = params.firstMessage?.trim();
+
   return {
     overrides: {
       agent: {
         prompt: {
           prompt: params.prompt,
         },
+        ...(firstMessage ? { firstMessage } : {}),
       },
     },
     dynamicVariables: buildVoiceDynamicVariables(params.userContext),
     ...(params.userId ? { userId: params.userId } : {}),
+  };
+}
+
+export function omitVoiceFirstMessage(
+  options: VoiceSessionStartOptions,
+): VoiceSessionStartOptions {
+  const agent = options.overrides?.agent;
+  if (!agent?.firstMessage) {
+    return options;
+  }
+
+  const { firstMessage: _firstMessage, ...agentWithoutFirstMessage } = agent;
+
+  return {
+    ...options,
+    overrides: {
+      ...options.overrides,
+      agent: agentWithoutFirstMessage,
+    },
   };
 }
 
@@ -51,6 +74,7 @@ export function buildVoiceSessionStartOptions(params: {
   userContext?: UserContext;
   conversationToken?: string;
   signedUrl?: string;
+  firstMessage?: string;
 }): VoiceSessionStartOptions {
   const clientData = buildVoiceSessionClientData(params);
 

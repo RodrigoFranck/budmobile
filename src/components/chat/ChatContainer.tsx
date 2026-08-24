@@ -6,6 +6,7 @@ import { ChatMessage } from './ChatMessage';
 import { TypingIndicator } from './TypingIndicator';
 import { SafetyCard } from './SafetyCard';
 import { isSafetyResponse } from '@/utils/safetyDetection';
+import { isUserMessageAfterContext } from '@/utils/insightContextMessage';
 import type { Message } from '@/types/messages';
 import { Spacing } from '@/constants/styles';
 import { useAppColors } from '@/lib/colors';
@@ -34,7 +35,12 @@ function buildListItems(messages: Message[]): ListItem[] {
   const items: ListItem[] = [];
   let lastDay: Date | null = null;
 
-  for (const msg of messages) {
+  for (let index = 0; index < messages.length; index += 1) {
+    if (isUserMessageAfterContext(messages, index)) {
+      continue;
+    }
+
+    const msg = messages[index];
     const d = msg.createdAt ? parseISO(msg.createdAt) : new Date();
     if (!lastDay || !isSameDay(d, lastDay)) {
       const raw = format(d, "EEEE, d 'de' MMMM", { locale: ptBR });
@@ -292,6 +298,9 @@ export function ChatContainer({
         !isInverted && styles.contentContainerAnchored,
       ]}
       onScroll={handleScroll}
+      onScrollBeginDrag={Keyboard.dismiss}
+      keyboardDismissMode="on-drag"
+      keyboardShouldPersistTaps="handled"
       scrollEventThrottle={16}
       maintainVisibleContentPosition={
         isInverted ? { minIndexForVisible: 0 } : undefined

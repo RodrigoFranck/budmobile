@@ -1,35 +1,73 @@
 import type { NavigationContainerRefWithCurrent, NavigatorScreenParams } from '@react-navigation/native';
 
+import { supabase } from '@/integrations/supabase/client';
 import type { PushNotificationData } from '@/services/pushNotifications';
+import type { Insight } from '@/hooks/useExploreInsights';
+import type { ChatInsightParam } from '@/types/chatInsight';
 import type { MainTabParamList, RootStackParamList } from '@/types/navigation';
+import { buildExploreChatInsight } from '@/utils/buildExploreChatInsight';
+import { getTodayInBrasilia } from '@/utils/dateUtils';
+import { stashPendingChatInsight } from '@/utils/navigateToChat';
 
 export type MainTabsPushNavigationParams = NavigatorScreenParams<MainTabParamList>;
 
-let pendingMainTabsNavigation: MainTabsPushNavigationParams | null = null;
+export type PendingPushTarget =
+  | { kind: 'mainTabs'; target: MainTabsPushNavigationParams }
+  | { kind: 'checkIn'; checkInType: 'morning' | 'post_training' }
+  | { kind: 'yesterdayJourney' }
+  | { kind: 'weeklyInsight'; weekStart?: string };
+
+let pendingPushTarget: PendingPushTarget | null = null;
 
 function parseTruthy(value: unknown): boolean {
   return value === true || value === 'true' || value === '1';
 }
 
-export function resolveMainTabsNavigationFromPushData(
+function readString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function readNotificationType(data: PushNotificationData): string | undefined {
+  return readString(data.notificationType) ?? readString(data.notification_type);
+}
+
+function readCheckInType(data: PushNotificationData): 'morning' | 'post_training' | null {
+  const raw =
+    readString(data.checkInType) ??
+    readString(data.checkinType) ??
+    readString(data.checkin_type);
+
+  if (raw === 'morning' || raw === 'post_training') {
+    return raw;
+  }
+
+  const notificationType = readNotificationType(data);
+  if (notificationType === 'morning_checkin' || notificationType === 'daily_checkin') {
+    return 'morning';
+  }
+  if (notificationType === 'post_training_checkin') {
+    return 'post_training';
+  }
+
+  return null;
+}
+
+export function resolvePushTargetFromData(
   data: PushNotificationData | undefined,
-): MainTabsPushNavigationParams | null {
+): PendingPushTarget | null {
   if (!data) {
     return null;
   }
 
-  const notificationType =
-    typeof data.notificationType === 'string'
-      ? data.notificationType
-      : typeof data.notification_type === 'string'
-        ? data.notification_type
-        : undefined;
+  const notificationType = readNotificationType(data);
+  const checkInType = readCheckInType(data);
 
-  if (notificationType === 'daily_checkin' || data.tab === 'Activities') {
-    return {
-      screen: 'Activities',
-      params: { screen: 'ActivitiesHome' },
-    };
+  if (checkInType) {
+    return { kind: 'checkIn', checkInType };
+  }
+
+  if (notificationType === 'yesterday_journey' || data.insightType === 'yesterday_journey') {
+    return { kind: 'yesterdayJourney' };
   }
 
   if (
@@ -38,45 +76,53 @@ export function resolveMainTabsNavigationFromPushData(
     parseTruthy(data.openDeepInsight)
   ) {
     return {
-      screen: 'History',
-      params: { openDeepInsight: true },
+      kind: 'weeklyInsight',
+      weekStart: readString(data.weekStart) ?? readString(data.week_start),
     };
   }
 
-  if (data.tab === 'Explore') {
-    return { screen: 'Explore' };
+  if (notificationType === 'streak' || data.tab === 'Explore') {
+    return { kind: 'mainTabs', target: { screen: 'Explore' } };
   }
 
-  if (data.tab === 'Chat') {
-    return { screen: 'Chat' };
+  if (notificationType === 'reengagement' || data.tab === 'Chat') {
+    return { kind: 'mainTabs', target: { screen: 'Chat' } };
+  }
+
+  if (data.tab === 'Activities') {
+    return { kind: 'checkIn', checkInType: 'morning' };
+  }
+
+  if (data.screen === 'CheckIn') {
+    return { kind: 'checkIn', checkInType: 'morning' };
   }
 
   if (data.screen === 'MainTabs') {
-    return { screen: 'Chat' };
+    return { kind: 'mainTabs', target: { screen: 'Chat' } };
   }
 
   return null;
 }
 
-export function stashPendingMainTabsNavigation(target: MainTabsPushNavigationParams): void {
-  pendingMainTabsNavigation = target;
+export function stashPendingPushTarget(target: PendingPushTarget): void {
+  pendingPushTarget = target;
 }
 
-export function takePendingMainTabsNavigation(): MainTabsPushNavigationParams | null {
-  const target = pendingMainTabsNavigation;
-  pendingMainTabsNavigation = null;
+export function takePendingPushTarget(): PendingPushTarget | null {
+  const target = pendingPushTarget;
+  pendingPushTarget = null;
   return target;
 }
 
-const MAIN_TABS_ACCESSIBLE_ROUTES = new Set<keyof RootStackParamList>([
+const APP_READY_ROUTES = new Set<keyof RootStackParamList>([
   'MainTabs',
   'Settings',
   'CrisisResources',
-  'SupportFeedback',
   'PsychologicalAssessment',
+  'CheckIn',
 ]);
 
-function canNavigateToMainTabs(
+function canNavigateFromPush(
   navigationRef: NavigationContainerRefWithCurrent<RootStackParamList>,
 ): boolean {
   if (!navigationRef.isReady()) {
@@ -89,41 +135,150 @@ function canNavigateToMainTabs(
   }
 
   const activeRoute = state.routes[state.index];
-  return MAIN_TABS_ACCESSIBLE_ROUTES.has(activeRoute.name as keyof RootStackParamList);
+  return APP_READY_ROUTES.has(activeRoute.name as keyof RootStackParamList);
 }
 
-export function navigateToMainTabsFromPush(
+function navigateToMainTabs(
   navigationRef: NavigationContainerRefWithCurrent<RootStackParamList>,
   target: MainTabsPushNavigationParams,
 ): boolean {
-  if (!canNavigateToMainTabs(navigationRef)) {
-    stashPendingMainTabsNavigation(target);
+  if (!canNavigateFromPush(navigationRef)) {
+    stashPendingPushTarget({ kind: 'mainTabs', target });
     return false;
   }
 
-  navigationRef.navigate('MainTabs', target);
+  navigationRef.navigate('MainTabs', target, { pop: true });
   return true;
 }
 
-export function navigateFromPushNotification(
+function navigateToCheckIn(
   navigationRef: NavigationContainerRefWithCurrent<RootStackParamList>,
-  data: PushNotificationData | undefined,
+  checkInType: 'morning' | 'post_training',
 ): boolean {
-  const target = resolveMainTabsNavigationFromPushData(data);
-  if (!target) {
+  if (!canNavigateFromPush(navigationRef)) {
+    stashPendingPushTarget({ kind: 'checkIn', checkInType });
     return false;
   }
 
-  return navigateToMainTabsFromPush(navigationRef, target);
+  navigationRef.navigate('CheckIn', {
+    screen: 'CheckInFlow',
+    params: { type: checkInType },
+  });
+  return true;
 }
 
-export function flushPendingMainTabsNavigation(
+async function fetchYesterdayJourneyInsight(userId: string): Promise<Insight | null> {
+  const { data, error } = await supabase
+    .from('user_insights')
+    .select(
+      'title, description, locked, context_summary, internal_context, conversation_id, insight_date',
+    )
+    .eq('user_id', userId)
+    .eq('insight_type', 'yesterday_journey')
+    .maybeSingle();
+
+  if (
+    error ||
+    !data ||
+    data.locked ||
+    data.insight_date !== getTodayInBrasilia() ||
+    !data.internal_context?.trim()
+  ) {
+    return null;
+  }
+
+  return {
+    title: data.title,
+    description: data.description,
+    locked: false,
+    contextSummary: data.context_summary ?? data.title,
+    internalContext: data.internal_context ?? data.description,
+    conversationId: data.conversation_id ?? undefined,
+  };
+}
+
+async function navigateToYesterdayJourney(
   navigationRef: NavigationContainerRefWithCurrent<RootStackParamList>,
-): boolean {
-  const target = takePendingMainTabsNavigation();
+  userId: string | undefined,
+): Promise<boolean> {
+  if (!userId) {
+    stashPendingPushTarget({ kind: 'yesterdayJourney' });
+    return false;
+  }
+
+  if (!canNavigateFromPush(navigationRef)) {
+    stashPendingPushTarget({ kind: 'yesterdayJourney' });
+    return false;
+  }
+
+  const insight = await fetchYesterdayJourneyInsight(userId);
+  if (!insight) {
+    return navigateToMainTabs(navigationRef, { screen: 'Explore' });
+  }
+
+  const chatInsight: ChatInsightParam = buildExploreChatInsight(
+    'yesterday_journey',
+    insight,
+    'text',
+  );
+  stashPendingChatInsight(chatInsight);
+
+  return navigateToMainTabs(navigationRef, {
+    screen: 'Chat',
+    params: {
+      chatInsight,
+      screen: 'TextChat',
+    },
+  });
+}
+
+export async function navigatePushTarget(
+  navigationRef: NavigationContainerRefWithCurrent<RootStackParamList>,
+  target: PendingPushTarget,
+  userId?: string,
+): Promise<boolean> {
+  if (target.kind === 'checkIn') {
+    return navigateToCheckIn(navigationRef, target.checkInType);
+  }
+
+  if (target.kind === 'yesterdayJourney') {
+    return navigateToYesterdayJourney(navigationRef, userId);
+  }
+
+  if (target.kind === 'weeklyInsight') {
+    return navigateToMainTabs(navigationRef, {
+      screen: 'History',
+      params: {
+        openDeepInsight: true,
+        ...(target.weekStart ? { weekStart: target.weekStart } : {}),
+      },
+    });
+  }
+
+  return navigateToMainTabs(navigationRef, target.target);
+}
+
+export async function navigateFromPushNotification(
+  navigationRef: NavigationContainerRefWithCurrent<RootStackParamList>,
+  data: PushNotificationData | undefined,
+  userId?: string,
+): Promise<boolean> {
+  const target = resolvePushTargetFromData(data);
   if (!target) {
     return false;
   }
 
-  return navigateToMainTabsFromPush(navigationRef, target);
+  return navigatePushTarget(navigationRef, target, userId);
+}
+
+export async function flushPendingPushNavigation(
+  navigationRef: NavigationContainerRefWithCurrent<RootStackParamList>,
+  userId?: string,
+): Promise<boolean> {
+  const target = takePendingPushTarget();
+  if (!target) {
+    return false;
+  }
+
+  return navigatePushTarget(navigationRef, target, userId);
 }

@@ -11,14 +11,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Heart, ThumbsDown, ThumbsUp } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 
+import { InsightChatActions } from '@/components/explore/InsightChatActions';
 import { deepInsightSheetStyles as styles } from '@/components/explore/DeepInsightSheet.styles';
 import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useTabScreenContext } from '@/contexts/TabScreenContext';
 import { useDeepInsight } from '@/hooks/useDeepInsight';
 import { supabase } from '@/integrations/supabase/client';
-import { formatDateBrasilia, getWeekStartBrasilia } from '@/utils/dateUtils';
-import { navigateToChatTab } from '@/utils/navigateToChat';
+import type { Json } from '@/integrations/supabase/types';
 import type { MainTabNavigationProp } from '@/types/navigation';
+import {
+  openDeepInsightChat,
+  type DeepInsightChatMode,
+} from '@/utils/buildDeepInsightChatInsight';
+import { formatDateBrasilia, getWeekStartBrasilia } from '@/utils/dateUtils';
 
 const inspiredBg = require('@/assets/inspired-bg.png');
 
@@ -33,9 +38,10 @@ const loadingMessages = [
 interface DeepInsightSheetProps {
   visible: boolean;
   onClose: () => void;
+  weekStart?: string;
 }
 
-export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
+export function DeepInsightSheet({ visible, onClose, weekStart }: DeepInsightSheetProps) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainTabNavigationProp>();
   const { showAlert } = useAppAlert();
@@ -54,15 +60,17 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
 
   const [feedbackGiven, setFeedbackGiven] = useState<'negative' | 'positive' | 'love' | null>(null);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
-  const [selectedWeekStart] = useState(() => formatDateBrasilia(getWeekStartBrasilia()));
+  const currentWeekStart = formatDateBrasilia(getWeekStartBrasilia());
+  const selectedWeekStart = weekStart ?? currentWeekStart;
+  const isCurrentWeek = selectedWeekStart === currentWeekStart;
 
   useEffect(() => {
-    if (!deepInsightContent) {
+    if (!deepInsightContent || !isCurrentWeek) {
       return;
     }
 
     hydrateInsight(deepInsightContent, selectedWeekStart);
-  }, [deepInsightContent, hydrateInsight, selectedWeekStart]);
+  }, [deepInsightContent, hydrateInsight, isCurrentWeek, selectedWeekStart]);
 
   useEffect(() => {
     if (!visible) {
@@ -70,7 +78,7 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
       return;
     }
 
-    if (deepInsightContent || status !== 'idle') {
+    if ((isCurrentWeek && deepInsightContent) || status !== 'idle') {
       return;
     }
 
@@ -82,6 +90,7 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
   }, [
     visible,
     status,
+    isCurrentWeek,
     deepInsightContent,
     generateDeepInsight,
     refreshExploreInsights,
@@ -135,22 +144,18 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
     })();
   }, [status, insight?.headline]);
 
-  const handleTalkAbout = useCallback(() => {
-    if (!insight) return;
+  const handleTalkAbout = useCallback(
+    (mode: DeepInsightChatMode = 'text') => {
+      if (!insight) return;
 
-    onClose();
-    navigateToChatTab(navigation, {
-      chatInsight: {
-        insightType: 'deep_insight',
-        badge: 'INSPIRADO EM VOCÊ',
-        title: insight.headline || 'Deep Insight',
-        contextSummary: insight.headline,
-        internalContext: insight.intro,
-        backgroundType: 'inspired',
-        autoStartVoice: true,
-      },
-    });
-  }, [insight, navigation, onClose]);
+      const insightToOpen = insight;
+      onClose();
+      requestAnimationFrame(() => {
+        openDeepInsightChat(navigation, insightToOpen, mode);
+      });
+    },
+    [insight, navigation, onClose],
+  );
 
   const handleFeedback = async (type: 'negative' | 'positive' | 'love') => {
     setFeedbackGiven(type);
@@ -167,8 +172,9 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
         insight_type: 'deep_insight',
         feedback_type: type,
         insight_headline: insight?.headline,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        insight_content: insight as any,
+        insight_content: insight
+          ? (JSON.parse(JSON.stringify(insight)) as Json)
+          : null,
       });
       showAlert({ title: 'Obrigado', message: 'Obrigado pelo feedback!' });
     } catch (err) {
@@ -346,12 +352,21 @@ export function DeepInsightSheet({ visible, onClose }: DeepInsightSheetProps) {
               </View>
             </ImageBackground>
 
-            <View style={styles.ctaSection}>
+            <View style={styles.section}>
               <Text style={styles.sectionTitle}>{insight.next_steps.title}</Text>
               <Text style={styles.sectionBody}>{insight.next_steps.content}</Text>
-              <Pressable style={styles.ctaButton} onPress={handleTalkAbout}>
-                <Text style={styles.ctaButtonText}>Vamos conversar sobre isso</Text>
-              </Pressable>
+            </View>
+
+            <View style={styles.ctaSection}>
+              <View style={styles.ctaCard}>
+                <Text style={styles.ctaLabel}>Vamos conversar sobre isso</Text>
+                <InsightChatActions
+                  onMessage={() => handleTalkAbout('text')}
+                  onVoice={() => handleTalkAbout('voice')}
+                  messageAccessibilityLabel="Enviar mensagem sobre esse insight"
+                  voiceAccessibilityLabel="Conversar por voz sobre esse insight"
+                />
+              </View>
             </View>
 
             <View style={styles.feedbackSection}>

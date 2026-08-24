@@ -3,7 +3,7 @@
     "name": "Bud.",
     "slug": "budmobile",
     "scheme": "com.bud.app",
-    "version": "2.0.13",
+    "version": "2.0.18",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -18,7 +18,7 @@
       "bundleIdentifier": "com.bud.budios",
       "googleServicesFile": "./ios/budmobile/GoogleService-Info.plist",
       "usesAppleSignIn": true,
-      "buildNumber": "23",
+      "buildNumber": "28",
       "associatedDomains": ["applinks:falecombud.com.br"],
       "entitlements": {
         "aps-environment": "development",
@@ -29,7 +29,8 @@
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Bud precisa acessar o microfone para conversas de voz.",
         "NSCameraUsageDescription": "Bud precisa acessar a câmera para tirar fotos e anexar imagens em conversas e solicitações.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIUserInterfaceStyle": "Automatic"
       },
       "scheme": "com.bud.app"
     },

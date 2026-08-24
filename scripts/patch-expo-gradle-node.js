@@ -340,6 +340,7 @@ const nodeCommandReplacements = [
 ];
 
 for (const pkg of [
+  'react-native-gesture-handler',
   'react-native-reanimated',
   'react-native-screens',
   'react-native-svg',

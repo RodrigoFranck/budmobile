@@ -75,11 +75,7 @@ export default function ChatScreen() {
 
   const mapChatInsightToContext = useCallback((insight: ChatInsightParam): InsightContext => ({
     insightType: insight.insightType,
-    badge: insight.badge,
-    title: insight.title,
-    contextSummary: insight.contextSummary,
     internalContext: insight.internalContext,
-    backgroundType: insight.backgroundType,
   }), []);
 
   const applyChatInsight = useCallback(
@@ -91,7 +87,7 @@ export default function ChatScreen() {
         {
           insight_type: insight.insightType,
           title: insight.title,
-          description: insight.contextSummary,
+          description: insight.internalContext,
         },
       ]);
     },
@@ -396,7 +392,7 @@ export default function ChatScreen() {
 
   return (
     <ScreenLoadingGate loading={tabLoading}>
-      <View className="flex-1 bg-background">
+      <View style={{ flex: 1, backgroundColor: colors['chat-warm-bg'] }}>
       <LinearGradient
         colors={[colors['chat-warm-bg'], colors['chat-gradient-end']]}
         locations={[0.35, 1]}
