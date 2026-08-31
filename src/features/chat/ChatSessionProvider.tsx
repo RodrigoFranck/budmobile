@@ -13,6 +13,7 @@ import {
 import { useFocusEffect, useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { ACTION_EVENTS, logActionEvent } from '@/analytics';
 import { useTabScreenContext } from '@/contexts/TabScreenContext';
 import { countUserTurns, matchApproach } from '@/utils/approachMatcher';
 import { buildInsightApproachContext } from '@/utils/buildInsightApproachContext';
@@ -139,6 +140,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const didPersistContextRef = useRef(false);
   const messageClientIdsRef = useRef<Map<string, string | number>>(new Map());
   const wasVoiceModeActiveRef = useRef(false);
+  const voiceSessionStartMsRef = useRef<number | null>(null);
 
   const mapChatInsightToContext = useCallback((insight: ChatInsightParam): InsightContext => ({
     insightType: insight.insightType,
@@ -247,8 +249,24 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    const justActivated = isVoiceModeActive && !wasVoiceModeActiveRef.current;
+    const wasActive = wasVoiceModeActiveRef.current;
+    const justActivated = isVoiceModeActive && !wasActive;
+    const justDeactivated = !isVoiceModeActive && wasActive;
     wasVoiceModeActiveRef.current = isVoiceModeActive;
+
+    if (justActivated) {
+      voiceSessionStartMsRef.current = Date.now();
+      void logActionEvent(ACTION_EVENTS.VOICE_SESSION_STARTED, { source: 'chat' });
+    }
+
+    if (justDeactivated) {
+      const startMs = voiceSessionStartMsRef.current;
+      voiceSessionStartMsRef.current = null;
+      const durationSeconds = startMs ? Math.round((Date.now() - startMs) / 1000) : 0;
+      void logActionEvent(ACTION_EVENTS.VOICE_SESSION_ENDED, {
+        duration_seconds: durationSeconds,
+      });
+    }
 
     if (!isVoiceModeActive) {
       setIsVoicePaused(false);
@@ -366,6 +384,10 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
 
       const activeInsightContext =
         contextOverride ?? insightContextRef.current ?? insightContext;
+
+      void logActionEvent(ACTION_EVENTS.MESSAGE_SENT, {
+        has_insight_context: activeInsightContext ? 'true' : 'false',
+      });
 
       const userMessageId = createStreamingMessageId('user');
       registerMessageClientId(messageClientIdsRef.current, 'user', message, userMessageId);

@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Book, Settings } from 'lucide-react-native';
 
 import checkInCardBg from '@/assets/checkin-card-bg.png';
+import { CLICK_EVENTS, logClickEvent } from '@/analytics';
 import { TabScreenHeader } from '@/components/ui/TabScreenHeader';
 import { WeekCalendarHeader } from '@/components/ui/WeekCalendarHeader';
 import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
@@ -48,7 +49,10 @@ export default function ActivitiesHome() {
 
         <Pressable
           style={styles.checkInCard}
-          onPress={() => rootNavigation.navigate('CheckIn')}
+          onPress={() => {
+            void logClickEvent(CLICK_EVENTS.ACTIVITIES_HOME_CHECKIN);
+            rootNavigation.navigate('CheckIn');
+          }}
           accessibilityRole="button"
           accessibilityLabel="Check-In. Um check-in diário com você mesmo"
         >

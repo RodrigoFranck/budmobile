@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Brain, ChevronLeft, Clock } from 'lucide-react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+import { ACTION_EVENTS, CLICK_EVENTS, logActionEvent, logClickEvent } from '@/analytics';
 import checkInIntroHero from '@/assets/yesterday-journey-bg.png';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { getNowInBrasilia } from '@/utils/dateUtils';
@@ -129,7 +130,10 @@ export default function CheckInIntro() {
 
           <Pressable
             style={[styles.backButton, { top: backTop }]}
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              void logActionEvent(ACTION_EVENTS.CHECKIN_INTRO_ABANDONED);
+              navigation.goBack();
+            }}
             accessibilityRole="button"
             accessibilityLabel="Voltar"
           >
@@ -179,7 +183,10 @@ export default function CheckInIntro() {
       >
         <Pressable
           style={styles.ctaButton}
-          onPress={() => navigation.replace('CheckInActivities')}
+          onPress={() => {
+            void logClickEvent(CLICK_EVENTS.CHECKIN_INTRO_START);
+            navigation.replace('CheckInActivities');
+          }}
           accessibilityRole="button"
           accessibilityLabel="Começar check-in"
         >

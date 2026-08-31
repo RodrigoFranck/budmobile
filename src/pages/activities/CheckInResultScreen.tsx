@@ -17,6 +17,7 @@ import { useAppColors } from '@/lib/colors';
 import type { CheckInStackParamList } from '@/types/checkInNavigation.types';
 import { openCheckInChat } from '@/utils/buildCheckInChatInsight';
 import { WavesIcon } from '@/voice/WavesIcon';
+import { ACTION_EVENTS, logActionEvent } from '@/analytics';
 
 import { createCheckInResultStyles } from './CheckInResult.styles';
 
@@ -58,12 +59,17 @@ export default function CheckInResultScreen() {
   const { type, checkinId, pendingReport, responses, checkinResponses } = route.params;
   const initialReport = route.params.report;
 
+  useEffect(() => {
+    reportViewedLoggedRef.current = false;
+  }, [checkinId, type]);
+
   const [report, setReport] = useState<CheckinReport | null>(initialReport);
   const [loading, setLoading] = useState(Boolean(pendingReport && !initialReport));
   const [loadingIdx, setLoadingIdx] = useState(0);
   const [generateFailed, setGenerateFailed] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const generateInFlightRef = useRef(false);
+  const reportViewedLoggedRef = useRef(false);
 
   const gradient = useMemo(
     () => resolveCheckInGradient(getResultGradient(type), theme.surface),
@@ -149,6 +155,18 @@ export default function CheckInResultScreen() {
 
     return () => subscription.remove();
   }, [generateFailed, loading, pendingReport, report, responses]);
+
+  useEffect(() => {
+    if (loading || !report || reportViewedLoggedRef.current) {
+      return;
+    }
+
+    reportViewedLoggedRef.current = true;
+    void logActionEvent(ACTION_EVENTS.CHECKIN_REPORT_VIEWED, {
+      checkin_type: type,
+      source: initialReport ? 'existing' : 'generated',
+    });
+  }, [initialReport, loading, report, type]);
 
   const handleTalkAbout = (question?: string, mode: 'text' | 'voice' = 'text') => {
     if (!report) return;

@@ -1,5 +1,15 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { DefaultTheme, DarkTheme, NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  DefaultTheme,
+  DarkTheme,
+  NavigationContainer,
+  useNavigationContainerRef,
+} from '@react-navigation/native';
+import {
+  getActiveRoutePath,
+  logScreenView,
+  resolveScreenAnalytics,
+} from '@/analytics';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -34,7 +44,24 @@ export default function AppNavigator() {
   } = useAuth();
   const { mode } = useTheme();
   const navigationRef = useNavigationContainerRef<RootStackParamList>();
+  const routePathRef = useRef<string | undefined>(undefined);
   usePushNotifications(navigationRef);
+
+  const trackNavigationScreen = useCallback(async () => {
+    const rootState = navigationRef.getRootState();
+    if (!rootState) {
+      return;
+    }
+
+    const routePath = getActiveRoutePath(rootState);
+    if (!routePath || routePathRef.current === routePath) {
+      return;
+    }
+
+    routePathRef.current = routePath;
+    const screen = resolveScreenAnalytics(routePath);
+    await logScreenView(screen);
+  }, [navigationRef]);
   const isLoading = Boolean(loading);
   const waitOnboarding = Boolean(user && !onboardingStatusLoaded && !passwordRecoveryPending);
   const [minSplashElapsed, setMinSplashElapsed] = useState(false);
@@ -64,7 +91,16 @@ export default function AppNavigator() {
 
   return (
     <View style={{ flex: 1 }}>
-      <NavigationContainer ref={navigationRef} theme={mode === 'dark' ? DarkTheme : DefaultTheme}>
+      <NavigationContainer
+        ref={navigationRef}
+        theme={mode === 'dark' ? DarkTheme : DefaultTheme}
+        onReady={() => {
+          void trackNavigationScreen();
+        }}
+        onStateChange={() => {
+          void trackNavigationScreen();
+        }}
+      >
         <Stack.Navigator
           screenOptions={{
             headerShown: false,

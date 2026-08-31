@@ -11,6 +11,7 @@ import { ConversationProvider } from '@elevenlabs/react-native';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AppAlertProvider } from '@/contexts/AppAlertContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { AnalyticsUserSync, initAnalytics } from '@/analytics';
 import AppNavigator from '@/navigation/AppNavigator';
 import { AppQueryProvider } from '@/providers/AppQueryProvider';
 
@@ -26,6 +27,10 @@ export default function App() {
     InstrumentSans: require('./assets/fonts/InstrumentSans-Variable.ttf'),
     Fraunces_400Regular,
   });
+
+  useEffect(() => {
+    void initAnalytics();
+  }, []);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
@@ -59,6 +64,7 @@ export default function App() {
         <AppQueryProvider>
           <AuthProvider>
             <ThemeProvider>
+              <AnalyticsUserSync />
               <AppAlertProvider>
                 <AppNavigator />
                 <ThemedStatusBar />

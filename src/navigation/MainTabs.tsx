@@ -9,6 +9,7 @@ import ChatNavigator from '@/navigation/ChatNavigator';
 import ExploreScreen from '@/pages/Explore';
 import HistoryScreen from '@/pages/History';
 import ActivitiesNavigator from '@/navigation/ActivitiesNavigator';
+import { CLICK_EVENTS, logClickEvent } from '@/analytics';
 import {
   getMainTabScreenOptions,
   TAB_BAR_ICON_SIZE,
@@ -42,6 +43,7 @@ function MainTabsNavigator() {
         }}
         listeners={({ navigation: tabNavigation }) => ({
           tabPress: () => {
+            void logClickEvent(CLICK_EVENTS.TAB_SELECT, { tab: 'chat' });
             if (tabNavigation.isFocused()) {
               resetChatToHome();
             }
@@ -51,6 +53,11 @@ function MainTabsNavigator() {
       <Tab.Screen
         name="Explore"
         component={ExploreScreen}
+        listeners={{
+          tabPress: () => {
+            void logClickEvent(CLICK_EVENTS.TAB_SELECT, { tab: 'explore' });
+          },
+        }}
         options={{
           tabBarLabel: 'Explorar',
           tabBarBadge:
@@ -73,6 +80,11 @@ function MainTabsNavigator() {
       <Tab.Screen
         name="Activities"
         component={ActivitiesNavigator}
+        listeners={{
+          tabPress: () => {
+            void logClickEvent(CLICK_EVENTS.TAB_SELECT, { tab: 'activities' });
+          },
+        }}
         options={{
           tabBarLabel: 'Atividades',
           tabBarIcon: ({ color, size }) => (
@@ -83,6 +95,11 @@ function MainTabsNavigator() {
       <Tab.Screen
         name="History"
         component={HistoryScreen}
+        listeners={{
+          tabPress: () => {
+            void logClickEvent(CLICK_EVENTS.TAB_SELECT, { tab: 'history' });
+          },
+        }}
         options={{
           tabBarLabel: 'Histórico',
           tabBarIcon: ({ color, size }) => (
