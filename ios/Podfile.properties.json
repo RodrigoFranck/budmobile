@@ -3,5 +3,5 @@
   "EX_DEV_CLIENT_NETWORK_INSPECTOR": "true",
   "newArchEnabled": "true",
   "ios.useFrameworks": "static",
-  "ios.forceStaticLinking": "[\"RNFBApp\",\"RNFBMessaging\",\"livekit-react-native\",\"livekit-react-native-webrtc\"]"
+  "ios.forceStaticLinking": "[\"RNFBApp\",\"RNFBAnalytics\",\"RNFBMessaging\",\"livekit-react-native\",\"livekit-react-native-webrtc\"]"
 }

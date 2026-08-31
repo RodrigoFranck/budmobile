@@ -1,4 +1,5 @@
 import analytics from '@react-native-firebase/analytics';
+import { Platform } from 'react-native';
 
 import { enrichAnalyticsParams } from '@/analytics/enrichParams';
 import { BOOLEAN_LABELS, THEME_PREFERENCE_LABELS } from '@/analytics/labels';
@@ -60,6 +61,14 @@ export async function initAnalytics(): Promise<void> {
 
   await runAnalyticsTask(async () => {
     await analytics().setAnalyticsCollectionEnabled(true);
+
+    if (__DEV__) {
+      await analytics().logEvent('analytics_debug_ping', {
+        platform: Platform.OS,
+        app_version: APP_VERSION,
+      });
+      console.log('[analytics] debug ping sent', Platform.OS);
+    }
   });
 }
 
