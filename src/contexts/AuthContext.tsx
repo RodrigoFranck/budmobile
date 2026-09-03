@@ -137,9 +137,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    await queryClient.cancelQueries({ queryKey: queryKeys.profile(user.id) });
     const data = await queryClient.fetchQuery({
       queryKey: queryKeys.profile(user.id),
       queryFn: () => fetchAppProfile(user.id),
+      staleTime: 0,
     });
 
     setOnboardingCompleted(normalizeOnboardingCompleted(data?.onboarding_completed));

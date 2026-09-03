@@ -68,7 +68,8 @@ export default function SettingsScreen() {
       try {
         await setNotificationsEnabled(nextEnabled);
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : "Erro desconhecido";
+        const message =
+          error instanceof Error ? error.message : "Erro desconhecido";
         showAlert({ title: "Erro", message });
       }
     },
@@ -147,13 +148,16 @@ export default function SettingsScreen() {
 
   const handleResetOnboarding = useCallback(() => {
     if (!user?.id) {
-      showAlert({ title: "Erro", message: "Sessão inválida. Faça login novamente." });
+      showAlert({
+        title: "Erro",
+        message: "Sessão inválida. Faça login novamente.",
+      });
       return;
     }
 
     showAlert({
       title: "Rever onboarding",
-      message: "Isso vai reabrir o onboarding ao finalizar. Continuar?",
+      message: "Isso vai reabrir o onboarding agora. \n Deseja continuar?",
       buttons: [
         { text: "Cancelar", style: "cancel" },
         {
