@@ -19,6 +19,7 @@ import {
   registerMessageClientId,
   clearMessageClientIds,
 } from '@/utils/mergeChatMessages';
+import { sanitizeAssistantPortuguese } from '@/utils/portugueseText';
 import { PlatformConstants } from '@/constants/layout';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
 import { VoiceMode } from '@/voice/VoiceMode';
@@ -211,7 +212,7 @@ export default function ChatScreen() {
   const handleVoiceAssistantMessage = useCallback(
     async (text: string) => {
       if (!currentConversationId || !text.trim()) return;
-      await addMessage(text, 'assistant');
+      await addMessage(sanitizeAssistantPortuguese(text), 'assistant');
     },
     [currentConversationId, addMessage],
   );
@@ -311,6 +312,7 @@ export default function ChatScreen() {
           );
         },
         onDone: async () => {
+          accumulatedContent = sanitizeAssistantPortuguese(accumulatedContent);
           registerMessageClientId(
             messageClientIdsRef.current,
             'assistant',
@@ -321,7 +323,12 @@ export default function ChatScreen() {
           setStreamingMessages((prev) =>
             prev.map((msg) =>
               msg.id === assistantMessageId
-                ? { ...msg, isStreaming: false, isRevealing: true }
+                ? {
+                    ...msg,
+                    content: accumulatedContent,
+                    isStreaming: false,
+                    isRevealing: true,
+                  }
                 : msg,
             ),
           );
