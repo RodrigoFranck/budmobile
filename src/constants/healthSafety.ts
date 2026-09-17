@@ -25,3 +25,6 @@ export const PRIVACY_POLICY_URL =
 export const TERMS_OF_SERVICE_URL =
   'https://falecombud.com.br/legal/cluf-bud-2026';
 export const HELP_URL = 'https://falecombud.com.br';
+
+/** Version of CLUF + Política de Privacidade currently shown in the app. */
+export const LEGAL_DOCUMENTS_VERSION = 'bud-legal-2026-06-25';

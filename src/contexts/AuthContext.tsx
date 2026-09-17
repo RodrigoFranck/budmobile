@@ -19,6 +19,7 @@ import { unregisterPushNotificationsForUser } from '@/hooks/usePushNotifications
 import { MOBILE_OAUTH_WEB_CALLBACK } from '@/constants/auth';
 import { queryKeys } from '@/lib/queryKeys';
 import { fetchAppProfile } from '@/services/profileQuery';
+import { ensureTermsAcceptance } from '@/services/termsAcceptance';
 import { z } from 'zod';
 
 const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '';
@@ -180,13 +181,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (event, nextSession) => {
         if (event === 'PASSWORD_RECOVERY') {
           setPasswordRecoveryPending(true);
         }
-        setSession(session);
-        setUser(session?.user ?? null);
+        setSession(nextSession);
+        setUser(nextSession?.user ?? null);
         setLoading(false);
+
+        // Defer DB writes — async work inside onAuthStateChange can deadlock the client.
+        if (
+          nextSession?.user?.id &&
+          (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')
+        ) {
+          const userId = nextSession.user.id;
+          setTimeout(() => {
+            void ensureTermsAcceptance(userId);
+          }, 0);
+        }
       }
     );
 
@@ -201,6 +213,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setSession(session);
           setUser(session?.user ?? null);
+          if (session?.user?.id) {
+            void ensureTermsAcceptance(session.user.id);
+          }
         }
         setLoading(false);
       })

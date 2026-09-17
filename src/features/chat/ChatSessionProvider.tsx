@@ -34,6 +34,7 @@ import {
 } from '@/utils/mergeChatMessages';
 import { serializeInsightContextMessage } from '@/utils/insightContextMessage';
 import { buildInsightVoiceFirstMessage } from '@/utils/insightVoiceOpening';
+import { sanitizeAssistantPortuguese } from '@/utils/portugueseText';
 import { syncExploreInsights } from '@/utils/syncExploreInsights';
 import { scheduleSessionMemory } from '@/utils/scheduleSessionMemory';
 import type { StreamingMessage } from '@/types/messages';
@@ -314,7 +315,8 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const handleVoiceAssistantMessage = useCallback(
     async (text: string) => {
       if (!currentConversationId || !text.trim()) return;
-      await addMessage(text, 'assistant');
+      const sanitized = sanitizeAssistantPortuguese(text);
+      await addMessage(sanitized, 'assistant');
       scheduleInsightSync();
       scheduleSessionMemory(currentConversationId, dbMessages.length + 1);
     },
@@ -465,6 +467,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
             );
           },
           onDone: async () => {
+            accumulatedContent = sanitizeAssistantPortuguese(accumulatedContent);
             registerMessageClientId(
               messageClientIdsRef.current,
               'assistant',
@@ -476,7 +479,12 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
             setStreamingMessages((prev) =>
               prev.map((msg) =>
                 msg.id === assistantMessageId
-                  ? { ...msg, isStreaming: false, isRevealing: true }
+                  ? {
+                      ...msg,
+                      content: accumulatedContent,
+                      isStreaming: false,
+                      isRevealing: true,
+                    }
                   : msg,
               ),
             );

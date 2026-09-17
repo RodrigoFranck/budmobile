@@ -35,6 +35,53 @@ export interface InsightContext {
 }
 
 /**
+ * Parse one SSE line. Returns delta content when present.
+ */
+export function parseSseDataLine(line: string): string | null {
+  const trimmed = line.replace(/\r$/, "").trim();
+  if (!trimmed || trimmed.startsWith(":")) return null;
+  if (!trimmed.startsWith("data:")) return null;
+
+  const jsonStr = trimmed.startsWith("data: ")
+    ? trimmed.slice(6).trim()
+    : trimmed.slice(5).trim();
+
+  if (!jsonStr || jsonStr === "[DONE]") return null;
+
+  try {
+    const parsed = JSON.parse(jsonStr) as {
+      choices?: Array<{ delta?: { content?: string } }>;
+    };
+    const content = parsed.choices?.[0]?.delta?.content;
+    return typeof content === "string" && content.length > 0 ? content : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Feed incremental SSE text into a line buffer.
+ * Keeps the trailing partial line until a newline arrives — avoids dropping mid-token JSON.
+ */
+export function consumeSseBuffer(
+  buffer: string,
+  chunk: string,
+  onDelta: (deltaText: string) => void,
+  options?: { flush?: boolean },
+): string {
+  const combined = buffer + chunk;
+  const parts = combined.split("\n");
+  const incomplete = options?.flush ? "" : (parts.pop() ?? "");
+
+  for (const part of parts) {
+    const content = parseSseDataLine(part);
+    if (content) onDelta(content);
+  }
+
+  return incomplete;
+}
+
+/**
  * Stream chat using XMLHttpRequest for React Native compatibility.
  * React Native's fetch doesn't support ReadableStream, so we use XHR with onprogress.
  */
@@ -61,77 +108,33 @@ export async function streamChat({
   const CHAT_URL = `${SUPABASE_URL}/functions/v1/chat-text`;
 
   try {
-    // Get the current user's session for JWT authentication
     const { data: { session } } = await supabase.auth.getSession();
-    
+
     if (!session?.access_token) {
       onError("Você precisa estar logado para usar o chat.");
       return;
     }
 
-    // Use XMLHttpRequest for React Native streaming support
     const xhr = new XMLHttpRequest();
     let lastProcessedIndex = 0;
+    let sseBuffer = "";
 
     xhr.open("POST", CHAT_URL, true);
     xhr.setRequestHeader("Content-Type", "application/json");
     xhr.setRequestHeader("Authorization", `Bearer ${session.access_token}`);
 
-    // Process streaming data incrementally
     xhr.onprogress = () => {
       const responseText = xhr.responseText;
       const newData = responseText.substring(lastProcessedIndex);
       lastProcessedIndex = responseText.length;
-
-      // Process each line of SSE data
-      const lines = newData.split("\n");
-      for (const line of lines) {
-        if (!line || line.trim() === "") continue;
-        if (line.startsWith(":")) continue; // SSE comment
-        if (!line.startsWith("data: ")) continue;
-
-        const jsonStr = line.slice(6).trim();
-        if (jsonStr === "[DONE]") continue;
-
-        try {
-          const parsed = JSON.parse(jsonStr);
-          const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-          if (content) {
-            onDelta(content);
-          }
-        } catch {
-          // Incomplete JSON, will be processed in next chunk
-        }
-      }
+      sseBuffer = consumeSseBuffer(sseBuffer, newData, onDelta);
     };
 
     xhr.onload = () => {
       if (xhr.status === 200) {
-        // Process any remaining data
         const responseText = xhr.responseText;
         const remainingData = responseText.substring(lastProcessedIndex);
-        
-        if (remainingData) {
-          const lines = remainingData.split("\n");
-          for (const line of lines) {
-            if (!line || line.trim() === "") continue;
-            if (line.startsWith(":")) continue;
-            if (!line.startsWith("data: ")) continue;
-
-            const jsonStr = line.slice(6).trim();
-            if (jsonStr === "[DONE]") continue;
-
-            try {
-              const parsed = JSON.parse(jsonStr);
-              const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-              if (content) {
-                onDelta(content);
-              }
-            } catch {
-              // Ignore incomplete JSON at the end
-            }
-          }
-        }
+        sseBuffer = consumeSseBuffer(sseBuffer, remainingData, onDelta, { flush: true });
         onDone();
       } else if (xhr.status === 429) {
         onError("Limite de requisições atingido. Tente novamente mais tarde.");
@@ -155,10 +158,8 @@ export async function streamChat({
       onError("Tempo de conexão esgotado. Tente novamente.");
     };
 
-    // Set a reasonable timeout (2 minutes for long responses)
     xhr.timeout = 120000;
 
-    // Send the request
     xhr.send(
       JSON.stringify({
         messages,
@@ -169,7 +170,6 @@ export async function streamChat({
         internalProfile: memoryContext?.internalProfileText ?? null,
       }),
     );
-
   } catch (error) {
     console.error("Stream error:", error);
     onError(error instanceof Error ? error.message : "Erro desconhecido");
