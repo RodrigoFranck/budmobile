@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+import { CLICK_EVENTS, logClickEvent } from '@/analytics';
 import habitCardBg from '@/assets/habit-bg.png';
 import morningCardBg from '@/assets/yesterday-journey-bg.png';
 import postTrainingCardBg from '@/assets/frequency-bg.png';
@@ -76,6 +77,7 @@ export default function CheckInActivities() {
         return;
       }
       navigation.navigate('CheckInFlow', { type });
+      void logClickEvent(CLICK_EVENTS.CHECKIN_ACTIVITIES_SELECT, { checkin_type: type });
     },
     [navigation, todayMorning, todayPostGame, todayPostTraining],
   );

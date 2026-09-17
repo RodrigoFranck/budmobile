@@ -1,5 +1,6 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { View, type LayoutChangeEvent } from 'react-native';
+import { ACTION_EVENTS, CLICK_EVENTS, logActionEvent, logClickEvent } from '@/analytics';
 import {
   useFocusEffect,
   useIsFocused,
@@ -106,6 +107,7 @@ export default function ExploreScreen() {
 
   const carouselRef = useRef<CarouselRef>(null);
   const progress = useSharedValue(0);
+  const lastLoggedInsightIndexRef = useRef<number | null>(null);
   const [pageHeight, setPageHeight] = useState(0);
   const [pageWidth, setPageWidth] = useState(0);
 
@@ -130,32 +132,81 @@ export default function ExploreScreen() {
     [frequencyInsight, habitInsight, yesterdayInsight],
   );
 
-  useFocusEffect(
-    useCallback(() => {
-      refreshExploreInsights({ cacheOnly: true });
-    }, [refreshExploreInsights]),
+  const logInsightViewed = useCallback(
+    (index: number, interaction: 'swipe' | 'pagination' | 'initial') => {
+      const clamped = clampInsightIndex(index, EXPLORE_INSIGHT_COUNT);
+      if (lastLoggedInsightIndexRef.current === clamped) {
+        return;
+      }
+
+      lastLoggedInsightIndexRef.current = clamped;
+      const key = EXPLORE_INSIGHT_KEYS[clamped];
+      const insight = insightCards[clamped]?.insight;
+      if (!key || !insight) {
+        return;
+      }
+
+      void logActionEvent(ACTION_EVENTS.EXPLORE_INSIGHT_VIEWED, {
+        insight_type: key,
+        card_index: clamped,
+        is_locked: insight.locked ? 'true' : 'false',
+        view_method: interaction,
+      });
+      markInsightViewed(key);
+    },
+    [insightCards, markInsightViewed],
+  );
+
+  const logBlockedInsightAttempt = useCallback(
+    (insightType: ExploreInsightKey, insight: Insight, interaction: 'message' | 'voice') => {
+      void logActionEvent(ACTION_EVENTS.EXPLORE_INSIGHT_BLOCKED, {
+        insight_type: insightType,
+        interaction,
+        cycle_progress: insight.cycleProgress ?? 0,
+        cycle_required: insight.cycleRequired ?? 0,
+        remaining: insight.remaining ?? 0,
+      });
+    },
+    [],
   );
 
   const navigateToChatText = useCallback(
     (insightType: ExploreInsightKey, insight: Insight) => {
       if (insight.locked) {
+        logBlockedInsightAttempt(insightType, insight, 'message');
         return;
       }
 
+      void logClickEvent(CLICK_EVENTS.EXPLORE_INSIGHT_MESSAGE, {
+        insight_type: insightType,
+      });
       openExploreChat(navigation, insightType, insight, 'text');
     },
-    [navigation],
+    [logBlockedInsightAttempt, navigation],
   );
 
   const navigateToChatVoice = useCallback(
     (insightType: ExploreInsightKey, insight: Insight) => {
       if (insight.locked) {
+        logBlockedInsightAttempt(insightType, insight, 'voice');
         return;
       }
 
+      void logClickEvent(CLICK_EVENTS.EXPLORE_INSIGHT_VOICE, {
+        insight_type: insightType,
+      });
       openExploreChat(navigation, insightType, insight, 'voice');
     },
-    [navigation],
+    [logBlockedInsightAttempt, navigation],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshExploreInsights({ cacheOnly: true });
+      lastLoggedInsightIndexRef.current = null;
+      const currentIndex = carouselRef.current?.getCurrentIndex() ?? 0;
+      logInsightViewed(currentIndex, 'initial');
+    }, [logInsightViewed, refreshExploreInsights]),
   );
 
   const handleListLayout = (event: LayoutChangeEvent) => {
@@ -169,12 +220,9 @@ export default function ExploreScreen() {
       if (!isFocused) {
         return;
       }
-      const key = EXPLORE_INSIGHT_KEYS[clampInsightIndex(index, EXPLORE_INSIGHT_COUNT)];
-      if (key) {
-        markInsightViewed(key);
-      }
+      logInsightViewed(index, 'swipe');
     },
-    [isFocused, markInsightViewed],
+    [isFocused, logInsightViewed],
   );
 
   const goToInsight = useCallback((index: number) => {
@@ -183,11 +231,12 @@ export default function ExploreScreen() {
     if (clamped === current) {
       return;
     }
+    logInsightViewed(clamped, 'pagination');
     carouselRef.current?.scrollTo({
       index: clamped,
       animated: true,
     });
-  }, []);
+  }, [logInsightViewed]);
 
   const handlePrev = useCallback(() => {
     const current = carouselRef.current?.getCurrentIndex() ?? 0;

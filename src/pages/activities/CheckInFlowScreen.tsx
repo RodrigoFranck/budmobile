@@ -19,6 +19,7 @@ import { CheckInFlowHeader } from '@/components/checkin/CheckInFlowHeader';
 import { CheckInSliderInput } from '@/components/checkin/CheckInSliderInput';
 import { CheckInTextInput } from '@/components/checkin/CheckInTextInput';
 import { useCheckInFlowStyles } from '@/components/checkin/checkInFlow.styles';
+import { ACTION_EVENTS, logActionEvent } from '@/analytics';
 import { useAppAlert } from '@/contexts/AppAlertContext';
 import { getCheckInSteps } from '@/features/checkin/checkInSteps';
 import type { CheckInStepConfig } from '@/features/checkin/checkInFlow.types';
@@ -65,6 +66,10 @@ export default function CheckInFlowScreen() {
   );
 
   useEffect(() => {
+    void logActionEvent(ACTION_EVENTS.CHECKIN_STARTED, { checkin_type: checkinType });
+  }, [checkinType]);
+
+  useEffect(() => {
     if (step.inputType !== 'slider') return;
     setResponses((prev) => {
       if (prev[step.key] !== undefined) return prev;
@@ -90,7 +95,14 @@ export default function CheckInFlowScreen() {
       message: 'Suas respostas desta sessão serão perdidas.',
       buttons: [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Sair', style: 'destructive', onPress: () => navigation.goBack() },
+        { text: 'Sair', style: 'destructive', onPress: () => {
+          void logActionEvent(ACTION_EVENTS.CHECKIN_ABANDONED, {
+            checkin_type: checkinType,
+            step_index: currentStep,
+            progress_percent: Math.round(progress),
+          });
+          navigation.goBack();
+        } },
       ],
     });
   }, [navigation, showAlert]);
@@ -119,6 +131,10 @@ export default function CheckInFlowScreen() {
         pendingReport: true,
         responses,
         checkinResponses: responses,
+      });
+      void logActionEvent(ACTION_EVENTS.CHECKIN_COMPLETED, {
+        checkin_type: checkinType,
+        step_count: steps.length,
       });
     } catch (err) {
       console.error(err);

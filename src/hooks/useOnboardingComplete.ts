@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { ACTION_EVENTS, logActionEvent } from '@/analytics';
 import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useOnboardingFlow } from '@/contexts/OnboardingFlowContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -52,6 +53,7 @@ export function useOnboardingComplete() {
       });
 
       await refreshOnboardingStatus();
+      void logActionEvent(ACTION_EVENTS.ONBOARDING_COMPLETED);
       return { error: null };
     } catch (e) {
       const err = e instanceof Error ? e : new Error('Erro desconhecido');

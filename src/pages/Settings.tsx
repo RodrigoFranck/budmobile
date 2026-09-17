@@ -14,6 +14,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 import { ArrowLeft, ExternalLink, Link2 } from "lucide-react-native";
+import { CLICK_EVENTS, logClickEvent } from "@/analytics";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppAlert } from "@/contexts/AppAlertContext";
 import type { NavigationProp } from "@/types/navigation";
@@ -84,6 +85,7 @@ export default function SettingsScreen() {
   }, [navigation]);
 
   const openPsychologicalAssessment = useCallback(() => {
+    void logClickEvent(CLICK_EVENTS.SETTINGS_PSYCHOLOGICAL_ASSESSMENT);
     navigation.navigate("PsychologicalAssessment");
   }, [navigation]);
 

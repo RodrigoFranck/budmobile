@@ -17,6 +17,7 @@ import { CheckInSliderInput } from '@/components/checkin/CheckInSliderInput';
 import { CheckInTextInput } from '@/components/checkin/CheckInTextInput';
 import { useCheckInFlowStyles } from '@/components/checkin/checkInFlow.styles';
 import { useAppAlert } from '@/contexts/AppAlertContext';
+import { ACTION_EVENTS, logActionEvent } from '@/analytics';
 import type { PsychologicalAssessmentStepConfig } from '@/features/psychologicalAssessment/psychologicalAssessment.types';
 import {
   PSYCHOLOGICAL_ASSESSMENT_TOTAL_QUESTIONS,
@@ -85,11 +86,17 @@ export default function PsychologicalAssessmentFlowScreen() {
         {
           text: 'Sair',
           style: 'destructive',
-          onPress: () => navigation.getParent()?.goBack(),
+          onPress: () => {
+            void logActionEvent(ACTION_EVENTS.PSYCHOLOGICAL_ASSESSMENT_ABANDONED, {
+              step_index: currentStep,
+              progress_percent: Math.round(progress),
+            });
+            navigation.getParent()?.goBack();
+          },
         },
       ],
     });
-  }, [navigation, showAlert]);
+  }, [navigation, showAlert, currentStep, progress]);
 
   const handleBack = useCallback(() => {
     if (currentStep === 0) {
@@ -121,6 +128,9 @@ export default function PsychologicalAssessmentFlowScreen() {
             onPress: () => navigation.getParent()?.goBack(),
           },
         ],
+      });
+      void logActionEvent(ACTION_EVENTS.PSYCHOLOGICAL_ASSESSMENT_COMPLETED, {
+        step_count: steps.length,
       });
     } catch (err) {
       console.error(err);

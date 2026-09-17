@@ -15,6 +15,8 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 
 import { appAlert } from '@/contexts/AppAlertContext';
+import { setAnalyticsUserProperties } from '@/analytics';
+import { THEME_PREFERENCE_LABELS } from '@/analytics/labels';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppProfileQuery } from '@/hooks/useAppProfileQuery';
@@ -125,6 +127,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           queryKeys.profile(user.id),
           (current) => (current ? { ...current, dark_mode: nextDark } : current),
         );
+        void setAnalyticsUserProperties({
+          theme_preference: nextPreference,
+          theme_preference_label: THEME_PREFERENCE_LABELS[nextPreference],
+        });
       } catch {
         setPreferenceState(preferenceFromProfile(profile?.dark_mode));
         appAlert({ title: 'Erro', message: 'Não foi possível salvar sua preferência de tema.' });

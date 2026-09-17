@@ -8,6 +8,13 @@ import * as Crypto from 'expo-crypto';
 import { CodedError } from 'expo-modules-core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  ACTION_EVENTS,
+  logActionEvent,
+  logLogin,
+  logSignUp,
+  syncAnalyticsUserProfile,
+} from '@/analytics';
 import { unregisterPushNotificationsForUser } from '@/hooks/usePushNotifications';
 import { MOBILE_OAUTH_WEB_CALLBACK } from '@/constants/auth';
 import { queryKeys } from '@/lib/queryKeys';
@@ -164,6 +171,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id, profileQuery.isPending, profileQuery.data?.onboarding_completed]);
 
   useEffect(() => {
+    void syncAnalyticsUserProfile({
+      userId: user?.id ?? null,
+      onboardingCompleted: user?.id ? onboardingCompleted : undefined,
+    });
+  }, [user?.id, onboardingCompleted]);
+
+  useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -307,6 +321,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: new Error(error.message), userId: null };
       }
 
+      void logSignUp('email');
+
       return { error: null, userId: data.user?.id ?? null };
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -333,6 +349,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) {
         return { error: new Error(error.message) };
       }
+
+      void logLogin('email');
 
       return { error: null };
     } catch (error) {
@@ -398,6 +416,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       }
+
+      void logLogin('apple');
 
       return { error: null };
     } catch (error) {
@@ -473,6 +493,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (signInError) {
           return { error: new Error(signInError.message) };
         }
+
+        void logLogin('google');
       }
 
       return { error: null };
@@ -568,6 +590,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Unexpected sign out error:', error);
     } finally {
+      if (userId && !onboardingCompleted) {
+        void logActionEvent(ACTION_EVENTS.ONBOARDING_ABANDONED, { reason: 'sign_out' });
+      }
+      void logActionEvent(ACTION_EVENTS.SIGN_OUT);
+      void syncAnalyticsUserProfile({ userId: null });
       setPasswordRecoveryPending(false);
       setSession(null);
       setUser(null);

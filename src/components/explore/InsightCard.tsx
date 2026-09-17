@@ -87,8 +87,7 @@ export function InsightCard({
   const showProgress = locked && cycleRequired > 0 && cycleProgress < cycleRequired;
   const progressPercent =
     cycleRequired > 0 ? Math.min((cycleProgress / cycleRequired) * 100, 100) : 0;
-  const showActions =
-    !isButtonDisabled && ((!!buttonText && !!onButtonClick) || !!onMicClick);
+  const showActions = (!!buttonText && !!onButtonClick) || !!onMicClick;
   const resolvedMessageLabel = isUpgradeLocked
     ? lockedMessage || buttonText
     : buttonText;

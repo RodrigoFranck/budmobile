@@ -47,10 +47,9 @@ export function InsightChatActions({
       {onMessage ? (
         <TouchableOpacity
           onPress={onMessage}
-          disabled={messageDisabled}
           accessibilityRole="button"
           accessibilityLabel={messageAccessibilityLabel || messageLabel}
-          activeOpacity={0.85}
+          activeOpacity={messageDisabled ? 1 : 0.85}
           style={[styles.messageButton, messageDisabled && styles.messageButtonDisabled]}
         >
           <Text style={styles.messageLabel} numberOfLines={1}>
@@ -69,10 +68,9 @@ export function InsightChatActions({
       {onVoice ? (
         <TouchableOpacity
           onPress={onVoice}
-          disabled={voiceDisabled}
           accessibilityRole="button"
           accessibilityLabel={voiceAccessibilityLabel || DEFAULT_VOICE_LABEL}
-          activeOpacity={0.88}
+          activeOpacity={voiceDisabled ? 1 : 0.88}
           style={[styles.voiceButton, voiceDisabled && styles.voiceButtonDisabled]}
           hitSlop={insightCardActionLayout.voiceHitSlop}
         >

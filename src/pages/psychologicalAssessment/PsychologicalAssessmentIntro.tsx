@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Clock } from 'lucide-react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+import { CLICK_EVENTS, logClickEvent } from '@/analytics';
 import { PSYCHOLOGICAL_ASSESSMENT_TOTAL_QUESTIONS } from '@/features/psychologicalAssessment/psychologicalAssessmentSteps';
 import { useActivitiesTheme } from '@/lib/activitiesTheme';
 import type { PsychologicalAssessmentStackParamList } from '@/types/psychologicalAssessmentNavigation';
@@ -41,7 +42,10 @@ export default function PsychologicalAssessmentIntro() {
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
         <Pressable
           style={styles.primaryButton}
-          onPress={() => navigation.navigate('PsychologicalAssessmentFlow')}
+          onPress={() => {
+            void logClickEvent(CLICK_EVENTS.PSYCHOLOGICAL_ASSESSMENT_START);
+            navigation.navigate('PsychologicalAssessmentFlow');
+          }}
           accessibilityRole="button"
           accessibilityLabel="Começar avaliação psicológica"
         >

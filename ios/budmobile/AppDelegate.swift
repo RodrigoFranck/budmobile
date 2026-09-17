@@ -1,4 +1,5 @@
 import Expo
+import FirebaseAnalytics
 import FirebaseCore
 import React
 import ReactAppDependencyProvider
@@ -14,6 +15,10 @@ public class AppDelegate: ExpoAppDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+#if DEBUG
+    enableFirebaseDebugModeIfNeeded()
+#endif
+
     let delegate = ReactNativeDelegate()
     let factory = ExpoReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()
@@ -23,6 +28,10 @@ public class AppDelegate: ExpoAppDelegate {
     bindReactNativeFactory(factory)
 
     FirebaseApp.configure()
+
+#if DEBUG
+    Analytics.setAnalyticsCollectionEnabled(true)
+#endif
 
 #if os(iOS) || os(tvOS)
     window = UIWindow(frame: UIScreen.main.bounds)
@@ -34,6 +43,23 @@ public class AppDelegate: ExpoAppDelegate {
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
+
+#if DEBUG
+  private func enableFirebaseDebugModeIfNeeded() {
+    // Required for DebugView when launching via CLI (yarn ios), not only Xcode scheme args.
+    UserDefaults.standard.set(true, forKey: "/google/measurement/debug_mode")
+    UserDefaults.standard.set(true, forKey: "/google/firebase/debug_mode")
+
+    let debugFlags = ["-FIRDebugEnabled", "-FIRAnalyticsDebugEnabled"]
+    var launchArguments = ProcessInfo.processInfo.arguments
+
+    for flag in debugFlags where !launchArguments.contains(flag) {
+      launchArguments.append(flag)
+    }
+
+    ProcessInfo.processInfo.setValue(launchArguments, forKey: "arguments")
+  }
+#endif
 
   // Linking API
   public override func application(

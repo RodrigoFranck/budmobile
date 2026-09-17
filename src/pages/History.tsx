@@ -13,6 +13,7 @@ import { Check, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react-na
 
 import { useFocusEffect } from '@react-navigation/native';
 
+import { CLICK_EVENTS, logClickEvent } from '@/analytics';
 import ConversationDetail from '@/components/history/ConversationDetail';
 import { WeekProgressRing } from '@/components/history/WeekProgressRing';
 import { DeepInsightSheet } from '@/components/explore/DeepInsightSheet';
@@ -70,6 +71,23 @@ export default function HistoryScreen() {
   const [pendingDeepInsightOpen, setPendingDeepInsightOpen] = useState(false);
   const [forceOpenDeepInsight, setForceOpenDeepInsight] = useState(false);
   const [insightWeekStart, setInsightWeekStart] = useState<string | null>(null);
+
+  const openDeepInsight = useCallback(() => {
+    void logClickEvent(CLICK_EVENTS.HISTORY_DEEP_INSIGHT_OPEN);
+    setDeepInsightOpen(true);
+  }, []);
+
+  const openConversation = useCallback(
+    (conversation: { id: string; title: string; date: Date }) => {
+      void logClickEvent(CLICK_EVENTS.HISTORY_CONVERSATION_OPEN);
+      setSelectedConversation({
+        id: conversation.id,
+        title: conversation.title,
+        date: conversation.date.toISOString(),
+      });
+    },
+    [],
+  );
 
   const weekGroups = useMemo(
     () => groupConversationsByWeek(conversations),
@@ -248,7 +266,7 @@ export default function HistoryScreen() {
                       <Pressable
                         accessibilityRole="button"
                         accessibilityLabel="Clique aqui para ver mais"
-                        onPress={() => setDeepInsightOpen(true)}
+                        onPress={openDeepInsight}
                         style={styles.inspiredCta}
                       >
                         <Text style={styles.inspiredCtaText}>Clique aqui para ver mais</Text>
@@ -292,13 +310,7 @@ export default function HistoryScreen() {
                 key={conversation.id}
                 accessibilityRole="button"
                 accessibilityLabel={`Conversa: ${conversation.title}`}
-                onPress={() =>
-                  setSelectedConversation({
-                    id: conversation.id,
-                    title: conversation.title,
-                    date: conversation.date.toISOString(),
-                  })
-                }
+                onPress={() => openConversation(conversation)}
                 style={styles.conversationRow}
               >
                 <View style={styles.conversationTextWrap}>
