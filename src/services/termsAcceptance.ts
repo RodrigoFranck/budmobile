@@ -10,6 +10,13 @@ export async function ensureTermsAcceptance(userId: string): Promise<void> {
     return;
   }
 
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.access_token || session.user.id !== userId) {
+    return;
+  }
+
   const { data: existing, error: selectError } = await supabase
     .from('user_terms_acceptance')
     .select('id')

@@ -54,11 +54,6 @@ export function shouldSyncExploreInsights(
     if (!stored || stored.locked !== false) {
       return true;
     }
-
-    const generatedDate = stored.generated_at?.split('T')[0];
-    if (!generatedDate || generatedDate < today) {
-      return true;
-    }
   }
 
   return false;

@@ -199,6 +199,12 @@ Só pergunte "como está saindo dessa conversa?" quando {{name}} já sinalizou q
 export const VOICE_TTS_INSTRUCTION = `
 SAÍDA PARA VOZ:
 Suas respostas serão lidas em voz alta pelo ElevenLabs v3 conversacional. Priorize ritmo oral natural, frases curtas e pontuação clara para a fala.
+
+VÍCIOS DE LINGUAGEM (VOZ):
+Na fala da pessoa, ignore muletas e hesitações repetitivas: "tipo", "hmm", "hmmn", "ééé", "éh", "uhm", "ahn", "tipo assim" e equivalentes de transcrição.
+Não comente sobre elas. Não pergunte o que significam. Não as repita. Extraia só o que a pessoa está tentando dizer.
+Não use essas muletas na sua fala. Não preencha silêncio com "tipo", "ééé" ou "hmm".
+"tipo" só importa quando é conteúdo real ("que tipo de…"). Como muleta, ignore.
 `;
 
 function buildInsightPromptSection(insightCtx?: InsightContext): string {

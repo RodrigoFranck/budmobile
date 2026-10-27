@@ -13,7 +13,9 @@
     "android": "react-native run-android",
     "android:bundle": "cd android && ./gradlew bundleRelease",
     "ios": "DEVELOPER_DIR=\"$HOME/Downloads/Xcode.app/Contents/Developer\" react-native run-ios --mode Debug",
-    "db:repair-subscriptions": "cd ../budmind && npm run db:repair-subscriptions"
+    "db:repair-subscriptions": "cd ../budmind && npm run db:repair-subscriptions",
+    "test:chat-quality": "npx tsx --test src/utils/chatReplyQuality.test.ts",
+    "functions:serve-chat": "npx supabase functions serve chat-text --no-verify-jwt --env-file supabase/.env.local"
   },
   "dependencies": {
     "@elevenlabs/client": "1.1.0",

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -75,6 +75,29 @@ function isDeepInsightContent(value: unknown): value is DeepInsight {
 
   const content = value as Partial<DeepInsight>;
   return typeof content.headline === 'string' && typeof content.intro === 'string';
+}
+
+function areInsightsEqual(left: Insight, right: Insight): boolean {
+  return (
+    left.title === right.title &&
+    left.description === right.description &&
+    left.loading === right.loading &&
+    left.error === right.error &&
+    left.locked === right.locked &&
+    left.remaining === right.remaining &&
+    left.contextSummary === right.contextSummary &&
+    left.internalContext === right.internalContext &&
+    left.conversationId === right.conversationId &&
+    left.cycleProgress === right.cycleProgress &&
+    left.cycleRequired === right.cycleRequired
+  );
+}
+
+function setInsightIfChanged(
+  setter: Dispatch<SetStateAction<Insight>>,
+  next: Insight,
+) {
+  setter((prev) => (areInsightsEqual(prev, next) ? prev : next));
 }
 
 function applyDeveloperAccess(insight: Insight, cycleRequired?: number): Insight {
@@ -214,7 +237,15 @@ export function useExploreInsights(refreshToken = 0) {
         }
       : deepProgress;
 
-    setDeepInsightProgress(effectiveDeepProgress);
+    setDeepInsightProgress((prev) =>
+      prev.conversationCount === effectiveDeepProgress.conversationCount &&
+      prev.required === effectiveDeepProgress.required &&
+      prev.remaining === effectiveDeepProgress.remaining &&
+      prev.progress === effectiveDeepProgress.progress &&
+      prev.locked === effectiveDeepProgress.locked
+        ? prev
+        : effectiveDeepProgress,
+    );
 
     const deepStored =
       storedRows.find(
@@ -232,7 +263,7 @@ export function useExploreInsights(refreshToken = 0) {
     }
 
     if (effectiveDeepProgress.locked) {
-      setDeepInsight({
+      setInsightIfChanged(setDeepInsight, {
         title: deepRule?.locked_title ?? 'Inspirado em você',
         description:
           deepRule?.locked_description ??
@@ -244,7 +275,7 @@ export function useExploreInsights(refreshToken = 0) {
         loading: false,
       });
     } else if (deepStored) {
-      setDeepInsight({
+      setInsightIfChanged(setDeepInsight, {
         title: deepStored.title,
         description: deepStored.description,
         locked: false,
@@ -256,7 +287,7 @@ export function useExploreInsights(refreshToken = 0) {
         loading: false,
       });
     } else {
-      setDeepInsight({
+      setInsightIfChanged(setDeepInsight, {
         ...DEEP_UNLOCKED_PLACEHOLDER,
         cycleProgress: effectiveDeepProgress.progress,
         cycleRequired: effectiveDeepProgress.required,
@@ -287,10 +318,10 @@ export function useExploreInsights(refreshToken = 0) {
       return insight;
     };
 
-    setYesterdayInsight(buildForType('yesterday_journey'));
-    setGeneralInsight(buildForType('general_insight'));
-    setFrequencyInsight(buildForType('frequency'));
-    setHabitInsight(buildForType('habit'));
+    setInsightIfChanged(setYesterdayInsight, buildForType('yesterday_journey'));
+    setInsightIfChanged(setGeneralInsight, buildForType('general_insight'));
+    setInsightIfChanged(setFrequencyInsight, buildForType('frequency'));
+    setInsightIfChanged(setHabitInsight, buildForType('habit'));
 
     return {
       storedRows: storedRows as StoredExploreInsight[],
@@ -368,6 +399,10 @@ export function useExploreInsights(refreshToken = 0) {
 
         if (snapshot.deepUnlocked && !snapshot.hasDeepContent) {
           void syncDeepInsightIfNeeded(snapshot.weekStartStr);
+        }
+
+        if (options.cacheOnly) {
+          return;
         }
 
         const needsSync =

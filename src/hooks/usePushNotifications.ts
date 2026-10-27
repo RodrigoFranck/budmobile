@@ -1,4 +1,10 @@
-import messaging from '@react-native-firebase/messaging';
+import {
+  getInitialNotification,
+  getMessaging,
+  onMessage,
+  onNotificationOpenedApp,
+  onTokenRefresh,
+} from '@react-native-firebase/messaging';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import type { NavigationContainerRefWithCurrent } from '@react-navigation/native';
@@ -52,7 +58,7 @@ export function usePushNotifications(
 
     register();
 
-    const tokenRefreshUnsubscribe = messaging().onTokenRefresh(async (token) => {
+    const tokenRefreshUnsubscribe = onTokenRefresh(getMessaging(), async (token) => {
       if (cancelled || !token) {
         return;
       }
@@ -79,21 +85,13 @@ export function usePushNotifications(
       return;
     }
 
-    void messaging()
-      .getInitialNotification()
-      .then((remoteMessage) => {
-        if (!remoteMessage) {
-          return;
-        }
+    const messaging = getMessaging();
 
-        navigateFromPushNotification(
-          navigationRef,
-          getPushDataFromRemoteMessage(remoteMessage),
-          userIdRef.current,
-        );
-      });
+    void getInitialNotification(messaging).then((remoteMessage) => {
+      if (!remoteMessage) {
+        return;
+      }
 
-    const openedAppUnsubscribe = messaging().onNotificationOpenedApp((remoteMessage) => {
       navigateFromPushNotification(
         navigationRef,
         getPushDataFromRemoteMessage(remoteMessage),
@@ -101,7 +99,15 @@ export function usePushNotifications(
       );
     });
 
-    const foregroundUnsubscribe = messaging().onMessage(async (remoteMessage) => {
+    const openedAppUnsubscribe = onNotificationOpenedApp(messaging, (remoteMessage) => {
+      navigateFromPushNotification(
+        navigationRef,
+        getPushDataFromRemoteMessage(remoteMessage),
+        userIdRef.current,
+      );
+    });
+
+    const foregroundUnsubscribe = onMessage(messaging, async (remoteMessage) => {
       await displayRemoteMessageAsNotification(remoteMessage);
     });
 

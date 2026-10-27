@@ -1,4 +1,12 @@
-import messaging, { type FirebaseMessagingTypes } from '@react-native-firebase/messaging';
+import {
+  AuthorizationStatus,
+  getMessaging,
+  getToken,
+  isDeviceRegisteredForRemoteMessages,
+  registerDeviceForRemoteMessages,
+  requestPermission,
+  type RemoteMessage,
+} from '@react-native-firebase/messaging';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
@@ -32,8 +40,10 @@ async function ensureIosRegisteredForRemoteMessages(): Promise<void> {
     return;
   }
 
-  if (!messaging().isDeviceRegisteredForRemoteMessages) {
-    await messaging().registerDeviceForRemoteMessages();
+  const messaging = getMessaging();
+
+  if (!isDeviceRegisteredForRemoteMessages(messaging)) {
+    await registerDeviceForRemoteMessages(messaging);
   }
 }
 
@@ -41,7 +51,7 @@ async function getFcmTokenAsync(): Promise<string | null> {
   await ensureIosRegisteredForRemoteMessages();
 
   try {
-    return await messaging().getToken();
+    return await getToken(getMessaging());
   } catch {
     return null;
   }
@@ -80,10 +90,10 @@ export async function requestNotificationPermissionAsync(): Promise<boolean> {
   }
 
   if (Platform.OS === 'ios') {
-    const authStatus = await messaging().requestPermission();
+    const authStatus = await requestPermission(getMessaging());
     return (
-      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-      authStatus === messaging.AuthorizationStatus.PROVISIONAL
+      authStatus === AuthorizationStatus.AUTHORIZED ||
+      authStatus === AuthorizationStatus.PROVISIONAL
     );
   }
 
@@ -197,7 +207,7 @@ export type PushNotificationData = {
 };
 
 export async function displayRemoteMessageAsNotification(
-  remoteMessage: FirebaseMessagingTypes.RemoteMessage
+  remoteMessage: RemoteMessage
 ): Promise<void> {
   const title = remoteMessage.notification?.title;
   const body = remoteMessage.notification?.body;
@@ -217,7 +227,7 @@ export async function displayRemoteMessageAsNotification(
 }
 
 export function getPushDataFromRemoteMessage(
-  remoteMessage: FirebaseMessagingTypes.RemoteMessage
+  remoteMessage: RemoteMessage
 ): PushNotificationData {
   return (remoteMessage.data ?? {}) as PushNotificationData;
 }

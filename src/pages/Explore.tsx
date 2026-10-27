@@ -1,5 +1,11 @@
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { View, type LayoutChangeEvent } from 'react-native';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ScrollView,
+  View,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native';
 import { ACTION_EVENTS, CLICK_EVENTS, logActionEvent, logClickEvent } from '@/analytics';
 import {
   useFocusEffect,
@@ -7,8 +13,11 @@ import {
   useNavigation,
 } from '@react-navigation/native';
 import { Book, Settings } from 'lucide-react-native';
-import { Easing, useSharedValue } from 'react-native-reanimated';
-import { Carousel, Pagination, type CarouselRef } from 'react-native-reanimated-carousel';
+import Animated, {
+  useAnimatedScrollHandler,
+  useSharedValue,
+} from 'react-native-reanimated';
+import { Pagination } from 'react-native-reanimated-carousel';
 import type { Insight } from '@/hooks/useExploreInsights';
 import { openExploreChat } from '@/utils/buildExploreChatInsight';
 import { InsightCard } from '@/components/explore/InsightCard';
@@ -105,9 +114,12 @@ export default function ExploreScreen() {
     markInsightViewed,
   } = useTabScreenContext();
 
-  const carouselRef = useRef<CarouselRef>(null);
+  const scrollRef = useRef<ScrollView>(null);
   const progress = useSharedValue(0);
+  const pageHeightSV = useSharedValue(0);
   const lastLoggedInsightIndexRef = useRef<number | null>(null);
+  const currentInsightIndexRef = useRef(0);
+  const insightCardsRef = useRef<ExploreCardItem[]>([]);
   const [pageHeight, setPageHeight] = useState(0);
   const [pageWidth, setPageWidth] = useState(0);
 
@@ -131,6 +143,12 @@ export default function ExploreScreen() {
     ],
     [frequencyInsight, habitInsight, yesterdayInsight],
   );
+  insightCardsRef.current = insightCards;
+
+  const pagerStyle = useMemo(
+    () => ({ width: pageWidth, height: pageHeight }),
+    [pageHeight, pageWidth],
+  );
 
   const logInsightViewed = useCallback(
     (index: number, interaction: 'swipe' | 'pagination' | 'initial') => {
@@ -140,8 +158,9 @@ export default function ExploreScreen() {
       }
 
       lastLoggedInsightIndexRef.current = clamped;
+      currentInsightIndexRef.current = clamped;
       const key = EXPLORE_INSIGHT_KEYS[clamped];
-      const insight = insightCards[clamped]?.insight;
+      const insight = insightCardsRef.current[clamped]?.insight;
       if (!key || !insight) {
         return;
       }
@@ -154,7 +173,7 @@ export default function ExploreScreen() {
       });
       markInsightViewed(key);
     },
-    [insightCards, markInsightViewed],
+    [markInsightViewed],
   );
 
   const logBlockedInsightAttempt = useCallback(
@@ -204,19 +223,42 @@ export default function ExploreScreen() {
     useCallback(() => {
       refreshExploreInsights({ cacheOnly: true });
       lastLoggedInsightIndexRef.current = null;
-      const currentIndex = carouselRef.current?.getCurrentIndex() ?? 0;
-      logInsightViewed(currentIndex, 'initial');
+      logInsightViewed(currentInsightIndexRef.current, 'initial');
     }, [logInsightViewed, refreshExploreInsights]),
   );
 
-  const handleListLayout = (event: LayoutChangeEvent) => {
+  const handleListLayout = useCallback((event: LayoutChangeEvent) => {
     const { height, width } = event.nativeEvent.layout;
-    setPageHeight(height);
-    setPageWidth(width);
-  };
+    const nextHeight = Math.round(height);
+    const nextWidth = Math.round(width);
+    pageHeightSV.value = nextHeight;
+    setPageHeight((current) => (current === nextHeight ? current : nextHeight));
+    setPageWidth((current) => (current === nextWidth ? current : nextWidth));
+  }, [pageHeightSV]);
+
+  useEffect(() => {
+    pageHeightSV.value = pageHeight;
+    if (pageHeight <= 0) {
+      return;
+    }
+    scrollRef.current?.scrollTo({
+      y: currentInsightIndexRef.current * pageHeight,
+      animated: false,
+    });
+  }, [pageHeight, pageHeightSV]);
+
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      const size = pageHeightSV.value;
+      if (size > 0) {
+        progress.value = event.contentOffset.y / size;
+      }
+    },
+  });
 
   const handleSnapToItem = useCallback(
     (index: number) => {
+      currentInsightIndexRef.current = clampInsightIndex(index, EXPLORE_INSIGHT_COUNT);
       if (!isFocused) {
         return;
       }
@@ -225,27 +267,53 @@ export default function ExploreScreen() {
     [isFocused, logInsightViewed],
   );
 
+  const settleFromOffset = useCallback(
+    (offsetY: number) => {
+      if (pageHeight <= 0) {
+        return;
+      }
+      handleSnapToItem(Math.round(offsetY / pageHeight));
+    },
+    [handleSnapToItem, pageHeight],
+  );
+
+  const handleMomentumScrollEnd = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      settleFromOffset(event.nativeEvent.contentOffset.y);
+    },
+    [settleFromOffset],
+  );
+
+  const handleScrollEndDrag = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const velocityY = event.nativeEvent.velocity?.y ?? 0;
+      if (Math.abs(velocityY) > 0.05) {
+        return;
+      }
+      settleFromOffset(event.nativeEvent.contentOffset.y);
+    },
+    [settleFromOffset],
+  );
+
   const goToInsight = useCallback((index: number) => {
     const clamped = clampInsightIndex(index, EXPLORE_INSIGHT_COUNT);
-    const current = carouselRef.current?.getCurrentIndex() ?? 0;
-    if (clamped === current) {
+    if (clamped === currentInsightIndexRef.current) {
       return;
     }
+    currentInsightIndexRef.current = clamped;
     logInsightViewed(clamped, 'pagination');
-    carouselRef.current?.scrollTo({
-      index: clamped,
+    scrollRef.current?.scrollTo({
+      y: clamped * pageHeight,
       animated: true,
     });
-  }, [logInsightViewed]);
+  }, [logInsightViewed, pageHeight]);
 
   const handlePrev = useCallback(() => {
-    const current = carouselRef.current?.getCurrentIndex() ?? 0;
-    goToInsight(current - 1);
+    goToInsight(currentInsightIndexRef.current - 1);
   }, [goToInsight]);
 
   const handleNext = useCallback(() => {
-    const current = carouselRef.current?.getCurrentIndex() ?? 0;
-    goToInsight(current + 1);
+    goToInsight(currentInsightIndexRef.current + 1);
   }, [goToInsight]);
 
   return (
@@ -263,33 +331,32 @@ export default function ExploreScreen() {
 
         <View style={{ flex: 1 }} onLayout={handleListLayout}>
             {pageHeight > 0 && pageWidth > 0 ? (
-              <Carousel
-                ref={carouselRef}
-                data={insightCards}
-                keyExtractor={(item) => item.key}
-                orientation="vertical"
-                loop={false}
-                snapMode="page"
-                overscrollEnabled={false}
-                style={{ width: pageWidth, height: pageHeight }}
-                itemSize={pageHeight}
-                progress={progress}
-                onSnapToItem={handleSnapToItem}
-                animation={{
-                  type: 'timing',
-                  duration: 280,
-                  easing: Easing.out(Easing.cubic),
-                }}
-                renderItem={({ item }) => (
+              <Animated.ScrollView
+                ref={scrollRef}
+                style={pagerStyle}
+                pagingEnabled
+                disableIntervalMomentum
+                decelerationRate="fast"
+                directionalLockEnabled
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+                overScrollMode="never"
+                scrollEventThrottle={16}
+                onScroll={onScroll}
+                onScrollEndDrag={handleScrollEndDrag}
+                onMomentumScrollEnd={handleMomentumScrollEnd}
+              >
+                {insightCards.map((item) => (
                   <ExploreInsightSlide
+                    key={item.key}
                     item={item}
                     width={pageWidth}
                     height={pageHeight}
                     onMessage={navigateToChatText}
                     onVoice={navigateToChatVoice}
                   />
-                )}
-              />
+                ))}
+              </Animated.ScrollView>
             ) : null}
 
             <View style={insightPaginationStyles.rail} pointerEvents="box-none">

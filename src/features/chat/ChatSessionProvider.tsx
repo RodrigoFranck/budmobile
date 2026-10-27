@@ -17,6 +17,7 @@ import { ACTION_EVENTS, logActionEvent } from '@/analytics';
 import { useTabScreenContext } from '@/contexts/TabScreenContext';
 import { countUserTurns, matchApproach } from '@/utils/approachMatcher';
 import { buildInsightApproachContext } from '@/utils/buildInsightApproachContext';
+import { isIncompleteAssistantReply } from '@/utils/chatReplyQuality';
 import { streamChat, type InsightContext, type UserContext } from '@/utils/chatStream';
 import type { ChatInsightParam } from '@/types/chatInsight';
 import type { ChatTabParams, MainTabNavigationProp } from '@/types/navigation';
@@ -35,7 +36,6 @@ import {
 import { serializeInsightContextMessage } from '@/utils/insightContextMessage';
 import { buildInsightVoiceFirstMessage } from '@/utils/insightVoiceOpening';
 import { sanitizeAssistantPortuguese } from '@/utils/portugueseText';
-import { syncExploreInsights } from '@/utils/syncExploreInsights';
 import { scheduleSessionMemory } from '@/utils/scheduleSessionMemory';
 import type { StreamingMessage } from '@/types/messages';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
@@ -110,14 +110,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     internalProfileText,
     internalProfile,
     memoryLoading,
-    refreshExploreInsights,
   } = useTabScreenContext();
-
-  const scheduleInsightSync = useCallback(() => {
-    void syncExploreInsights({ force: true }).finally(() => {
-      refreshExploreInsights({ cacheOnly: true });
-    });
-  }, [refreshExploreInsights]);
 
   const [streamingMessages, setStreamingMessages] = useState<StreamingMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -317,10 +310,9 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       if (!currentConversationId || !text.trim()) return;
       const sanitized = sanitizeAssistantPortuguese(text);
       await addMessage(sanitized, 'assistant');
-      scheduleInsightSync();
       scheduleSessionMemory(currentConversationId, dbMessages.length + 1);
     },
-    [currentConversationId, addMessage, scheduleInsightSync, dbMessages.length],
+    [currentConversationId, addMessage, dbMessages.length],
   );
 
   const handleEndVoiceSession = useCallback(async () => {
@@ -467,6 +459,17 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
             );
           },
           onDone: async () => {
+            if (!accumulatedContent.trim() || isIncompleteAssistantReply(accumulatedContent)) {
+              setIsStreaming(false);
+              sendInFlightRef.current = false;
+              setStreamingMessages((prev) =>
+                prev.filter((msg) => msg.id !== assistantMessageId),
+              );
+              streamingIdRef.current = null;
+              alert('Não foi possível gerar uma resposta completa.');
+              return;
+            }
+
             accumulatedContent = sanitizeAssistantPortuguese(accumulatedContent);
             registerMessageClientId(
               messageClientIdsRef.current,
@@ -492,7 +495,6 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
 
             await userMessagePromise;
             await addMessage(accumulatedContent, 'assistant');
-            scheduleInsightSync();
             scheduleSessionMemory(currentConversationId, dbMessages.length + 2);
           },
           onError: (error) => {
@@ -521,7 +523,6 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       memoryLoading,
       internalProfile,
       addMessage,
-      scheduleInsightSync,
     ],
   );
 

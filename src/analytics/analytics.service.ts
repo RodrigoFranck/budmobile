@@ -1,4 +1,13 @@
-import analytics from '@react-native-firebase/analytics';
+import {
+  getAnalytics,
+  logEvent,
+  logLogin as logFirebaseLogin,
+  logScreenView as logFirebaseScreenView,
+  logSignUp as logFirebaseSignUp,
+  setAnalyticsCollectionEnabled,
+  setUserId,
+  setUserProperties,
+} from '@react-native-firebase/analytics';
 import { Platform } from 'react-native';
 
 import { enrichAnalyticsParams } from '@/analytics/enrichParams';
@@ -60,10 +69,11 @@ export async function initAnalytics(): Promise<void> {
   analyticsInitialized = true;
 
   await runAnalyticsTask(async () => {
-    await analytics().setAnalyticsCollectionEnabled(true);
+    const analytics = getAnalytics();
+    await setAnalyticsCollectionEnabled(analytics, true);
 
     if (__DEV__) {
-      await analytics().logEvent('analytics_debug_ping', {
+      await logEvent(analytics, 'analytics_debug_ping', {
         platform: Platform.OS,
         app_version: APP_VERSION,
       });
@@ -74,7 +84,7 @@ export async function initAnalytics(): Promise<void> {
 
 export async function logScreenView(screen: ScreenAnalytics): Promise<void> {
   await runAnalyticsTask(async () => {
-    await analytics().logScreenView({
+    await logFirebaseScreenView(getAnalytics(), {
       screen_name: screen.title,
       screen_class: screen.id,
     });
@@ -86,7 +96,8 @@ export async function logClickEvent(
   params?: AnalyticsParams,
 ): Promise<void> {
   await runAnalyticsTask(async () => {
-    await analytics().logEvent(
+    await logEvent(
+      getAnalytics(),
       eventName,
       sanitizeParams(enrichAnalyticsParams(eventName, params)),
     );
@@ -102,19 +113,19 @@ export async function logActionEvent(
 
 export async function logLogin(method: AuthAnalyticsMethod): Promise<void> {
   await runAnalyticsTask(async () => {
-    await analytics().logLogin({ method });
+    await logFirebaseLogin(getAnalytics(), { method });
   });
 }
 
 export async function logSignUp(method: AuthAnalyticsMethod): Promise<void> {
   await runAnalyticsTask(async () => {
-    await analytics().logSignUp({ method });
+    await logFirebaseSignUp(getAnalytics(), { method });
   });
 }
 
 export async function setAnalyticsUserId(userId: string | null): Promise<void> {
   await runAnalyticsTask(async () => {
-    await analytics().setUserId(userId);
+    await setUserId(getAnalytics(), userId);
   });
 }
 
@@ -130,7 +141,8 @@ export async function setAnalyticsUserProperties(
   }
 
   await runAnalyticsTask(async () => {
-    await analytics().setUserProperties(
+    await setUserProperties(
+      getAnalytics(),
       Object.fromEntries(entries.map(([key, value]) => [key, value as string])),
     );
   });

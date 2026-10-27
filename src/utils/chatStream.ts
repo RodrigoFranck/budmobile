@@ -1,9 +1,22 @@
+import { Platform } from "react-native";
+
 import { supabase } from "@/integrations/supabase/client";
+import { resolveChatTextRequestUrls } from "@/utils/chatFunctionsUrl";
+import {
+  consumeSseBuffer,
+  extractAssistantContent,
+  parseChatErrorPayload,
+} from "@/utils/chatStreamParse";
 import type { ChatMemoryContext } from "@/utils/formatInternalProfile";
 
 type Message = { role: "user" | "assistant"; content: string };
 
 export type { ChatMemoryContext };
+export {
+  consumeSseBuffer,
+  extractAssistantContent,
+  parseSseDataLine,
+} from "@/utils/chatStreamParse";
 
 export interface UserContext {
   name?: string | null;
@@ -34,56 +47,102 @@ export interface InsightContext {
   backgroundType?: "yesterday" | "inspired" | "frequency" | "habit";
 }
 
-/**
- * Parse one SSE line. Returns delta content when present.
- */
-export function parseSseDataLine(line: string): string | null {
-  const trimmed = line.replace(/\r$/, "").trim();
-  if (!trimmed || trimmed.startsWith(":")) return null;
-  if (!trimmed.startsWith("data:")) return null;
+const CHAT_REQUEST_TIMEOUT_MS = 180000;
 
-  const jsonStr = trimmed.startsWith("data: ")
-    ? trimmed.slice(6).trim()
-    : trimmed.slice(5).trim();
-
-  if (!jsonStr || jsonStr === "[DONE]") return null;
-
-  try {
-    const parsed = JSON.parse(jsonStr) as {
-      choices?: Array<{ delta?: { content?: string } }>;
-    };
-    const content = parsed.choices?.[0]?.delta?.content;
-    return typeof content === "string" && content.length > 0 ? content : null;
-  } catch {
-    return null;
-  }
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
 }
 
-/**
- * Feed incremental SSE text into a line buffer.
- * Keeps the trailing partial line until a newline arrives — avoids dropping mid-token JSON.
- */
-export function consumeSseBuffer(
-  buffer: string,
-  chunk: string,
-  onDelta: (deltaText: string) => void,
-  options?: { flush?: boolean },
-): string {
-  const combined = buffer + chunk;
-  const parts = combined.split("\n");
-  const incomplete = options?.flush ? "" : (parts.pop() ?? "");
+function isNetworkRequestError(error: unknown): boolean {
+  if (!(error instanceof Error) || isAbortError(error)) return false;
+  return /network request failed|failed to fetch|load failed|networkerror/i.test(
+    error.message,
+  );
+}
 
-  for (const part of parts) {
-    const content = parseSseDataLine(part);
-    if (content) onDelta(content);
+function toUserFacingChatError(error: unknown): string {
+  if (isAbortError(error)) {
+    return "Tempo de conexão esgotado. Tente novamente.";
   }
+  if (isNetworkRequestError(error)) {
+    return "Não foi possível conectar ao chat. Verifique sua internet e tente novamente.";
+  }
+  return error instanceof Error ? error.message : "Erro desconhecido";
+}
 
-  return incomplete;
+function postChatXhr({
+  url,
+  accessToken,
+  supabaseAnonKey,
+  body,
+  timeoutMs,
+  onDelta,
+}: {
+  url: string;
+  accessToken: string;
+  supabaseAnonKey: string;
+  body: string;
+  timeoutMs: number;
+  onDelta: (deltaText: string) => void;
+}): Promise<{ status: number; responseText: string; streamedLength: number }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    let lastProcessedIndex = 0;
+    let sseBuffer = "";
+    let streamedLength = 0;
+
+    xhr.open("POST", url, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+    if (supabaseAnonKey) {
+      xhr.setRequestHeader("apikey", supabaseAnonKey);
+    }
+
+    xhr.onprogress = () => {
+      const newData = xhr.responseText.substring(lastProcessedIndex);
+      lastProcessedIndex = xhr.responseText.length;
+      sseBuffer = consumeSseBuffer(sseBuffer, newData, (delta) => {
+        streamedLength += delta.length;
+        onDelta(delta);
+      });
+    };
+
+    xhr.onload = () => {
+      const remainingData = xhr.responseText.substring(lastProcessedIndex);
+      sseBuffer = consumeSseBuffer(
+        sseBuffer,
+        remainingData,
+        (delta) => {
+          streamedLength += delta.length;
+          onDelta(delta);
+        },
+        { flush: true },
+      );
+      resolve({
+        status: xhr.status,
+        responseText: xhr.responseText,
+        streamedLength,
+      });
+    };
+
+    xhr.onerror = () => {
+      reject(new TypeError("Network request failed"));
+    };
+
+    xhr.ontimeout = () => {
+      const error = new Error("Tempo de conexão esgotado. Tente novamente.");
+      error.name = "AbortError";
+      reject(error);
+    };
+
+    xhr.timeout = timeoutMs;
+    xhr.send(body);
+  });
 }
 
 /**
  * Stream chat using XMLHttpRequest for React Native compatibility.
- * React Native's fetch doesn't support ReadableStream, so we use XHR with onprogress.
+ * Accepts the deployed SSE function and the local JSON `{ content }` function.
  */
 export async function streamChat({
   messages,
@@ -104,74 +163,109 @@ export async function streamChat({
   onDone: () => void;
   onError: (error: string) => void;
 }) {
-  const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-  const CHAT_URL = `${SUPABASE_URL}/functions/v1/chat-text`;
+  const { primary, fallback } = resolveChatTextRequestUrls({ os: Platform.OS });
+  const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
 
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
     if (!session?.access_token) {
       onError("Você precisa estar logado para usar o chat.");
       return;
     }
 
-    const xhr = new XMLHttpRequest();
-    let lastProcessedIndex = 0;
-    let sseBuffer = "";
+    const requestBody = JSON.stringify({
+      messages,
+      userContext,
+      insightContext,
+      memoryContext,
+      approachContext,
+      internalProfile: memoryContext?.internalProfileText ?? null,
+    });
+    const urls = fallback ? [primary, fallback] : [primary];
 
-    xhr.open("POST", CHAT_URL, true);
-    xhr.setRequestHeader("Content-Type", "application/json");
-    xhr.setRequestHeader("Authorization", `Bearer ${session.access_token}`);
+    let result: {
+      status: number;
+      responseText: string;
+      streamedLength: number;
+    } | null = null;
 
-    xhr.onprogress = () => {
-      const responseText = xhr.responseText;
-      const newData = responseText.substring(lastProcessedIndex);
-      lastProcessedIndex = responseText.length;
-      sseBuffer = consumeSseBuffer(sseBuffer, newData, onDelta);
-    };
-
-    xhr.onload = () => {
-      if (xhr.status === 200) {
-        const responseText = xhr.responseText;
-        const remainingData = responseText.substring(lastProcessedIndex);
-        sseBuffer = consumeSseBuffer(sseBuffer, remainingData, onDelta, { flush: true });
-        onDone();
-      } else if (xhr.status === 429) {
-        onError("Limite de requisições atingido. Tente novamente mais tarde.");
-      } else if (xhr.status === 401) {
-        onError("Sessão expirada. Por favor, faça login novamente.");
-      } else {
-        try {
-          const errorData = JSON.parse(xhr.responseText);
-          onError(errorData.error || "Erro ao conectar com o assistente");
-        } catch {
-          onError("Erro ao conectar com o assistente");
-        }
+    for (let index = 0; index < urls.length; index += 1) {
+      const url = urls[index];
+      if (__DEV__) {
+        console.log("[chat] function url", url);
       }
-    };
 
-    xhr.onerror = () => {
-      onError("Erro de conexão. Verifique sua internet.");
-    };
+      try {
+        result = await postChatXhr({
+          url,
+          accessToken: session.access_token,
+          supabaseAnonKey,
+          body: requestBody,
+          timeoutMs: CHAT_REQUEST_TIMEOUT_MS,
+          onDelta,
+        });
+        break;
+      } catch (error) {
+        const canFallback =
+          index < urls.length - 1 &&
+          (isNetworkRequestError(error) || isAbortError(error));
 
-    xhr.ontimeout = () => {
-      onError("Tempo de conexão esgotado. Tente novamente.");
-    };
+        if (canFallback) {
+          if (__DEV__) {
+            console.warn(
+              "[chat] local function unreachable, falling back to remote",
+              error,
+            );
+          }
+          continue;
+        }
 
-    xhr.timeout = 120000;
+        console.warn("Stream error:", error);
+        onError(toUserFacingChatError(error));
+        return;
+      }
+    }
 
-    xhr.send(
-      JSON.stringify({
-        messages,
-        userContext,
-        insightContext,
-        memoryContext,
-        approachContext,
-        internalProfile: memoryContext?.internalProfileText ?? null,
-      }),
-    );
+    if (!result) {
+      onError("Não foi possível conectar ao chat. Verifique sua internet e tente novamente.");
+      return;
+    }
+
+    if (result.status === 429) {
+      onError("Limite de requisições atingido. Tente novamente mais tarde.");
+      return;
+    }
+
+    if (result.status === 401) {
+      onError("Sessão expirada. Por favor, faça login novamente.");
+      return;
+    }
+
+    if (result.status !== 200) {
+      onError(
+        parseChatErrorPayload(result.responseText, "Erro ao conectar com o assistente"),
+      );
+      return;
+    }
+
+    if (result.streamedLength > 0) {
+      await onDone();
+      return;
+    }
+
+    const content = extractAssistantContent(result.responseText);
+    if (!content) {
+      onError("Não foi possível gerar uma resposta completa.");
+      return;
+    }
+
+    onDelta(content);
+    await onDone();
   } catch (error) {
-    console.error("Stream error:", error);
-    onError(error instanceof Error ? error.message : "Erro desconhecido");
+    console.warn("Stream error:", error);
+    onError(toUserFacingChatError(error));
   }
 }
