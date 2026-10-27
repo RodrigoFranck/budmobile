@@ -1,62 +1,48 @@
-import React, { useCallback, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft } from 'lucide-react-native';
+import { ChevronLeft } from 'lucide-react-native';
 
 import { CrisisResources } from '@/components/CrisisResources';
-import { Spacing } from '@/constants/styles';
-import { useTheme } from '@/contexts/ThemeContext';
-import type { NavigationProp } from '@/types/navigation';
-import {
-  createCrisisResourcesStyles,
-  DARK_COLORS,
-  LIGHT_COLORS,
-} from '@/pages/CrisisResources.styles';
+import { BudIconButton } from '@/components/v3';
+import { fonts, useV3Colors } from '@/theme';
 
 export default function CrisisResourcesScreen() {
-  const navigation = useNavigation<NavigationProp>();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { mode } = useTheme();
-  const darkMode = mode === 'dark';
-
-  const colors = useMemo(() => (darkMode ? DARK_COLORS : LIGHT_COLORS), [darkMode]);
-  const styles = useMemo(() => createCrisisResourcesStyles(colors), [colors]);
-
-  const goBack = useCallback(() => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      navigation.navigate('Settings');
-    }
-  }, [navigation]);
+  const colors = useV3Colors();
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
+    <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top }}>
+      <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
+        <BudIconButton
+          icon={ChevronLeft}
+          accessibilityLabel="Voltar"
+          onPress={() => navigation.goBack()}
+        />
+      </View>
       <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: Math.max(insets.bottom, 0) + Spacing.xl },
-        ]}
+        contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: Math.max(insets.bottom, 0) + 40 }}
         showsVerticalScrollIndicator={false}
       >
-        <TouchableOpacity
-          onPress={goBack}
-          activeOpacity={0.75}
-          style={styles.backButton}
-          accessibilityRole="button"
-          accessibilityLabel="Voltar"
+        <Text style={{ fontFamily: fonts.display, fontSize: 34, color: colors.text, marginTop: 16 }}>
+          Recursos de crise
+        </Text>
+        <Text style={{ fontFamily: fonts.sans, fontSize: 16, color: colors.text2, marginTop: 8 }}>
+          Se agora está pesado demais, peça ajuda a alguém de verdade.
+        </Text>
+        <View
+          style={{
+            backgroundColor: colors.surface,
+            borderRadius: 20,
+            padding: 20,
+            marginTop: 24,
+          }}
         >
-          <ArrowLeft size={20} color={colors.text} />
-        </TouchableOpacity>
-
-        <Text style={styles.title}>Recursos de crise</Text>
-
-        <View style={styles.card}>
           <CrisisResources
             textColor={colors.text}
-            subtextColor={colors.icon}
-            buttonBackground={colors.buttonBackground}
+            subtextColor={colors.text2}
+            buttonBackground={colors.surface2}
             buttonTextColor={colors.text}
           />
         </View>

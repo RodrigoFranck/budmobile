@@ -7,26 +7,28 @@ import {
   KeyboardAvoidingView,
   TouchableOpacity,
   ActivityIndicator,
-  Image,
 } from "react-native";
-import { ChevronLeft } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppAlert } from "@/contexts/AppAlertContext";
 import { supabase } from "@/integrations/supabase/client";
 import { PASSWORD_RESET_REDIRECT } from "@/constants/auth";
 import { PlatformConstants } from "@/constants/layout";
-import { authStyles as styles } from "@/pages/Auth/Auth.styles";
+import { createAuthStyles } from "@/pages/Auth/Auth.styles";
+import { BudIconButton } from "@/components/v3";
+import { useV3Colors } from "@/theme";
+import { ChevronLeft } from "lucide-react-native";
 import {
   mapPasswordResetError,
   passwordResetEmptyEmailAlert,
 } from "@/utils/auth/authMessages";
 
-const backgroundLogin = require("@/assets/background-login.png");
 
 export default function ForgotPasswordScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const colors = useV3Colors();
+  const styles = createAuthStyles(colors);
   const { showAlert } = useAppAlert();
   const [isLoading, setIsLoading] = useState(false);
   const [isEmailSent, setIsEmailSent] = useState(false);
@@ -94,7 +96,7 @@ export default function ForgotPasswordScreen() {
           <TextInput
             style={styles.input}
             placeholder="seu@email.com"
-            placeholderTextColor="#B5B5B5"
+            placeholderTextColor={colors.text3}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -111,7 +113,7 @@ export default function ForgotPasswordScreen() {
           activeOpacity={0.7}
         >
           {isLoading ? (
-            <ActivityIndicator size="small" color="#1D1916" />
+            <ActivityIndicator size="small" color={colors.onBtn} />
           ) : (
             <Text style={styles.buttonText}>Enviar Link de Recuperação</Text>
           )}
@@ -122,12 +124,6 @@ export default function ForgotPasswordScreen() {
 
   return (
     <View style={styles.root}>
-      <Image
-        source={backgroundLogin}
-        style={styles.backgroundImage}
-        resizeMode="cover"
-        accessibilityIgnoresInvertColors
-      />
       <KeyboardAvoidingView
         behavior={PlatformConstants.keyboardBehavior}
         style={styles.container}
@@ -139,15 +135,11 @@ export default function ForgotPasswordScreen() {
             { paddingTop: insets.top + 8 },
           ]}
         >
-          <TouchableOpacity
-            style={[styles.backButton, { marginBottom: 0 }]}
+          <BudIconButton
+            icon={ChevronLeft}
+            accessibilityLabel="Voltar"
             onPress={() => navigation.goBack()}
-            disabled={isLoading}
-            activeOpacity={0.7}
-          >
-            <ChevronLeft size={20} color="#FFFFFF" />
-            <Text style={styles.backButtonText}>Voltar</Text>
-          </TouchableOpacity>
+          />
         </View>
 
         <ScrollView

@@ -213,7 +213,7 @@ async function navigateToYesterdayJourney(
 
   const insight = await fetchYesterdayJourneyInsight(userId);
   if (!insight) {
-    return navigateToMainTabs(navigationRef, { screen: 'Explore' });
+    return navigateToMainTabs(navigationRef, { screen: 'Home' });
   }
 
   const chatInsight: ChatInsightParam = buildExploreChatInsight(

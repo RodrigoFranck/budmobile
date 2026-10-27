@@ -86,7 +86,7 @@ export default function SettingsScreen() {
 
   const openPsychologicalAssessment = useCallback(() => {
     void logClickEvent(CLICK_EVENTS.SETTINGS_PSYCHOLOGICAL_ASSESSMENT);
-    navigation.navigate("PsychologicalAssessment");
+    navigation.navigate("MainTabs", { screen: "Institution" });
   }, [navigation]);
 
   const shareBud = useCallback(async () => {

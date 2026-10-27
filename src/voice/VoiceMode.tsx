@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -12,7 +13,7 @@ import {
 } from 'react-native';
 import { ChevronLeft, Keyboard, Mic, MicOff, Pause, Play } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppColors } from '@/lib/colors';
+import { useV3Colors, v3Assets } from '@/theme';
 import { createVoiceModeStyles } from '@/voice/VoiceMode.styles';
 import {
   joinTranscriptTokens,
@@ -177,7 +178,7 @@ export function VoiceMode({
   isPaused = false,
   isMicMuted = false,
 }: VoiceModeProps) {
-  const colors = useAppColors();
+  const colors = useV3Colors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(
     () =>
@@ -330,7 +331,7 @@ export function VoiceMode({
       (phase === 'listening' && showTranscript));
   const canTogglePause = !isLocked && Boolean(onTogglePause);
   const canToggleMute = !isLocked && !isPaused && Boolean(onToggleMute);
-  const muteIconColor = isMicMuted ? colors.destructive : colors['chat-body'];
+  const muteIconColor = isMicMuted ? '#C45C4A' : colors.text;
 
   return (
     <Modal
@@ -351,7 +352,7 @@ export function VoiceMode({
           accessibilityState={{ disabled: isLocked }}
           style={backButtonStyle}
         >
-          <ChevronLeft size={20} color={colors['chat-body']} strokeWidth={2} />
+          <ChevronLeft size={20} color={colors.text} strokeWidth={2} />
         </TouchableOpacity>
 
         <ScrollView
@@ -378,6 +379,11 @@ export function VoiceMode({
                 { opacity: phase === 'connecting' ? heroPulse : 1 },
               ]}
             >
+              <Image
+                source={v3Assets.voiceOrb}
+                style={{ width: 88, height: 88, marginBottom: 16 }}
+                resizeMode="contain"
+              />
               <Text
                 style={[
                   styles.heroLabel,
@@ -471,18 +477,18 @@ export function VoiceMode({
                 <View style={[styles.activityBarsWrap, styles.activityBarsWrapPaused]}>
                   <Play
                     size={26}
-                    color={colors['chat-warm-bg']}
+                    color={colors.bg}
                     strokeWidth={2}
-                    fill={colors['chat-warm-bg']}
+                    fill={colors.bg}
                   />
                 </View>
               ) : (
                 <View style={styles.activityBarsWrap}>
                   <Pause
                     size={26}
-                    color={colors['chat-warm-bg']}
+                    color={colors.bg}
                     strokeWidth={2}
-                    fill={colors['chat-warm-bg']}
+                    fill={colors.bg}
                   />
                 </View>
               )}
@@ -496,7 +502,7 @@ export function VoiceMode({
               accessibilityState={{ disabled: isLocked }}
               style={actionButtonStyle}
             >
-              <Keyboard size={22} color={colors['chat-body']} strokeWidth={2} />
+              <Keyboard size={22} color={colors.text} strokeWidth={2} />
             </TouchableOpacity>
           </View>
         </View>

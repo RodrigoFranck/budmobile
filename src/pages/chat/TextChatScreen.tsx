@@ -1,39 +1,39 @@
 import { useCallback, useMemo } from 'react';
-import { KeyboardAvoidingView, View } from 'react-native';
+import { KeyboardAvoidingView, Share, Text, View } from 'react-native';
 import {
   useFocusEffect,
   useNavigation,
   useRoute,
   type RouteProp,
 } from '@react-navigation/native';
-import { Book, Settings } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ChevronLeft, Menu, Share2 } from 'lucide-react-native';
 
 import { ChatContainer } from '@/components/chat/ChatContainer';
 import { MessageInputBar } from '@/components/chat/MessageInputBar';
 import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
-import { TabScreenHeader } from '@/components/ui/TabScreenHeader';
-import { WeekCalendarHeader } from '@/components/ui/WeekCalendarHeader';
 import { Spacing } from '@/constants/styles';
 import { PlatformConstants } from '@/constants/layout';
-import { useTabScreenLoading } from '@/contexts/TabScreenContext';
+import { useTabScreenContext, useTabScreenLoading } from '@/contexts/TabScreenContext';
+import { BudButton, BudIconButton } from '@/components/v3';
 import { useChatSession } from '@/features/chat/ChatSessionProvider';
-import { useAppColors } from '@/lib/colors';
+import { useUserPlan } from '@/hooks/useUserPlan';
+import { fonts, useV3Colors } from '@/theme';
 import type {
   ChatStackNavigationProp,
   ChatStackParamList,
 } from '@/types/chatNavigation.types';
-import type { MainTabNavigationProp, RootNavigationProp } from '@/types/navigation';
+import type { MainTabNavigationProp } from '@/types/navigation';
 import { VoiceMode } from '@/voice/VoiceMode';
 
-import { createTextChatScreenStyles } from './TextChatScreen.styles';
-
 export default function TextChatScreen() {
-  const colors = useAppColors();
-  const styles = useMemo(() => createTextChatScreenStyles(colors), [colors]);
+  const colors = useV3Colors();
+  const insets = useSafeAreaInsets();
   const tabLoading = useTabScreenLoading('Chat');
   const navigation = useNavigation<ChatStackNavigationProp>();
   const tabNavigation = useNavigation<MainTabNavigationProp>();
-  const rootNavigation = useNavigation<RootNavigationProp>();
+  const { canSendMessage } = useUserPlan();
+  const { deepInsight, deepInsightProgress } = useTabScreenContext();
   const route = useRoute<RouteProp<ChatStackParamList, 'TextChat'>>();
   const {
     allMessages,
@@ -99,6 +99,22 @@ export default function TextChatScreen() {
     }, [setIsVoiceModeActive, voiceInterfaceRef]),
   );
 
+  const canShareWeek = Boolean(deepInsight.title || deepInsight.description) && !deepInsightProgress.locked;
+
+  const shareWeek = useCallback(async () => {
+    const title = deepInsight.title || 'Resumo da semana com o Bud';
+    const body = deepInsight.description || 'Uma semana de conversas com o Bud.';
+    await Share.share({ message: `${title}\n\n${body}` });
+  }, [deepInsight.description, deepInsight.title]);
+
+  const styles = useMemo(
+    () => ({
+      root: { flex: 1, backgroundColor: colors.bg },
+      keyboard: { flex: 1 },
+    }),
+    [colors.bg],
+  );
+
   return (
     <ScreenLoadingGate loading={tabLoading}>
       <View style={styles.root}>
@@ -107,15 +123,37 @@ export default function TextChatScreen() {
           style={styles.keyboard}
           keyboardVerticalOffset={PlatformConstants.keyboardVerticalOffset}
         >
-          <TabScreenHeader>
-            <WeekCalendarHeader
-              leftIcon={Book}
-              onPressLeft={() => tabNavigation.navigate('Explore')}
-              showLeftIndicatorDot
-              rightIcon={Settings}
-              onPressRight={() => rootNavigation.navigate('Settings')}
+          <View
+            style={{
+              paddingTop: insets.top + 8,
+              paddingHorizontal: 20,
+              paddingBottom: 8,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <BudIconButton
+              icon={ChevronLeft}
+              accessibilityLabel="Início"
+              onPress={() => tabNavigation.navigate('Home')}
             />
-          </TabScreenHeader>
+            <Text style={{ fontFamily: fonts.display, fontSize: 20, color: colors.text }}>Chat</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {canShareWeek ? (
+                <BudIconButton
+                  icon={Share2}
+                  accessibilityLabel="Compartilhar resumo da semana"
+                  onPress={() => void shareWeek()}
+                />
+              ) : null}
+              <BudIconButton
+                icon={Menu}
+                accessibilityLabel="Menu"
+                onPress={() => tabNavigation.navigate('Menu')}
+              />
+            </View>
+          </View>
           <ChatContainer
             messages={allMessages}
             loading={isStreaming || messagesLoading}
@@ -125,9 +163,9 @@ export default function TextChatScreen() {
           />
           <MessageInputBar
             onSendMessage={handleSendMessage}
-            disabled={isStreaming}
+            disabled={isStreaming || !canSendMessage}
             voiceAppearance="prominent"
-            voiceInterfaceRef={voiceInterfaceRef}
+            voiceInterfaceRef={canSendMessage ? voiceInterfaceRef : undefined}
             onVoiceModeChange={setIsVoiceModeActive}
             onVoiceConnectingChange={setIsVoiceConnecting}
             onVoiceSessionBusyChange={setIsVoiceSessionBusy}
@@ -143,6 +181,31 @@ export default function TextChatScreen() {
             internalProfile={memoryLoading ? undefined : internalProfileText}
           />
         </KeyboardAvoidingView>
+        {!canSendMessage ? (
+          <View
+            style={{
+              position: 'absolute',
+              left: 16,
+              right: 16,
+              bottom: 108,
+              borderRadius: 20,
+              backgroundColor: colors.surface,
+              padding: 20,
+            }}
+          >
+            <Text style={{ fontFamily: fonts.display, fontSize: 22, color: colors.text }}>
+              Sua conversa continua aqui
+            </Text>
+            <Text style={{ fontFamily: fonts.sans, fontSize: 15, color: colors.text2, marginTop: 8 }}>
+              Para enviar novas mensagens, escolha um plano.
+            </Text>
+            <BudButton
+              label="Ver planos"
+              onPress={() => tabNavigation.navigate('Paywall')}
+              style={{ marginTop: 16 }}
+            />
+          </View>
+        ) : null}
         <VoiceMode
           visible={isVoiceModeActive}
           onClose={() => setIsVoiceModeActive(false)}

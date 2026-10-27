@@ -1,22 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useIsFocused } from '@react-navigation/native';
-import {
-  View,
-  TextInput,
-  TouchableOpacity,
-  Keyboard,
-  Platform,
-} from 'react-native';
+import { View, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowUp } from 'lucide-react-native';
 import {
   VoiceInterface,
 } from '@/voice/VoiceInterface';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
-import { useAppColors } from '@/lib/colors';
+import { BudMessageField } from '@/components/v3';
 import type { UserContext } from '@/utils/chatStream';
-import { getMessageInputBarStyles } from '@/components/chat/MessageInputBar.styles';
-import { useMessageInputBarLayout } from '@/components/chat/messageInputBarLayout';
 
 interface MessageInputBarProps {
   onSendMessage?: (message: string) => void;
@@ -63,22 +54,15 @@ export function MessageInputBar({
   internalProfile,
   voiceAppearance,
 }: MessageInputBarProps) {
-  const colors = useAppColors();
   const isFocused = useIsFocused();
-  const layout = useMessageInputBarLayout();
   const [message, setMessage] = useState('');
   const messageRef = useRef('');
-  const inputRef = useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (isFocused) return;
-
-    inputRef.current?.blur();
     Keyboard.dismiss();
   }, [isFocused]);
-
-  const hasMessage = message.trim().length > 0;
 
   const handleSend = () => {
     if (message.trim() && !disabled && onSendMessage) {
@@ -89,31 +73,14 @@ export function MessageInputBar({
     }
   };
 
-  const canSend = hasMessage && !disabled;
   const isProminentVoice = voiceAppearance === 'prominent';
-  const sendIconSize = Math.round(layout.sendTouchSize * 0.48);
-  const sendIconColor = colors['chat-warm-bg'];
-  const sendButtonDisabledStyle = {
-    backgroundColor: `${colors['chat-accent-mint']}59`,
-  } as const;
-
-  const styles = useMemo(
-    () =>
-      getMessageInputBarStyles({
-        colors,
-        bottomInset: insets.bottom,
-        layout,
-        prominentVoice: isProminentVoice,
-      }),
-    [colors, insets.bottom, isProminentVoice, layout],
-  );
 
   const voiceSlotContent =
     voiceInterfaceRef && isFocused ? (
       <VoiceInterface
         ref={voiceInterfaceRef}
         appearance={voiceAppearance ?? 'companion'}
-        prominentSize={isProminentVoice ? layout.pillHeight : undefined}
+        prominentSize={isProminentVoice ? 56 : undefined}
         onTranscript={(text) => {
           messageRef.current = text;
           setMessage(text);
@@ -137,47 +104,23 @@ export function MessageInputBar({
     ) : null;
 
   return (
-    <View style={styles.root}>
-      <View style={styles.row}>
-        <View style={styles.inputWrap}>
-          <TextInput
-            ref={inputRef}
-            placeholder="Envie uma mensagem"
-            placeholderTextColor={colors['chat-label-muted']}
-            value={message}
-            onChangeText={(text) => {
-              messageRef.current = text;
-              setMessage(text);
-            }}
-            multiline
-            editable={!disabled}
-            onSubmitEditing={handleSend}
-            blurOnSubmit={false}
-            scrollEnabled={hasMessage}
-            style={styles.textInput}
-            {...(Platform.OS === 'android' && {
-              includeFontPadding: false,
-            })}
-          />
-          <TouchableOpacity
-            onPress={handleSend}
-            disabled={!canSend}
-            accessibilityRole="button"
-            accessibilityLabel="Enviar mensagem"
-            style={[styles.sendButton, !canSend && sendButtonDisabledStyle]}
-            hitSlop={styles.sendHitSlop}
-          >
-            <ArrowUp
-              size={sendIconSize}
-              color={canSend ? sendIconColor : `${sendIconColor}8C`}
-              strokeWidth={3}
-            />
-          </TouchableOpacity>
-        </View>
-        {voiceSlotContent ? (
-          <View style={styles.voiceSlot}>{voiceSlotContent}</View>
-        ) : null}
-      </View>
+    <View
+      style={{
+        paddingTop: 12,
+        paddingHorizontal: 16,
+        paddingBottom: Math.max(insets.bottom, 16),
+      }}
+    >
+      <BudMessageField
+        value={message}
+        onChangeText={(text) => {
+          messageRef.current = text;
+          setMessage(text);
+        }}
+        onSend={handleSend}
+        disabled={disabled}
+        voiceSlot={voiceSlotContent}
+      />
     </View>
   );
 }

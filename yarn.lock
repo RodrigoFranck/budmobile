@@ -832,6 +832,11 @@
   resolved "https://registry.yarnpkg.com/@elevenlabs/types/-/types-0.9.0.tgz#cd97abb0058a3d3ad9c4e1aa615007fc25e4dcce"
   integrity sha512-LaTO48+R2dY6CdgGQbKUcpSPs+5BA9hbvwHg+27P6Rg4pDZA/rIBHyBVzEVmySZ7i7dGNXRcFlZp5vMAxqUHqw==
 
+"@expo-google-fonts/dm-sans@0.4.1":
+  version "0.4.1"
+  resolved "https://registry.yarnpkg.com/@expo-google-fonts/dm-sans/-/dm-sans-0.4.1.tgz#e6930e5d9338bf18a0b1283cdb5eb58bea77e2e5"
+  integrity sha512-LfjAZKsXJp9K6BdjD1Q1dHJp7BUk69JwsGiyRWSOm/QN2AzDrDcyy7Vdqb7Ua9MVw9e9YFiOmZ9hh0M7aH+o/w==
+
 "@expo-google-fonts/fraunces@0.4.1":
   version "0.4.1"
   resolved "https://registry.yarnpkg.com/@expo-google-fonts/fraunces/-/fraunces-0.4.1.tgz#1dd641c322436dccb7cc156e07e247d146cd000c"
@@ -2050,24 +2055,24 @@
     prompts "^2.4.2"
     semver "^7.5.2"
 
-"@react-native-firebase/analytics@^25.0.1":
+"@react-native-firebase/analytics@25.1.0":
   version "25.1.0"
   resolved "https://registry.yarnpkg.com/@react-native-firebase/analytics/-/analytics-25.1.0.tgz#86403866033d53b4353f70028dc9aaac811f27cf"
   integrity sha512-H8IrrJ5Hn0PvFzRWkvriUtQCTLqJcdpgEURDJxrEnc+hRtI9VHDH8HKDVawcBlJS34Oj6pppdlzxJl2QOWlq5A==
   dependencies:
     superstruct "^2.0.2"
 
-"@react-native-firebase/app@^25.0.1":
-  version "25.0.1"
-  resolved "https://registry.yarnpkg.com/@react-native-firebase/app/-/app-25.0.1.tgz#afb158d0959a1467a866258eec5965a6d7a71dad"
-  integrity sha512-IJQ4aJeqZryvfG2jThJiwln3pR/Q6fkr3lnGmQ9bkWANWNIoEjNhcTs99cjCLVzN65d77HEtktIGCou/tEdjGA==
+"@react-native-firebase/app@25.1.0":
+  version "25.1.0"
+  resolved "https://registry.yarnpkg.com/@react-native-firebase/app/-/app-25.1.0.tgz#7260d6f8b48078b9f651ca07804b140e9787397a"
+  integrity sha512-IRBM0Uwrs1O+SkUF8D9g7FgC8WI5b/3xEbt3JzFTTsHWvQyXxvTflKd4rNFNegV+2mFrM53XC9cS1BNVjWSSSg==
   dependencies:
     firebase "12.15.0"
 
-"@react-native-firebase/messaging@^25.0.1":
-  version "25.0.1"
-  resolved "https://registry.yarnpkg.com/@react-native-firebase/messaging/-/messaging-25.0.1.tgz#41042b92c2caa28f9a404d70eac3aa68eb76343f"
-  integrity sha512-8k9X/WJSItSa/xXRO8qATDs6W/etCNiEHcPKzxwky2BhC3kcVoTnR3fT/Bri0MmRW2V70ZhlD8okSDVjCDABbQ==
+"@react-native-firebase/messaging@25.1.0":
+  version "25.1.0"
+  resolved "https://registry.yarnpkg.com/@react-native-firebase/messaging/-/messaging-25.1.0.tgz#21d46ba446a728c44e7c5bc3622099ba355f915c"
+  integrity sha512-YVhGWr6uthySTNHqnXsDh6DX4WtK4AittU9oDeKaBSjN4uoMDOe2X74TYnBFEUdcCQxOAsUavFNAexQx/o8dsw==
 
 "@react-native/assets-registry@0.81.5":
   version "0.81.5"

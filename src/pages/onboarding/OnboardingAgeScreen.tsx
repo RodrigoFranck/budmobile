@@ -13,14 +13,13 @@ import type { OnboardingNavigationProp } from '@/types/onboardingNavigation';
 const H_PAD = 24;
 
 const OPTIONS: { key: AgeRangeOption; label: string }[] = [
-  { key: 'under-18', label: 'Menor de 18 anos' },
-  { key: '18-24', label: '18-24' },
-  { key: '25-34', label: '25-34' },
-  { key: '35-44', label: '35-44' },
-  { key: '45-54', label: '45-54' },
-  { key: '55-64', label: '55-64' },
-  { key: '65+', label: '65+' },
-  { key: 'prefer_not_say', label: 'Prefiro não dizer' },
+  { key: 'Menos de 18', label: 'Menos de 18' },
+  { key: '18 a 24', label: '18 a 24' },
+  { key: '25 a 29', label: '25 a 29' },
+  { key: '30 a 34', label: '30 a 34' },
+  { key: '35 a 44', label: '35 a 44' },
+  { key: '45 a 54', label: '45 a 54' },
+  { key: '55 a 64', label: '55 a 64' },
 ];
 
 export default function OnboardingAgeScreen() {

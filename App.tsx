@@ -2,7 +2,8 @@ import './global.css';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
-import { Fraunces_400Regular } from '@expo-google-fonts/fraunces';
+import { Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
+import { DMSans_400Regular, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { Audio } from 'expo-av';
 import { useEffect } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
@@ -26,6 +27,9 @@ export default function App() {
     'InriaSerif-Bold': require('./assets/fonts/InriaSerif-Bold.ttf'),
     InstrumentSans: require('./assets/fonts/InstrumentSans-Variable.ttf'),
     Fraunces_400Regular,
+    Fraunces_400Regular_Italic,
+    DMSans_400Regular,
+    DMSans_600SemiBold,
   });
 
   useEffect(() => {
@@ -43,14 +47,14 @@ export default function App() {
   }, []);
 
   if (!fontsLoaded) {
-    // Match native / Figma splash (#1D1916) — do not flash light theme while fonts load.
+    // Match native / Figma splash (#171310) — do not flash light theme while fonts load.
     return (
       <View
         style={{
           flex: 1,
           justifyContent: 'center',
           alignItems: 'center',
-          backgroundColor: '#1D1916',
+          backgroundColor: '#171310',
         }}
       >
         <ActivityIndicator size="large" color="#77716C" />

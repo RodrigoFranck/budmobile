@@ -39,6 +39,99 @@ export type Database = {
   }
   public: {
     Tables: {
+      daily_letters: {
+        Row: {
+          id: string
+          user_id: string
+          letter_date: string
+          title: string
+          body: string
+          opened_at: string | null
+          source: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          letter_date: string
+          title: string
+          body: string
+          opened_at?: string | null
+          source?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          letter_date?: string
+          title?: string
+          body?: string
+          opened_at?: string | null
+          source?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      activity_sessions: {
+        Row: {
+          id: string
+          user_id: string
+          activity_type: string
+          status: string
+          responses: Json
+          result_text: string | null
+          created_at: string
+          completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          activity_type: string
+          status?: string
+          responses?: Json
+          result_text?: string | null
+          created_at?: string
+          completed_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          activity_type?: string
+          status?: string
+          responses?: Json
+          result_text?: string | null
+          created_at?: string
+          completed_at?: string | null
+        }
+        Relationships: []
+      }
+      clinical_screenings: {
+        Row: {
+          id: string
+          user_id: string
+          instrument: string
+          responses: Json
+          score_internal: number | null
+          completed_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          instrument: string
+          responses?: Json
+          score_internal?: number | null
+          completed_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          instrument?: string
+          responses?: Json
+          score_internal?: number | null
+          completed_at?: string
+        }
+        Relationships: []
+      }
       clinical_knowledge: {
         Row: {
           category: string
@@ -440,6 +533,10 @@ export type Database = {
           timezone: string
           updated_at: string
           user_id: string
+          app_mode?: string
+          organization_id?: string | null
+          selected_voice?: string | null
+          v3_preferences?: Json
         }
         Insert: {
           age?: string | null
@@ -476,6 +573,10 @@ export type Database = {
           timezone?: string
           updated_at?: string
           user_id: string
+          app_mode?: string
+          organization_id?: string | null
+          selected_voice?: string | null
+          v3_preferences?: Json
         }
         Update: {
           age?: string | null
@@ -512,6 +613,10 @@ export type Database = {
           timezone?: string
           updated_at?: string
           user_id?: string
+          app_mode?: string
+          organization_id?: string | null
+          selected_voice?: string | null
+          v3_preferences?: Json
         }
         Relationships: []
       }

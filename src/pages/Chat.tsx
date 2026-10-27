@@ -413,7 +413,7 @@ export default function ChatScreen() {
         <TabScreenHeader>
           <WeekCalendarHeader
             leftIcon={Book}
-            onPressLeft={() => navigation.navigate('Explore')}
+            onPressLeft={() => navigation.navigate('Home')}
             showLeftIndicatorDot
             rightIcon={Settings}
             onPressRight={() => rootNavigation.navigate('Settings')}

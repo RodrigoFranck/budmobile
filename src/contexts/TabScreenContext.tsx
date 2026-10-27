@@ -24,7 +24,7 @@ import type { ExploreInsightKey } from '@/constants/exploreInsights';
 
 type Conversation = Tables<'conversations'>;
 
-export type TabScreenName = keyof MainTabParamList;
+export type TabScreenName = 'Home' | 'Chat' | 'Explore' | 'History' | 'Activities';
 
 interface TabScreenContextValue {
   isTabReady: (tab: TabScreenName) => boolean;
@@ -176,6 +176,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
   const activitiesReady = themeLoaded;
 
   const [latchedReady, setLatchedReady] = useState<Record<TabScreenName, boolean>>({
+    Home: false,
     Chat: false,
     Explore: false,
     History: false,
@@ -185,6 +186,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user?.id) {
       setLatchedReady({
+        Home: false,
         Chat: false,
         Explore: false,
         History: false,
@@ -194,6 +196,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
     }
 
     setLatchedReady((prev) => ({
+      Home: prev.Home || exploreReady,
       Chat: prev.Chat || chatReady,
       Explore: prev.Explore || exploreReady,
       History: prev.History || historyReady,
@@ -203,6 +206,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
 
   const readiness = useMemo(
     () => ({
+      Home: latchedReady.Home,
       Chat: latchedReady.Chat,
       Explore: latchedReady.Explore,
       History: latchedReady.History,

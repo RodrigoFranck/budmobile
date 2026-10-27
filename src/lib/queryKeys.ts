@@ -5,4 +5,5 @@ export const queryKeys = {
   internalProfile: (userId: string) => ['internalProfile', userId] as const,
   sessionMemoryExtras: (userId: string) => ['sessionMemoryExtras', userId] as const,
   insightUnlockRules: () => ['insightUnlockRules'] as const,
+  dailyLetter: (userId: string, date: string) => ['dailyLetter', userId, date] as const,
 };

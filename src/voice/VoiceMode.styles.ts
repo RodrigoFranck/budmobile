@@ -1,10 +1,10 @@
 import { StyleSheet } from 'react-native';
 
-import type { AppColors } from '@/lib/colors';
+import { fonts, type V3Colors } from '@/theme';
 import { Spacing } from '@/constants/styles';
 
 export function createVoiceModeStyles(params: {
-  colors: AppColors;
+  colors: V3Colors;
   topInset: number;
   bottomInset: number;
 }) {
@@ -13,7 +13,7 @@ export function createVoiceModeStyles(params: {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors['chat-warm-bg'],
+      backgroundColor: colors.bg,
     },
     backButton: {
       position: 'absolute',
@@ -23,7 +23,7 @@ export function createVoiceModeStyles(params: {
       width: 34,
       height: 34,
       borderRadius: 17,
-      backgroundColor: 'rgba(255,255,255,0.12)',
+      backgroundColor: colors.surface2,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -38,28 +38,26 @@ export function createVoiceModeStyles(params: {
       alignItems: 'center',
       paddingBottom: 24,
     },
-    // When text overflows, drop vertical centering so Android can scroll the top/bottom.
     scrollContentOverflow: {
       justifyContent: 'flex-start',
     },
     heroLabel: {
-      fontFamily: 'Fraunces_400Regular',
+      fontFamily: fonts.display,
       fontSize: 36,
       lineHeight: 44,
-      color: colors['chat-body'],
+      color: colors.text,
       textAlign: 'center',
       marginBottom: 12,
     },
     heroLabelConnecting: {
-      color: colors['chat-accent-mint'],
+      color: colors.accent,
     },
     heroHint: {
-      fontFamily: 'InstrumentSans',
+      fontFamily: fonts.sans,
       fontSize: 16,
       lineHeight: 22,
-      color: colors['chat-body'],
+      color: colors.text2,
       textAlign: 'center',
-      opacity: 0.78,
       maxWidth: 280,
     },
     heroBlock: {
@@ -73,10 +71,10 @@ export function createVoiceModeStyles(params: {
       alignItems: 'center',
     },
     transcript: {
-      fontFamily: 'Fraunces_400Regular',
+      fontFamily: fonts.display,
       fontSize: 24,
       lineHeight: 32,
-      color: colors['chat-body'],
+      color: colors.text,
       textAlign: 'center',
       width: '100%',
     },
@@ -88,21 +86,19 @@ export function createVoiceModeStyles(params: {
       paddingHorizontal: 24,
     },
     status: {
-      fontFamily: 'InstrumentSans',
+      fontFamily: fonts.sansSemi,
       fontSize: 16,
       lineHeight: 22,
-      fontWeight: '500',
-      color: colors['chat-body'],
+      color: colors.text,
       textAlign: 'center',
       marginBottom: 8,
     },
     statusHint: {
-      fontFamily: 'InstrumentSans',
+      fontFamily: fonts.sans,
       fontSize: 14,
       lineHeight: 20,
-      color: colors['chat-body'],
+      color: colors.text2,
       textAlign: 'center',
-      opacity: 0.72,
       marginBottom: 18,
     },
     actionsRow: {
@@ -115,12 +111,12 @@ export function createVoiceModeStyles(params: {
       width: 52,
       height: 52,
       borderRadius: 26,
-      backgroundColor: 'rgba(255,255,255,0.12)',
+      backgroundColor: colors.surface2,
       alignItems: 'center',
       justifyContent: 'center',
     },
     actionButtonMuted: {
-      backgroundColor: 'rgba(239, 68, 68, 0.18)',
+      backgroundColor: 'rgba(196, 92, 74, 0.18)',
     },
     actionButtonDisabled: {
       opacity: 0.4,
@@ -129,15 +125,15 @@ export function createVoiceModeStyles(params: {
       width: 64,
       height: 64,
       borderRadius: 32,
-      backgroundColor: colors['chat-body'],
+      backgroundColor: colors.btn,
       alignItems: 'center',
       justifyContent: 'center',
     },
     activityBarsWrapConnecting: {
-      backgroundColor: colors['chat-accent-mint'],
+      backgroundColor: colors.accent,
     },
     activityBarsWrapPaused: {
-      backgroundColor: colors['chat-accent-mint'],
+      backgroundColor: colors.accent,
     },
     activityBarsInner: {
       flexDirection: 'row',
@@ -150,7 +146,7 @@ export function createVoiceModeStyles(params: {
       width: 4,
       height: 28,
       borderRadius: 2,
-      backgroundColor: colors['chat-warm-bg'],
+      backgroundColor: colors.bg,
     },
   });
 }

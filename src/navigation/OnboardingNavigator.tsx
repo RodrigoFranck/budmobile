@@ -1,19 +1,11 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+
 import { OnboardingAbandonmentTracker } from '@/analytics';
 import { OnboardingFlowProvider } from '@/contexts/OnboardingFlowContext';
 import { useOnboardingColors } from '@/constants/onboardingTheme';
-import type { OnboardingStackParamList } from '@/types/onboardingNavigation';
+import OnboardingV3Screen from '@/pages/onboardingV3/OnboardingV3Screen';
 
-import OnboardingNameScreen from '@/pages/onboarding/OnboardingNameScreen';
-import OnboardingAgeScreen from '@/pages/onboarding/OnboardingAgeScreen';
-import OnboardingThoughtsScreen from '@/pages/onboarding/OnboardingThoughtsScreen';
-import OnboardingExpectationsScreen from '@/pages/onboarding/OnboardingExpectationsScreen';
-// import OnboardingCommitmentScreen from '@/pages/onboarding/OnboardingCommitmentScreen';
-import OnboardingNotificationsScreen from '@/pages/onboarding/OnboardingNotificationsScreen';
-import OnboardingVoiceScreen from '@/pages/onboarding/OnboardingVoiceScreen';
-import OnboardingReadyScreen from '@/pages/onboarding/OnboardingReadyScreen';
-
-const Stack = createNativeStackNavigator<OnboardingStackParamList>();
+const Stack = createNativeStackNavigator();
 
 function OnboardingStack() {
   const colors = useOnboardingColors();
@@ -22,21 +14,13 @@ function OnboardingStack() {
     <>
       <OnboardingAbandonmentTracker />
       <Stack.Navigator
-        initialRouteName="OnboardingName"
         screenOptions={{
           headerShown: false,
           animation: 'slide_from_right',
           contentStyle: { backgroundColor: colors.background },
         }}
       >
-        <Stack.Screen name="OnboardingName" component={OnboardingNameScreen} />
-        <Stack.Screen name="OnboardingAge" component={OnboardingAgeScreen} />
-        <Stack.Screen name="OnboardingThoughts" component={OnboardingThoughtsScreen} />
-        <Stack.Screen name="OnboardingExpectations" component={OnboardingExpectationsScreen} />
-        {/* <Stack.Screen name="OnboardingCommitment" component={OnboardingCommitmentScreen} /> */}
-        <Stack.Screen name="OnboardingNotifications" component={OnboardingNotificationsScreen} />
-        <Stack.Screen name="OnboardingVoice" component={OnboardingVoiceScreen} />
-        <Stack.Screen name="OnboardingReady" component={OnboardingReadyScreen} />
+        <Stack.Screen name="OnboardingV3" component={OnboardingV3Screen} />
       </Stack.Navigator>
     </>
   );

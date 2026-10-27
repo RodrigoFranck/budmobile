@@ -99,8 +99,7 @@ export function navigateToChatTab(
 
   const chatParams = buildChatScreenParams(params);
 
-  // Within MainTabs (Explore, Activities, History, Chat).
-  const tabNav = findNavigatorWithRoutes(navigation, ['Chat', 'Explore']);
+  const tabNav = findNavigatorWithRoutes(navigation, ['Home', 'Chat']);
   if (tabNav) {
     tabNav.navigate('Chat', chatParams);
     return;
@@ -115,5 +114,5 @@ export function navigateToChatTab(
     return;
   }
 
-  navigation.navigate('Chat' as never, chatParams as never);
+  (navigation as StackLikeNavigation).navigate('Chat', chatParams);
 }

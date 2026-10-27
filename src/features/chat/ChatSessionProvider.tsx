@@ -14,6 +14,7 @@ import { useFocusEffect, useIsFocused, useNavigation, useRoute } from '@react-na
 
 import { useAuth } from '@/contexts/AuthContext';
 import { ACTION_EVENTS, logActionEvent } from '@/analytics';
+import { useUserPlan } from '@/hooks/useUserPlan';
 import { useTabScreenContext } from '@/contexts/TabScreenContext';
 import { countUserTurns, matchApproach } from '@/utils/approachMatcher';
 import { buildInsightApproachContext } from '@/utils/buildInsightApproachContext';
@@ -96,7 +97,10 @@ const ChatSessionContext = createContext<ChatSessionContextValue | undefined>(un
 
 export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const { canSendMessage } = useUserPlan();
   const navigation = useNavigation<MainTabNavigationProp>();
+  const canSendMessageRef = useRef(canSendMessage);
+  canSendMessageRef.current = canSendMessage;
   const route = useRoute();
   const isChatFocused = useIsFocused();
   const {
@@ -373,6 +377,10 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const handleSendMessage = useCallback(
     async (message: string, contextOverride?: InsightContext | null) => {
       if (!currentConversationId || !user || sendInFlightRef.current) return;
+      if (!canSendMessageRef.current) {
+        navigation.navigate('Paywall');
+        return;
+      }
 
       sendInFlightRef.current = true;
 
@@ -523,6 +531,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       memoryLoading,
       internalProfile,
       addMessage,
+      navigation,
     ],
   );
 
@@ -539,6 +548,10 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       currentConversationId &&
       !isVoiceAutoStartInFlightRef.current
     ) {
+      if (!canSendMessageRef.current) {
+        navigation.navigate('Paywall');
+        return;
+      }
       if (!voiceInterfaceRef.current) {
         requestAnimationFrame(() => {
           bootstrapInsightSessionRef.current();

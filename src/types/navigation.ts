@@ -1,24 +1,21 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
-import type { ActivitiesStackParamList } from '@/types/activitiesNavigation.types';
 import type { ChatInsightParam } from '@/types/chatInsight';
 import type { ChatStackParamList } from '@/types/chatNavigation.types';
 import type { CheckInStackParamList } from '@/types/checkInNavigation.types';
+import type { ActivityId } from '@/pages/activitiesV3/activityFlows';
+import type { ScreeningId } from '@/pages/institution/screeningCatalog';
+import type { PrefEditField } from '@/pages/menu/menuCatalog';
 
-/**
- * Root navigation stack parameter list
- * Define all routes and their parameters
- */
 export type RootStackParamList = {
   Auth: undefined;
+  AccountDeleted: undefined;
   Bootstrap: undefined;
   ForgotPassword: undefined;
   ResetPassword: undefined;
   VerifyEmail: undefined;
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
-  // Legacy routes used in some screens
   Home: undefined;
   Chat: undefined;
   Explore: undefined;
@@ -47,18 +44,33 @@ export type ChatTabParams = {
 };
 
 export type MainTabParamList = {
+  Home: undefined;
   Chat: ChatTabParams | undefined;
   Explore: undefined;
-  Activities: NavigatorScreenParams<ActivitiesStackParamList> | undefined;
+  Activities: undefined;
   History: { openDeepInsight?: boolean; weekStart?: string } | undefined;
+  Menu: undefined;
+  VoiceSelect: undefined;
+  Preferences: undefined;
+  AboutMe: undefined;
+  Motives: undefined;
+  PrefEdit: { field: PrefEditField };
+  NotificationsPrefs: undefined;
+  Account: undefined;
+  DeleteAccount: undefined;
+  AboutBud: undefined;
+  Support: undefined;
+  SupportSent: undefined;
+  Letter: undefined;
+  LetterOpen: undefined;
+  Paywall: { interval?: 'monthly' | 'annual' } | undefined;
+  ActivityFlow: { activityId: ActivityId };
+  Institution: { forced?: boolean } | undefined;
+  InstitutionOptional: undefined;
+  SleepCheckIn: undefined;
+  Screening: { instrument: ScreeningId };
 };
 
-/**
- * Navigation prop type for screens
- */
 export type RootNavigationProp = NativeStackNavigationProp<RootStackParamList>;
-export type MainTabNavigationProp = BottomTabNavigationProp<MainTabParamList>;
-
-// Backwards compatibility with existing imports
+export type MainTabNavigationProp = NativeStackNavigationProp<MainTabParamList>;
 export type NavigationProp = RootNavigationProp;
-

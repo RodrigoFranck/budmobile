@@ -7,14 +7,14 @@ import {
   KeyboardAvoidingView,
   TouchableOpacity,
   ActivityIndicator,
-  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppAlert } from "@/contexts/AppAlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { PlatformConstants } from "@/constants/layout";
-import { authStyles as styles } from "@/pages/Auth/Auth.styles";
+import { createAuthStyles } from "@/pages/Auth/Auth.styles";
+import { useV3Colors } from "@/theme";
 import {
   mapPasswordUpdateError,
   passwordMismatchAlert,
@@ -22,11 +22,12 @@ import {
   passwordUpdatedAlert,
 } from "@/utils/auth/authMessages";
 
-const backgroundLogin = require("@/assets/background-login.png");
 const MIN_PASSWORD_LENGTH = 6;
 
 export default function ResetPasswordScreen() {
   const insets = useSafeAreaInsets();
+  const colors = useV3Colors();
+  const styles = createAuthStyles(colors);
   const { showAlert } = useAppAlert();
   const { clearPasswordRecovery, signOut } = useAuth();
   const [password, setPassword] = useState("");
@@ -62,12 +63,6 @@ export default function ResetPasswordScreen() {
 
   return (
     <View style={styles.root}>
-      <Image
-        source={backgroundLogin}
-        style={styles.backgroundImage}
-        resizeMode="cover"
-        accessibilityIgnoresInvertColors
-      />
       <KeyboardAvoidingView
         behavior={PlatformConstants.keyboardBehavior}
         style={styles.container}
@@ -97,7 +92,7 @@ export default function ResetPasswordScreen() {
                   <TextInput
                     style={styles.input}
                     placeholder="Mínimo 6 caracteres"
-                    placeholderTextColor="#B5B5B5"
+                    placeholderTextColor={colors.text3}
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry
@@ -112,7 +107,7 @@ export default function ResetPasswordScreen() {
                   <TextInput
                     style={styles.input}
                     placeholder="Repita a nova senha"
-                    placeholderTextColor="#B5B5B5"
+                    placeholderTextColor={colors.text3}
                     value={confirmPassword}
                     onChangeText={setConfirmPassword}
                     secureTextEntry
@@ -129,7 +124,7 @@ export default function ResetPasswordScreen() {
                   activeOpacity={0.7}
                 >
                   {isLoading ? (
-                    <ActivityIndicator size="small" color="#1D1916" />
+                    <ActivityIndicator size="small" color={colors.onBtn} />
                   ) : (
                     <Text style={styles.buttonText}>Salvar nova senha</Text>
                   )}

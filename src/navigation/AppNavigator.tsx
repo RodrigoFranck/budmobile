@@ -15,6 +15,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { InteractionManager, View } from 'react-native';
+import AccountDeletedScreen from '@/pages/menu/AccountDeletedScreen';
+import {
+  clearAccountDeletedName,
+  peekAccountDeletedName,
+} from '@/pages/menu/accountDeletedGate';
 
 import { SplashScreen } from '@/components/SplashScreen';
 import AuthScreen from '@/pages/Auth/Auth';
@@ -64,6 +69,18 @@ export default function AppNavigator() {
   }, [navigationRef]);
   const isLoading = Boolean(loading);
   const waitOnboarding = Boolean(user && !onboardingStatusLoaded && !passwordRecoveryPending);
+  const [accountDeletedName, setDeletedAccountName] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (user) {
+      setDeletedAccountName(undefined);
+      return;
+    }
+    const pending = peekAccountDeletedName();
+    if (pending) {
+      setDeletedAccountName(pending.name);
+    }
+  }, [user]);
   const [minSplashElapsed, setMinSplashElapsed] = useState(false);
   const [interactionsDone, setInteractionsDone] = useState(false);
   const splashStartMsRef = useRef<number>(Date.now());
@@ -106,12 +123,24 @@ export default function AppNavigator() {
             headerShown: false,
             freezeOnBlur: false,
             contentStyle: {
-              backgroundColor: mode === 'dark' ? '#1D1916' : '#F7F1ED',
+              backgroundColor: mode === 'dark' ? '#171310' : '#F1E6DB',
             },
           }}
         >
           {passwordRecoveryPending ? (
             <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+          ) : accountDeletedName !== undefined && !user ? (
+            <Stack.Screen name="AccountDeleted">
+              {() => (
+                <AccountDeletedScreen
+                  name={accountDeletedName}
+                  onClose={() => {
+                    clearAccountDeletedName();
+                    setDeletedAccountName(undefined);
+                  }}
+                />
+              )}
+            </Stack.Screen>
           ) : !user ? (
             <>
               <Stack.Screen name="Auth" component={AuthScreen} />

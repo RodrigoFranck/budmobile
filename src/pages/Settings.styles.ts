@@ -3,25 +3,25 @@ import { StyleSheet } from 'react-native';
 import { Spacing } from '@/constants/styles';
 
 export const DARK_COLORS = {
-  background: '#1D1916',
-  card: '#373737',
-  cardBorder: 'rgba(255,255,255,0.06)',
-  text: '#FFFFFF',
-  icon: 'rgba(255,255,255,0.75)',
-  primary: '#BBEEEE',
-  backButtonBackground: 'rgba(255,255,255,0.18)',
-  switchTrackOff: 'rgba(255,255,255,0.25)',
+  background: '#171310',
+  card: '#201B18',
+  cardBorder: '#3A332D',
+  text: '#F1E6DB',
+  icon: '#A39C93',
+  primary: '#B0EDEE',
+  backButtonBackground: '#2A2522',
+  switchTrackOff: '#3A332D',
 } as const;
 
 export const LIGHT_COLORS = {
-  background: '#F7F1ED',
-  card: '#FFFFFF',
-  cardBorder: 'rgba(0,0,0,0.08)',
-  text: '#1D1916',
-  icon: 'rgba(29,25,22,0.65)',
-  primary: '#2E7D7A',
-  backButtonBackground: 'rgba(29,25,22,0.08)',
-  switchTrackOff: 'rgba(29,25,22,0.18)',
+  background: '#F1E6DB',
+  card: '#E5D8CA',
+  cardBorder: '#D3C3B2',
+  text: '#35302B',
+  icon: '#6E655C',
+  primary: '#2E7F7C',
+  backButtonBackground: '#DCCDBD',
+  switchTrackOff: '#D3C3B2',
 } as const;
 
 export type SettingsColors = {

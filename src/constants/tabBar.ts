@@ -1,7 +1,7 @@
 import type { BottomTabNavigationOptions } from '@react-navigation/bottom-tabs';
 import type { ViewStyle } from 'react-native';
 
-/** Visible tab bar content area (icons + labels), excluding top padding and home indicator. */
+/** Legacy 4-tab metrics. App v3 uses a native stack (Home + menu + chat FAB). */
 export const TAB_BAR_CONTENT_HEIGHT = 56;
 export const TAB_BAR_PADDING_TOP = 8;
 export const TAB_BAR_ICON_SIZE = 24;

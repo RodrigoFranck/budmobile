@@ -4,6 +4,8 @@ import { ACTION_EVENTS, logActionEvent } from '@/analytics';
 import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useOnboardingFlow } from '@/contexts/OnboardingFlowContext';
 import { supabase } from '@/integrations/supabase/client';
+import { preferencesFromOnboardingAnswers } from '@/hooks/useV3Preferences';
+import type { Json } from '@/integrations/supabase/types';
 
 export function useOnboardingComplete() {
   const { user, refreshOnboardingStatus } = useAuth();
@@ -13,6 +15,7 @@ export function useOnboardingComplete() {
     initialThoughts,
     conversationGoal,
     shareConversations,
+    answers,
   } = useOnboardingFlow();
   const { showAlert } = useAppAlert();
   const [submitting, setSubmitting] = useState(false);
@@ -32,8 +35,12 @@ export function useOnboardingComplete() {
           user_id: user.id,
           name: displayName.trim() || user.email?.split('@')[0] || 'Bud',
           age: ageLabel,
-          initial_thoughts: initialThoughts.trim() || null,
-          conversation_goal: conversationGoal.trim() || null,
+          gender: answers.gender ?? null,
+          initial_thoughts: initialThoughts.trim() || answers.mood || null,
+          conversation_goal: conversationGoal.trim() || answers.focus || null,
+          selected_voice: answers.voice ?? null,
+          hobbies: answers.interests ? answers.interests.split(' · ').filter(Boolean) : null,
+          v3_preferences: preferencesFromOnboardingAnswers(answers, shareConversations) as Json,
           onboarding_completed: true,
           updated_at: new Date().toISOString(),
         },
@@ -49,6 +56,8 @@ export function useOnboardingComplete() {
         data: {
           share_conversations: shareConversations,
           display_name: displayName.trim(),
+          selected_voice: answers.voice ?? null,
+          origin: answers.origin ?? null,
         },
       });
 
@@ -70,6 +79,7 @@ export function useOnboardingComplete() {
     initialThoughts,
     conversationGoal,
     shareConversations,
+    answers,
     refreshOnboardingStatus,
     showAlert,
   ]);

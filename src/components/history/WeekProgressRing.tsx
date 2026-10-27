@@ -8,12 +8,18 @@ interface WeekProgressRingProps {
   progress: number;
   required: number;
   size?: number;
+  trackColor?: string;
+  progressColor?: string;
+  labelColor?: string;
 }
 
 export function WeekProgressRing({
   progress,
   required,
   size = 64,
+  trackColor = 'rgba(255,255,255,0.18)',
+  progressColor = 'rgba(255,255,255,0.9)',
+  labelColor = '#FFFFFF',
 }: WeekProgressRingProps) {
   const strokeWidth = 2.5;
   const radius = (size - strokeWidth) / 2;
@@ -28,7 +34,7 @@ export function WeekProgressRing({
           cx={center}
           cy={center}
           r={radius}
-          stroke="rgba(255,255,255,0.18)"
+          stroke={trackColor}
           strokeWidth={strokeWidth}
           fill="none"
         />
@@ -36,7 +42,7 @@ export function WeekProgressRing({
           cx={center}
           cy={center}
           r={radius}
-          stroke="rgba(255,255,255,0.9)"
+          stroke={progressColor}
           strokeWidth={strokeWidth}
           fill="none"
           strokeDasharray={`${circumference} ${circumference}`}
@@ -45,7 +51,7 @@ export function WeekProgressRing({
           transform={`rotate(-90 ${center} ${center})`}
         />
       </Svg>
-      <Text style={styles.label}>
+      <Text style={[styles.label, { color: labelColor, lineHeight: size }]}>
         {progress}/{required}
       </Text>
     </View>

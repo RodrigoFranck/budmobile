@@ -1,14 +1,13 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
 export type AgeRangeOption =
-  | 'under-18'
-  | '18-24'
-  | '25-34'
-  | '35-44'
-  | '45-54'
-  | '55-64'
-  | '65+'
-  | 'prefer_not_say';
+  | '55 a 64'
+  | '45 a 54'
+  | '35 a 44'
+  | '30 a 34'
+  | '25 a 29'
+  | '18 a 24'
+  | 'Menos de 18';
 
 interface OnboardingFlowState {
   displayName: string;
@@ -16,6 +15,7 @@ interface OnboardingFlowState {
   initialThoughts: string;
   conversationGoal: string;
   shareConversations: boolean;
+  answers: Record<string, string>;
 }
 
 interface OnboardingFlowContextValue extends OnboardingFlowState {
@@ -24,6 +24,7 @@ interface OnboardingFlowContextValue extends OnboardingFlowState {
   setInitialThoughts: (v: string) => void;
   setConversationGoal: (v: string) => void;
   setShareConversations: (v: boolean) => void;
+  setAnswer: (key: string, value: string) => void;
   reset: () => void;
 }
 
@@ -33,6 +34,7 @@ const initialState: OnboardingFlowState = {
   initialThoughts: '',
   conversationGoal: '',
   shareConversations: true,
+  answers: {},
 };
 
 const OnboardingFlowContext = createContext<OnboardingFlowContextValue | undefined>(undefined);
@@ -43,12 +45,16 @@ export function OnboardingFlowProvider({ children }: { children: React.ReactNode
   const [initialThoughts, setInitialThoughtsState] = useState('');
   const [conversationGoal, setConversationGoalState] = useState('');
   const [shareConversations, setShareConversationsState] = useState(true);
+  const [answers, setAnswersState] = useState<Record<string, string>>({});
 
   const setDisplayName = useCallback((v: string) => setDisplayNameState(v), []);
   const setAgeRange = useCallback((v: AgeRangeOption | null) => setAgeRangeState(v), []);
   const setInitialThoughts = useCallback((v: string) => setInitialThoughtsState(v), []);
   const setConversationGoal = useCallback((v: string) => setConversationGoalState(v), []);
   const setShareConversations = useCallback((v: boolean) => setShareConversationsState(v), []);
+  const setAnswer = useCallback((key: string, value: string) => {
+    setAnswersState((current) => ({ ...current, [key]: value }));
+  }, []);
 
   const reset = useCallback(() => {
     setDisplayNameState(initialState.displayName);
@@ -56,6 +62,7 @@ export function OnboardingFlowProvider({ children }: { children: React.ReactNode
     setInitialThoughtsState(initialState.initialThoughts);
     setConversationGoalState(initialState.conversationGoal);
     setShareConversationsState(initialState.shareConversations);
+    setAnswersState({});
   }, []);
 
   const value = useMemo(
@@ -65,11 +72,13 @@ export function OnboardingFlowProvider({ children }: { children: React.ReactNode
       initialThoughts,
       conversationGoal,
       shareConversations,
+      answers,
       setDisplayName,
       setAgeRange,
       setInitialThoughts,
       setConversationGoal,
       setShareConversations,
+      setAnswer,
       reset,
     }),
     [
@@ -78,11 +87,13 @@ export function OnboardingFlowProvider({ children }: { children: React.ReactNode
       initialThoughts,
       conversationGoal,
       shareConversations,
+      answers,
       setDisplayName,
       setAgeRange,
       setInitialThoughts,
       setConversationGoal,
       setShareConversations,
+      setAnswer,
       reset,
     ],
   );

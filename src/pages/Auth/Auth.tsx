@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   Platform,
   Image,
 } from "react-native";
-import { Apple, ChevronLeft, Eye, EyeOff } from "lucide-react-native";
+import { ChevronLeft, Eye, EyeOff } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppAlert } from "@/contexts/AppAlertContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,7 +19,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "@/types/navigation";
 import { PlatformConstants, SCREEN } from "@/constants/layout";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { authStyles as styles } from "./Auth.styles";
+import { createAuthStyles } from "./Auth.styles";
 import { SITE_ORIGIN } from "@/constants/auth";
 import {
   PRIVACY_POLICY_URL,
@@ -32,16 +32,19 @@ import {
   signupPasswordMismatchAlert,
   signupSuccessAlert,
 } from "@/utils/auth/authMessages";
+import { AppleLogo } from "@/components/icons/AppleLogo";
 import { GoogleLogo } from "@/components/icons/GoogleLogo";
-
-const backgroundLogin = require("@/assets/background-login.png");
+import { BudButton, BudIconButton } from "@/components/v3";
+import { useV3Asset, useV3Colors } from "@/theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Auth">;
-type AuthMethod = "social" | "email";
 type EmailTab = "login" | "signup";
 
 export default function AuthScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const colors = useV3Colors();
+  const assets = useV3Asset();
+  const styles = useMemo(() => createAuthStyles(colors), [colors]);
   const { showAlert } = useAppAlert();
   const {
     signUp,
@@ -52,7 +55,7 @@ export default function AuthScreen({ navigation }: Props) {
     user,
     loading: authLoading,
   } = useAuth();
-  const [authMethod, setAuthMethod] = useState<AuthMethod>("social");
+  const [step, setStep] = useState<"welcome" | "auth">("welcome");
   const [isLoadingLogin, setIsLoadingLogin] = useState(false);
   const [isLoadingSignup, setIsLoadingSignup] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
@@ -178,12 +181,7 @@ export default function AuthScreen({ navigation }: Props) {
     <View style={styles.socialSection}>
       {showAppleButton && (
         <TouchableOpacity
-          style={[
-            styles.socialButton,
-            styles.socialButtonApple,
-            styles.socialButtonPrimary,
-            isSocialLoading && styles.buttonDisabled,
-          ]}
+          style={[styles.socialButton, isSocialLoading && styles.buttonDisabled]}
           onPress={handleAppleSignIn}
           disabled={isAnyLoading}
           activeOpacity={0.7}
@@ -191,48 +189,34 @@ export default function AuthScreen({ navigation }: Props) {
           accessibilityLabel="Continuar com Apple"
         >
           {isLoadingApple ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <ActivityIndicator size="small" color={colors.text} />
           ) : (
             <>
               <View style={styles.socialIconContainer}>
-                <Apple size={20} color="#FFFFFF" fill="#FFFFFF" />
+                <AppleLogo color={colors.text} />
               </View>
-              <Text
-                style={[styles.socialButtonText, styles.socialButtonTextApple]}
-              >
-                Continuar com Apple
-              </Text>
+              <Text style={styles.socialButtonText}>Continuar com Apple</Text>
             </>
           )}
         </TouchableOpacity>
       )}
 
       <TouchableOpacity
-        style={[
-          styles.socialButton,
-          styles.socialButtonGoogle,
-          styles.socialButtonPrimary,
-          !showAppleButton && styles.socialButtonPrimaryFirst,
-          isSocialLoading && styles.buttonDisabled,
-        ]}
+        style={[styles.socialButton, isSocialLoading && styles.buttonDisabled]}
         onPress={handleGoogleSignIn}
         disabled={isAnyLoading}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel="Continue com o Google"
+        accessibilityLabel="Continuar com Google"
       >
         {isLoadingGoogle ? (
-          <ActivityIndicator size="small" color="rgba(0,0,0,0.54)" />
+          <ActivityIndicator size="small" color={colors.text} />
         ) : (
           <>
             <View style={styles.socialIconContainer}>
-              <GoogleLogo size={24} />
+              <GoogleLogo />
             </View>
-            <Text
-              style={[styles.socialButtonText, styles.socialButtonTextGoogle]}
-            >
-              Continue com o Google
-            </Text>
+            <Text style={styles.socialButtonText}>Continuar com Google</Text>
           </>
         )}
       </TouchableOpacity>
@@ -241,62 +225,40 @@ export default function AuthScreen({ navigation }: Props) {
 
   const renderLoginForm = () => (
     <View style={styles.form}>
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Email</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="seu@email.com"
+        placeholderTextColor={colors.text3}
+        value={loginEmail}
+        onChangeText={setLoginEmail}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        editable={!isLoadingLogin}
+      />
+      <View style={styles.passwordInputContainer}>
         <TextInput
-          style={styles.input}
-          placeholder="seu@email.com"
-          placeholderTextColor="#B5B5B5"
-          value={loginEmail}
-          onChangeText={setLoginEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
+          style={styles.passwordInput}
+          placeholder="Senha"
+          placeholderTextColor={colors.text3}
+          value={loginPassword}
+          onChangeText={setLoginPassword}
+          secureTextEntry={!showLoginPassword}
           editable={!isLoadingLogin}
         />
+        <TouchableOpacity
+          onPress={() => setShowLoginPassword(!showLoginPassword)}
+          style={styles.eyeIcon}
+          activeOpacity={0.7}
+        >
+          {showLoginPassword ? (
+            <EyeOff size={20} color={colors.text2} />
+          ) : (
+            <Eye size={20} color={colors.text2} />
+          )}
+        </TouchableOpacity>
       </View>
-
-      <View style={styles.inputGroup}>
-        <View style={styles.labelRow}>
-          <Text style={styles.label}>Senha</Text>
-          <TouchableOpacity onPress={handleForgotPassword} activeOpacity={0.7}>
-            <Text style={styles.forgotPassword}>Esqueceu a senha?</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.passwordInputContainer}>
-          <TextInput
-            style={styles.passwordInput}
-            placeholder="********"
-            placeholderTextColor="#B5B5B5"
-            value={loginPassword}
-            onChangeText={setLoginPassword}
-            secureTextEntry={!showLoginPassword}
-            editable={!isLoadingLogin}
-          />
-          <TouchableOpacity
-            onPress={() => setShowLoginPassword(!showLoginPassword)}
-            style={styles.eyeIcon}
-            activeOpacity={0.7}
-          >
-            {showLoginPassword ? (
-              <EyeOff size={20} color="#666666" />
-            ) : (
-              <Eye size={20} color="#666666" />
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <TouchableOpacity
-        style={[styles.button, isLoadingLogin && styles.buttonDisabled]}
-        onPress={handleLogin}
-        disabled={isLoadingLogin}
-        activeOpacity={0.7}
-      >
-        {isLoadingLogin ? (
-          <ActivityIndicator size="small" color="#1D1916" />
-        ) : (
-          <Text style={styles.buttonText}>Entrar</Text>
-        )}
+      <TouchableOpacity onPress={handleForgotPassword} activeOpacity={0.7} style={styles.labelRow}>
+        <Text style={styles.forgotPassword}>Esqueci a senha</Text>
       </TouchableOpacity>
     </View>
   );
@@ -308,7 +270,7 @@ export default function AuthScreen({ navigation }: Props) {
         <TextInput
           style={styles.input}
           placeholder="Seu nome"
-          placeholderTextColor="#B5B5B5"
+          placeholderTextColor={colors.text3}
           value={signupName}
           onChangeText={setSignupName}
           maxLength={100}
@@ -321,7 +283,7 @@ export default function AuthScreen({ navigation }: Props) {
         <TextInput
           style={styles.input}
           placeholder="seu@email.com"
-          placeholderTextColor="#B5B5B5"
+          placeholderTextColor={colors.text3}
           value={signupEmail}
           onChangeText={setSignupEmail}
           keyboardType="email-address"
@@ -337,7 +299,7 @@ export default function AuthScreen({ navigation }: Props) {
           <TextInput
             style={styles.passwordInput}
             placeholder="********"
-            placeholderTextColor="#B5B5B5"
+            placeholderTextColor={colors.text3}
             value={signupPassword}
             onChangeText={setSignupPassword}
             secureTextEntry={!showSignupPassword}
@@ -349,9 +311,9 @@ export default function AuthScreen({ navigation }: Props) {
             activeOpacity={0.7}
           >
             {showSignupPassword ? (
-              <EyeOff size={20} color="#666666" />
+              <EyeOff size={20} color={colors.text2} />
             ) : (
-              <Eye size={20} color="#666666" />
+              <Eye size={20} color={colors.text2} />
             )}
           </TouchableOpacity>
         </View>
@@ -363,7 +325,7 @@ export default function AuthScreen({ navigation }: Props) {
           <TextInput
             style={styles.passwordInput}
             placeholder="********"
-            placeholderTextColor="#B5B5B5"
+            placeholderTextColor={colors.text3}
             value={signupConfirmPassword}
             onChangeText={setSignupConfirmPassword}
             secureTextEntry={!showConfirmPassword}
@@ -375,9 +337,9 @@ export default function AuthScreen({ navigation }: Props) {
             activeOpacity={0.7}
           >
             {showConfirmPassword ? (
-              <EyeOff size={20} color="#666666" />
+              <EyeOff size={20} color={colors.text2} />
             ) : (
-              <Eye size={20} color="#666666" />
+              <Eye size={20} color={colors.text2} />
             )}
           </TouchableOpacity>
         </View>
@@ -394,7 +356,7 @@ export default function AuthScreen({ navigation }: Props) {
         activeOpacity={0.7}
       >
         {isLoadingSignup ? (
-          <ActivityIndicator size="small" color="#1D1916" />
+          <ActivityIndicator size="small" color={colors.onBtn} />
         ) : (
           <Text style={styles.buttonText}>Criar conta</Text>
         )}
@@ -402,72 +364,136 @@ export default function AuthScreen({ navigation }: Props) {
     </View>
   );
 
-  const renderEmailAuth = () => (
-    <View style={styles.emailSection}>
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => setAuthMethod("social")}
-        disabled={isAnyLoading}
-        activeOpacity={0.7}
-      >
-        <ChevronLeft size={20} color="#FFFFFF" />
-        <Text style={styles.backButtonText}>Voltar</Text>
-      </TouchableOpacity>
-
-      <View style={styles.tabContainer}>
+  const renderWelcome = () => (
+    <View
+      style={[
+        styles.content,
+        {
+          minHeight:
+            SCREEN.height - insets.top - 24 - insets.bottom - 24,
+        },
+      ]}
+    >
+      <View style={styles.header}>
+        <Text style={styles.title}>
+          Diga oi para o <Text style={styles.titleAccent}>Bud</Text>
+        </Text>
+        <Text style={styles.subtitle}>
+          Uma inteligência artificial feita para cuidar da sua saúde mental, todos os dias.
+        </Text>
+      </View>
+      <View style={styles.welcomeArt}>
+        <Image source={assets.welcomeGiz} style={styles.welcomeGiz} resizeMode="contain" />
+      </View>
+      <View>
+        <BudButton
+          label="Começar"
+          onPress={() => {
+            setStep("auth");
+            setActiveTab("signup");
+          }}
+          style={{ borderRadius: 29 }}
+        />
         <TouchableOpacity
-          style={[styles.tab, activeTab === "login" && styles.tabActive]}
-          onPress={() => setActiveTab("login")}
-          activeOpacity={0.7}
+          style={styles.secondaryLink}
+          onPress={() => {
+            setStep("auth");
+            setActiveTab("login");
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Já tenho conta"
         >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "login" && styles.tabTextActive,
-            ]}
-          >
-            Login
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "signup" && styles.tabActive]}
-          onPress={() => setActiveTab("signup")}
-          activeOpacity={0.7}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "signup" && styles.tabTextActive,
-            ]}
-          >
-            Cadastro
-          </Text>
+          <Text style={styles.secondaryLinkText}>Já tenho conta</Text>
         </TouchableOpacity>
       </View>
-
-      {activeTab === "login" ? renderLoginForm() : renderSignupForm()}
     </View>
   );
 
-  const topInset = 40;
-  const bottomInset = 24;
+  const renderLogin = () => (
+    <View
+      style={[
+        styles.content,
+        {
+          minHeight:
+            SCREEN.height - insets.top - 16 - insets.bottom - 16,
+        },
+      ]}
+    >
+      <View>
+        <View style={styles.backRow}>
+          <BudIconButton
+            icon={ChevronLeft}
+            accessibilityLabel="Voltar"
+            onPress={() => setStep("welcome")}
+          />
+        </View>
+        <Text style={styles.title}>
+          Que bom ter você <Text style={styles.titleAccent}>aqui</Text>
+        </Text>
+        <Text style={styles.subtitle}>
+          Entre para continuar de onde parou. Suas conversas são só suas.
+        </Text>
+        <View style={{ marginTop: 36 }}>
+          {renderSocialButtons()}
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>ou</Text>
+            <View style={styles.dividerLine} />
+          </View>
+          {activeTab === "signup" ? renderSignupForm() : renderLoginForm()}
+        </View>
+      </View>
+      <View style={styles.footerSection}>
+        {activeTab === "login" ? (
+          <BudButton
+            label="Entrar"
+            loading={isLoadingLogin}
+            disabled={isLoadingLogin}
+            onPress={() => void handleLogin()}
+            style={{ borderRadius: 29 }}
+          />
+        ) : null}
+        <TouchableOpacity
+          style={styles.secondaryLink}
+          onPress={() => setActiveTab(activeTab === "login" ? "signup" : "login")}
+        >
+          <Text style={styles.secondaryLinkText}>
+            {activeTab === "login" ? "Criar conta com e-mail" : "Já tenho conta"}
+          </Text>
+        </TouchableOpacity>
+        <Text style={styles.termsText}>
+          Ao continuar, você aceita os{" "}
+          <Text
+            style={styles.termsLink}
+            onPress={() => Linking.openURL(TERMS_OF_SERVICE_URL)}
+          >
+            Termos de uso
+          </Text>{" "}
+          e a{" "}
+          <Text
+            style={styles.termsLink}
+            onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+          >
+            Política de Privacidade
+          </Text>
+          .
+        </Text>
+      </View>
+    </View>
+  );
+
+  const topInset = step === "welcome" ? 24 : 8;
 
   if (authLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#ffffff" />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
 
   return (
     <View style={styles.root}>
-      <Image
-        source={backgroundLogin}
-        style={styles.backgroundImage}
-        resizeMode="cover"
-        accessibilityIgnoresInvertColors
-      />
       <KeyboardAvoidingView
         behavior={PlatformConstants.keyboardBehavior}
         style={styles.container}
@@ -479,81 +505,13 @@ export default function AuthScreen({ navigation }: Props) {
             {
               minHeight: SCREEN.height,
               paddingTop: insets.top + topInset,
-              paddingBottom: insets.bottom + bottomInset,
+              paddingBottom: insets.bottom + 16,
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View
-            style={[
-              styles.content,
-              {
-                minHeight:
-                  SCREEN.height -
-                  insets.top -
-                  topInset -
-                  insets.bottom -
-                  bottomInset,
-              },
-            ]}
-          >
-            <View style={styles.header}>
-              <Text style={styles.budWordmark} accessible={false}>
-                Bud.
-              </Text>
-              <Text style={styles.subtitle}>Você está no lugar certo.</Text>
-            </View>
-
-            <View>
-              <View style={styles.mainSection}>
-                {authMethod === "social" ? (
-                  <>
-                    {renderSocialButtons()}
-
-                    <View style={styles.divider}>
-                      <View style={styles.dividerLine} />
-                      <Text style={styles.dividerText}>ou</Text>
-                      <View style={styles.dividerLine} />
-                    </View>
-
-                    <TouchableOpacity
-                      style={styles.emailAuthToggle}
-                      onPress={() => setAuthMethod("email")}
-                      disabled={isAnyLoading}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.emailAuthToggleText}>
-                        Entrar ou criar conta com e-mail
-                      </Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  renderEmailAuth()
-                )}
-              </View>
-
-              <View style={styles.footerSection}>
-                <Text style={styles.termsText}>
-                  Ao se cadastrar e utilizar o Bud, você concorda com os{" "}
-                  <Text
-                    style={styles.termsLink}
-                    onPress={() => Linking.openURL(TERMS_OF_SERVICE_URL)}
-                  >
-                    Termos de Serviço
-                  </Text>{" "}
-                  e{" "}
-                  <Text
-                    style={styles.termsLink}
-                    onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
-                  >
-                    Políticas de Privacidade
-                  </Text>
-                  .
-                </Text>
-              </View>
-            </View>
-          </View>
+          {step === "welcome" ? renderWelcome() : renderLogin()}
         </ScrollView>
       </KeyboardAvoidingView>
     </View>

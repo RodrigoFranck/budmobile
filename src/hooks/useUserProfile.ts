@@ -19,6 +19,9 @@ export interface UserProfile {
   gender: string | null;
   relationship: string | null;
   hobbies: string[] | null;
+  app_mode: string | null;
+  organization_id: string | null;
+  selected_voice: string | null;
 }
 
 export function useUserProfile() {
@@ -46,6 +49,9 @@ export function useUserProfile() {
       gender: data.gender,
       relationship: data.relationship,
       hobbies: data.hobbies,
+      app_mode: data.app_mode ?? 'b2c',
+      organization_id: data.organization_id ?? null,
+      selected_voice: data.selected_voice ?? null,
     });
   }, [data, user?.id]);
 

@@ -1,42 +1,24 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import {
-  ActivityIndicator,
-  ImageBackground,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from 'react-native';
-import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { ActivityIndicator, Pressable, ScrollView, Share, Text, View } from 'react-native';
+import { useNavigation, useRoute, type RouteProp, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Check, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react-native';
-
-import { useFocusEffect } from '@react-navigation/native';
+import { Check, ChevronLeft, ChevronRight, MessageSquare, Share2 } from 'lucide-react-native';
 
 import { CLICK_EVENTS, logClickEvent } from '@/analytics';
 import ConversationDetail from '@/components/history/ConversationDetail';
 import { WeekProgressRing } from '@/components/history/WeekProgressRing';
 import { DeepInsightSheet } from '@/components/explore/DeepInsightSheet';
+import { BudIconButton } from '@/components/v3';
 import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
-import {
-  useTabScreenContext,
-  useTabScreenLoading,
-} from '@/contexts/TabScreenContext';
-import { LayoutSpacing } from '@/constants/layout';
-import { useAppColors } from '@/lib/colors';
+import { useTabScreenContext, useTabScreenLoading } from '@/contexts/TabScreenContext';
 import {
   formatConversationWeekdayLabel,
   groupConversationsByDate,
   groupConversationsByWeek,
 } from '@/utils/dateGrouping';
-import {
-  formatDateBrasilia,
-  getWeekStartBrasilia,
-} from '@/utils/dateUtils';
-import { createHistoryStyles } from '@/pages/History.styles';
+import { formatDateBrasilia, getWeekStartBrasilia } from '@/utils/dateUtils';
+import { fonts, useV3Colors } from '@/theme';
 import type { MainTabNavigationProp, MainTabParamList } from '@/types/navigation';
-
-const inspiredBg = require('@/assets/inspired-bg.png');
 
 type HistoryRouteProp = RouteProp<MainTabParamList, 'History'>;
 
@@ -44,8 +26,7 @@ export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainTabNavigationProp>();
   const route = useRoute<HistoryRouteProp>();
-  const colors = useAppColors();
-  const styles = useMemo(() => createHistoryStyles(colors), [colors]);
+  const colors = useV3Colors();
   const tabLoading = useTabScreenLoading('History');
   const {
     conversations,
@@ -77,6 +58,12 @@ export default function HistoryScreen() {
     setDeepInsightOpen(true);
   }, []);
 
+  const shareWeek = useCallback(async () => {
+    const title = deepInsight.title || 'Resumo da semana com o Bud';
+    const body = deepInsight.description || 'Uma semana de conversas com o Bud.';
+    await Share.share({ message: `${title}\n\n${body}` });
+  }, [deepInsight.description, deepInsight.title]);
+
   const openConversation = useCallback(
     (conversation: { id: string; title: string; date: Date }) => {
       void logClickEvent(CLICK_EVENTS.HISTORY_CONVERSATION_OPEN);
@@ -89,10 +76,7 @@ export default function HistoryScreen() {
     [],
   );
 
-  const weekGroups = useMemo(
-    () => groupConversationsByWeek(conversations),
-    [conversations],
-  );
+  const weekGroups = useMemo(() => groupConversationsByWeek(conversations), [conversations]);
 
   useEffect(() => {
     if (selectedWeekIndex >= weekGroups.length && weekGroups.length > 0) {
@@ -102,12 +86,8 @@ export default function HistoryScreen() {
 
   const currentWeek = weekGroups[selectedWeekIndex];
   const weekConversations = useMemo(() => {
-    if (!currentWeek) {
-      return [];
-    }
-    return groupConversationsByDate(currentWeek.conversations).flatMap(
-      (group) => group.conversations,
-    );
+    if (!currentWeek) return [];
+    return groupConversationsByDate(currentWeek.conversations).flatMap((group) => group.conversations);
   }, [currentWeek]);
 
   const canGoNewer = selectedWeekIndex > 0;
@@ -115,32 +95,24 @@ export default function HistoryScreen() {
   const canOpenDeepInsight = !insightsLoading && !deepInsightProgress.locked;
   const showInsightCard = !currentWeek || currentWeek.isCurrent;
   const remainingDays = deepInsightProgress.remaining;
-  const meetsWeeklyThreshold =
-    deepInsightProgress.progress >= deepInsightProgress.required;
+  const meetsWeeklyThreshold = deepInsightProgress.progress >= deepInsightProgress.required;
   const progressMessage = meetsWeeklyThreshold
     ? 'Você já tem dias suficientes nesta semana.\nSeu insight semanal libera todo domingo.'
     : `Converse ou faça check-ins em mais ${remainingDays} ${remainingDays === 1 ? 'dia' : 'dias'} nesta semana\npara receber seu insight semanal.`;
 
   useEffect(() => {
-    if (!route.params?.openDeepInsight) {
-      return;
-    }
-
+    if (!route.params?.openDeepInsight) return;
     const weekStart = route.params.weekStart;
     if (weekStart) {
       setInsightWeekStart(weekStart);
       setForceOpenDeepInsight(true);
     }
-
     setPendingDeepInsightOpen(true);
     navigation.setParams({ openDeepInsight: undefined, weekStart: undefined });
   }, [navigation, route.params?.openDeepInsight, route.params?.weekStart]);
 
   useEffect(() => {
-    if (!insightWeekStart || weekGroups.length === 0) {
-      return;
-    }
-
+    if (!insightWeekStart || weekGroups.length === 0) return;
     const matchingIndex = weekGroups.findIndex(
       (group) => formatDateBrasilia(group.weekStart) === insightWeekStart,
     );
@@ -150,14 +122,8 @@ export default function HistoryScreen() {
   }, [insightWeekStart, selectedWeekIndex, weekGroups]);
 
   useEffect(() => {
-    if (!pendingDeepInsightOpen) {
-      return;
-    }
-
-    if (!forceOpenDeepInsight && !canOpenDeepInsight) {
-      return;
-    }
-
+    if (!pendingDeepInsightOpen) return;
+    if (!forceOpenDeepInsight && !canOpenDeepInsight) return;
     setDeepInsightOpen(true);
     setPendingDeepInsightOpen(false);
     setForceOpenDeepInsight(false);
@@ -176,133 +142,215 @@ export default function HistoryScreen() {
 
   return (
     <ScreenLoadingGate loading={tabLoading}>
-      <View style={styles.screen}>
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+        <View
+          style={{
+            paddingTop: insets.top + 8,
+            paddingHorizontal: 20,
+            paddingBottom: 8,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <BudIconButton
+            icon={ChevronLeft}
+            accessibilityLabel="Voltar"
+            onPress={() => navigation.navigate('Home')}
+          />
+          {canOpenDeepInsight ? (
+            <BudIconButton
+              icon={Share2}
+              accessibilityLabel="Compartilhar resumo da semana"
+              onPress={() => void shareWeek()}
+            />
+          ) : (
+            <View style={{ width: 48 }} />
+          )}
+        </View>
         <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.scrollContent,
-            {
-              paddingTop: insets.top + LayoutSpacing.contentPadding.top,
-              paddingHorizontal: LayoutSpacing.contentPadding.horizontal,
-              paddingBottom: LayoutSpacing.contentPadding.bottom + insets.bottom,
-            },
-          ]}
+          contentContainerStyle={{
+            paddingHorizontal: 20,
+            paddingBottom: 40 + insets.bottom,
+          }}
         >
           {currentWeek ? (
-            <View style={styles.weekHeader}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 20,
+              }}
+            >
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Semana anterior"
                 disabled={!canGoOlder}
                 onPress={() => setSelectedWeekIndex((i) => i + 1)}
-                style={[styles.weekNavButton, !canGoOlder && styles.weekNavButtonDisabled]}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: colors.surface2,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: canGoOlder ? 1 : 0.35,
+                }}
               >
-                <ChevronLeft size={20} color={colors.foreground} />
+                <ChevronLeft size={20} color={colors.text} />
               </Pressable>
-
-              <Text style={styles.weekLabel}>{currentWeek.weekLabel}</Text>
-
+              <Text
+                style={{
+                  flex: 1,
+                  fontFamily: fonts.display,
+                  fontSize: 22,
+                  color: colors.text,
+                  textAlign: 'center',
+                }}
+              >
+                {currentWeek.weekLabel}
+              </Text>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Próxima semana"
                 disabled={!canGoNewer}
                 onPress={() => setSelectedWeekIndex((i) => i - 1)}
-                style={[styles.weekNavButton, !canGoNewer && styles.weekNavButtonDisabled]}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: colors.surface2,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: canGoNewer ? 1 : 0.35,
+                }}
               >
-                <ChevronRight size={20} color={colors.foreground} />
+                <ChevronRight size={20} color={colors.text} />
               </Pressable>
             </View>
           ) : null}
 
-          <View style={styles.headerDivider} />
-
           {showInsightCard ? (
             <View
-              style={[
-                styles.inspiredCard,
-                canOpenDeepInsight
-                  ? styles.inspiredCardAvailable
-                  : styles.inspiredCardProgress,
-              ]}
+              style={{
+                backgroundColor: colors.surface,
+                borderRadius: 22,
+                padding: 22,
+                marginBottom: 24,
+              }}
             >
-              <ImageBackground
-                source={inspiredBg}
-                style={styles.inspiredImage}
-                imageStyle={styles.inspiredImageRadius}
-                resizeMode="cover"
-              >
-                <View style={styles.inspiredOverlay} />
-                <View
-                  style={[
-                    styles.inspiredContent,
-                    canOpenDeepInsight && styles.inspiredContentAvailable,
-                  ]}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+                {canOpenDeepInsight ? <Check size={14} color={colors.accent} strokeWidth={2.5} /> : null}
+                <Text
+                  style={{
+                    fontFamily: fonts.sansSemi,
+                    fontSize: 11,
+                    letterSpacing: 1.4,
+                    color: colors.text3,
+                    textTransform: 'uppercase',
+                  }}
                 >
-                  <View style={styles.inspiredBadge}>
-                    {canOpenDeepInsight ? (
-                      <Check size={12} color="#FFFFFF" strokeWidth={2.5} />
-                    ) : null}
-                    <Text
-                      style={[
-                        styles.inspiredBadgeText,
-                        canOpenDeepInsight && styles.inspiredBadgeTextAvailable,
-                      ]}
-                    >
-                      Inspirado em você
+                  Inspirado em você
+                </Text>
+              </View>
+              {insightsLoading ? (
+                <ActivityIndicator color={colors.accent} />
+              ) : canOpenDeepInsight ? (
+                <>
+                  <Text style={{ fontFamily: fonts.display, fontSize: 22, color: colors.text }}>
+                    {deepInsight.title || 'Inspirado em você'}
+                  </Text>
+                  <Text
+                    style={{
+                      fontFamily: fonts.sans,
+                      fontSize: 15,
+                      lineHeight: 22,
+                      color: colors.text2,
+                      marginTop: 10,
+                    }}
+                  >
+                    {deepInsight.description ||
+                      'Baseado nas suas conversas desta semana, o Bud identificou um padrão.'}
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={openDeepInsight}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Text style={{ fontFamily: fonts.sansSemi, fontSize: 15, color: colors.accent }}>
+                      Ler o resumo da semana
                     </Text>
-                  </View>
-
-                  {insightsLoading ? (
-                    <ActivityIndicator color="#ffffff" />
-                  ) : canOpenDeepInsight ? (
-                    <>
-                      <Text style={styles.inspiredTitle}>
-                        {deepInsight.title || 'Inspirado em você'}
-                      </Text>
-                      <Text style={styles.inspiredDescription}>
-                        {deepInsight.description ||
-                          'Baseado nas suas conversas desta semana, o Bud identificou um padrão.'}
-                      </Text>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Clique aqui para ver mais"
-                        onPress={openDeepInsight}
-                        style={styles.inspiredCta}
-                      >
-                        <Text style={styles.inspiredCtaText}>Clique aqui para ver mais</Text>
-                      </Pressable>
-                    </>
-                  ) : (
-                    <>
-                      <View style={styles.progressRingWrap}>
-                        <WeekProgressRing
-                          progress={deepInsightProgress.progress}
-                          required={deepInsightProgress.required}
-                        />
-                      </View>
-                      <Text style={styles.inspiredProgressMessage}>{progressMessage}</Text>
-                      <Text style={styles.inspiredReleaseText}>
-        Libera domingo, 9h da manhã
-                      </Text>
-                    </>
-                  )}
+                  </Pressable>
+                </>
+              ) : (
+                <View style={{ alignItems: 'center' }}>
+                  <WeekProgressRing
+                    progress={deepInsightProgress.progress}
+                    required={deepInsightProgress.required}
+                    trackColor={colors.line}
+                    progressColor={colors.accent}
+                    labelColor={colors.text}
+                  />
+                  <Text
+                    style={{
+                      fontFamily: fonts.sans,
+                      fontSize: 14,
+                      lineHeight: 20,
+                      color: colors.text2,
+                      textAlign: 'center',
+                      marginTop: 14,
+                    }}
+                  >
+                    {progressMessage}
+                  </Text>
+                  <Text
+                    style={{
+                      fontFamily: fonts.sansSemi,
+                      fontSize: 12,
+                      color: colors.accent,
+                      marginTop: 10,
+                    }}
+                  >
+                    Libera domingo, 9h da manhã
+                  </Text>
                 </View>
-              </ImageBackground>
+              )}
             </View>
           ) : null}
 
-          <Text style={styles.sectionTitle}>Conversas da semana</Text>
+          <Text style={{ fontFamily: fonts.display, fontSize: 22, color: colors.text, marginBottom: 16 }}>
+            Conversas da semana
+          </Text>
 
           {weekConversations.length === 0 ? (
             conversations.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <MessageSquare size={48} color={colors['muted-foreground']} />
-                <Text style={styles.emptyText}>Você ainda não tem conversas salvas.</Text>
+              <View
+                style={{
+                  backgroundColor: colors.surface,
+                  borderRadius: 16,
+                  paddingVertical: 48,
+                  paddingHorizontal: 24,
+                  alignItems: 'center',
+                }}
+              >
+                <MessageSquare size={48} color={colors.text3} />
+                <Text
+                  style={{
+                    fontFamily: fonts.sans,
+                    fontSize: 16,
+                    color: colors.text2,
+                    textAlign: 'center',
+                    marginTop: 16,
+                  }}
+                >
+                  Você ainda não tem conversas salvas.
+                </Text>
               </View>
             ) : (
-              <View style={styles.emptyWeek}>
-                <Text style={styles.emptyWeekText}>Nenhuma conversa nesta semana.</Text>
-              </View>
+              <Text style={{ fontFamily: fonts.sans, fontSize: 14, color: colors.text2, textAlign: 'center' }}>
+                Nenhuma conversa nesta semana.
+              </Text>
             )
           ) : (
             weekConversations.map((conversation) => (
@@ -311,17 +359,29 @@ export default function HistoryScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={`Conversa: ${conversation.title}`}
                 onPress={() => openConversation(conversation)}
-                style={styles.conversationRow}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: colors.surface,
+                  borderRadius: 16,
+                  minHeight: 64,
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  marginBottom: 12,
+                }}
               >
-                <View style={styles.conversationTextWrap}>
-                  <Text style={styles.conversationTitle} numberOfLines={1}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <Text
+                    style={{ fontFamily: fonts.sansSemi, fontSize: 16, color: colors.text }}
+                    numberOfLines={1}
+                  >
                     {conversation.title}
                   </Text>
-                  <Text style={styles.conversationDate}>
+                  <Text style={{ fontFamily: fonts.sans, fontSize: 13, color: colors.text2, marginTop: 2 }}>
                     {formatConversationWeekdayLabel(conversation.date)}
                   </Text>
                 </View>
-                <Text style={styles.conversationChevron}>›</Text>
+                <Text style={{ fontFamily: fonts.sans, fontSize: 22, color: colors.text3 }}>›</Text>
               </Pressable>
             ))
           )}
@@ -334,8 +394,7 @@ export default function HistoryScreen() {
             setInsightWeekStart(null);
           }}
           weekStart={
-            insightWeekStart ??
-            formatDateBrasilia(currentWeek?.weekStart ?? getWeekStartBrasilia())
+            insightWeekStart ?? formatDateBrasilia(currentWeek?.weekStart ?? getWeekStartBrasilia())
           }
         />
       </View>
