@@ -1,4 +1,7 @@
 export const YESTERDAY_CARD_QUOTE = 'O que ficou de ontem?';
+export const LETTER_NOTICED_HEADING = 'O que eu percebi';
+export const LETTER_TAKEAWAY_HEADING = 'Pra levar com você';
+export const LETTER_SIGNOFF = 'Com cuidado, Bud.';
 
 export type StoredDailyLetter = {
   id: string;
@@ -16,6 +19,12 @@ export type DailyLetterInsight = {
   contextSummary?: string | null;
 };
 
+export type DailyLetterSections = {
+  opening: string;
+  noticed: string;
+  takeaway: string;
+};
+
 const LOCKED_TITLES = new Set([
   'Ainda estou te conhecendo',
   'Faça login para ver seus insights',
@@ -31,6 +40,43 @@ export function isUsableLetterInsight(insight?: DailyLetterInsight | null): bool
   return true;
 }
 
+export function parseDailyLetterBody(body: string | null | undefined): DailyLetterSections {
+  const trimmed = body?.trim() ?? '';
+  if (!trimmed) {
+    return { opening: '', noticed: '', takeaway: '' };
+  }
+
+  if (trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed) as Partial<DailyLetterSections>;
+      const opening = typeof parsed.opening === 'string' ? parsed.opening.trim() : '';
+      if (opening) {
+        return {
+          opening,
+          noticed: typeof parsed.noticed === 'string' ? parsed.noticed.trim() : '',
+          takeaway: typeof parsed.takeaway === 'string' ? parsed.takeaway.trim() : '',
+        };
+      }
+    } catch {
+      // Legacy plain-text letters stay as a single opening paragraph.
+    }
+  }
+
+  return { opening: trimmed, noticed: '', takeaway: '' };
+}
+
+export function formatDailyLetterPlain(title: string, sections: DailyLetterSections): string {
+  const parts = [title.trim(), '', sections.opening.trim()];
+  if (sections.noticed.trim()) {
+    parts.push('', LETTER_NOTICED_HEADING, sections.noticed.trim());
+  }
+  if (sections.takeaway.trim()) {
+    parts.push('', LETTER_TAKEAWAY_HEADING, sections.takeaway.trim());
+  }
+  parts.push('', LETTER_SIGNOFF);
+  return parts.join('\n').trim();
+}
+
 export function resolveDailyLetter(params: {
   today: string;
   hadYesterdayConversation: boolean;
@@ -44,7 +90,13 @@ export function resolveDailyLetter(params: {
 
   const storedBody = params.stored?.body?.trim() ?? '';
   if (params.stored && storedBody) {
-    return { available: true, letter: params.stored };
+    return {
+      available: true,
+      letter: {
+        ...params.stored,
+        opened_at: params.stored.opened_at ?? params.openedAt ?? null,
+      },
+    };
   }
 
   if (isUsableLetterInsight(params.insight)) {

@@ -2,6 +2,22 @@ import { supabase } from '@/integrations/supabase/client';
 import { noteRelationError, relationAvailable } from '@/lib/schemaAvailability';
 import type { StoredDailyLetter } from '@/utils/dailyLetter';
 
+function asStoredLetter(value: unknown): StoredDailyLetter | null {
+  if (!value || typeof value !== 'object') return null;
+  const row = value as Partial<StoredDailyLetter>;
+  if (!row.id || !row.letter_date || !row.title?.trim() || !row.body?.trim()) {
+    return null;
+  }
+  return {
+    id: row.id,
+    letter_date: row.letter_date,
+    title: row.title,
+    body: row.body,
+    opened_at: row.opened_at ?? null,
+    source: row.source ?? null,
+  };
+}
+
 export async function fetchStoredDailyLetter(
   userId: string,
   letterDate: string,
@@ -36,6 +52,26 @@ export async function fetchStoredDailyLetter(
     opened_at: data.opened_at,
     source: data.source,
   };
+}
+
+export async function requestGeneratedDailyLetter(): Promise<StoredDailyLetter | null> {
+  const { data, error } = await supabase.functions.invoke('generate-daily-letter');
+  if (error) {
+    console.warn('Daily letter generation failed:', error.message);
+    return null;
+  }
+  return asStoredLetter((data as { letter?: unknown } | null)?.letter);
+}
+
+export async function loadDailyLetter(params: {
+  userId: string;
+  letterDate: string;
+  hadYesterdayConversation: boolean;
+}): Promise<StoredDailyLetter | null> {
+  const existing = await fetchStoredDailyLetter(params.userId, params.letterDate);
+  if (existing) return existing;
+  if (!params.hadYesterdayConversation) return null;
+  return requestGeneratedDailyLetter();
 }
 
 export async function markStoredDailyLetterOpened(letterId: string, openedAt: string) {

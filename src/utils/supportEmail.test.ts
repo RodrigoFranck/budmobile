@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  buildNetlifySupportFields,
   buildSupportEmailPayload,
   estimateBase64Bytes,
   isAllowedScreenshotType,
@@ -70,4 +71,24 @@ test('builds the edge-function payload with topic, reply-to and screenshot', () 
       content: 'YQ==',
     },
   });
+});
+
+test('maps app support fields onto the live Netlify club form', () => {
+  const fields = buildNetlifySupportFields({
+    message: 'A carta não abriu.',
+    topic: 'Dúvida',
+    replyTo: 'marina@email.com',
+    name: 'Marina',
+    appVersion: '2.0.20',
+    platform: 'ios',
+  });
+
+  assert.equal(fields['form-name'], 'contato-clubes');
+  assert.equal(fields.subject, '[Bud App] Dúvida');
+  assert.equal(fields.name, 'Marina');
+  assert.equal(fields.email, 'marina@email.com');
+  assert.equal(fields.organization, 'App · Dúvida');
+  assert.equal(fields.institutionType, 'Outro');
+  assert.equal(fields.teamSize, 'Até 50');
+  assert.equal(fields.message, 'A carta não abriu.\n\nApp: ios · 2.0.20');
 });

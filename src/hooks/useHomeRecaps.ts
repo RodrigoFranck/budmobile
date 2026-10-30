@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as SecureStore from 'expo-secure-store';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -38,14 +38,14 @@ export function useHomeRecaps(params: {
   conversations: Conversation[];
   yesterdayInsight: Insight | undefined;
   hasLetter: boolean;
+  conversationsReady: boolean;
   dateLabel: (dateSource: string) => string;
 }) {
   const { user } = useAuth();
   const userId = user?.id;
+  const queryClient = useQueryClient();
   const today = getTodayInBrasilia();
   const yesterday = getYesterdayInBrasilia();
-  const [pile, setPile] = useState<RecapPileItem[]>([]);
-  const [loaded, setLoaded] = useState(false);
 
   const yesterdayIds = useMemo(
     () =>
@@ -67,44 +67,32 @@ export function useHomeRecaps(params: {
     [params.conversations, params.hasLetter, today, yesterdayIds],
   );
 
-  useEffect(() => {
-    if (!userId) {
-      setPile([]);
-      setLoaded(true);
-      return;
-    }
+  const pileQuery = useQuery({
+    queryKey: queryKeys.recapPile(userId ?? ''),
+    queryFn: async () => parseRecapPile(await SecureStore.getItemAsync(pileStorageKey(userId!))),
+    enabled: Boolean(userId),
+    staleTime: Infinity,
+  });
 
-    let cancelled = false;
-    setLoaded(false);
-    void SecureStore.getItemAsync(pileStorageKey(userId))
-      .then((raw) => {
-        if (cancelled) return;
-        setPile(parseRecapPile(raw));
-        setLoaded(true);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setPile([]);
-        setLoaded(true);
-      });
+  const pile = pileQuery.data ?? [];
+  const pileReady = !userId || pileQuery.isFetched;
 
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
+  const nextPile = useMemo(() => {
+    if (!pileReady || !params.conversationsReady) return pile;
+    return nextRecapPile({ pile, candidateIds, today });
+  }, [candidateIds, params.conversationsReady, pile, pileReady, today]);
 
   useEffect(() => {
-    if (!loaded || !userId) return;
-    const next = nextRecapPile({ pile, candidateIds, today });
-    if (pileEquals(pile, next)) return;
-    setPile(next);
-    void SecureStore.setItemAsync(pileStorageKey(userId), JSON.stringify(next));
-  }, [candidateIds, loaded, pile, today, userId]);
+    if (!userId || !pileReady || !params.conversationsReady) return;
+    if (pileEquals(pile, nextPile)) return;
+    queryClient.setQueryData(queryKeys.recapPile(userId), nextPile);
+    void SecureStore.setItemAsync(pileStorageKey(userId), JSON.stringify(nextPile));
+  }, [nextPile, params.conversationsReady, pile, pileReady, queryClient, userId]);
 
   const snippetQuery = useQuery({
-    queryKey: queryKeys.recapSnippets(userId ?? '', pile.map((item) => item.id)),
-    queryFn: () => fetchFirstUserSnippets(pile.map((item) => item.id)),
-    enabled: Boolean(userId) && loaded && pile.length > 0,
+    queryKey: queryKeys.recapSnippets(userId ?? '', nextPile.map((item) => item.id)),
+    queryFn: () => fetchFirstUserSnippets(nextPile.map((item) => item.id)),
+    enabled: Boolean(userId) && pileReady && params.conversationsReady && nextPile.length > 0,
   });
 
   const recaps = useMemo(() => {
@@ -132,7 +120,7 @@ export function useHomeRecaps(params: {
     }
 
     const remaining = RECAP_LIMIT - items.length;
-    for (const item of pile.slice(0, remaining)) {
+    for (const item of nextPile.slice(0, remaining)) {
       const conversation = byId.get(item.id);
       if (!conversation?.title) continue;
       const dateSource = conversation.conversation_date || conversation.created_at;
@@ -147,10 +135,13 @@ export function useHomeRecaps(params: {
     }
 
     return items;
-  }, [params, pile, snippetQuery.data]);
+  }, [nextPile, params, snippetQuery.data]);
+
+  const snippetsReady = nextPile.length === 0 || snippetQuery.isFetched;
 
   return {
     recaps,
     recapCountLabel: `${recaps.length} de ${RECAP_LIMIT}`,
+    loading: Boolean(userId) && (!pileReady || !params.conversationsReady || !snippetsReady),
   };
 }

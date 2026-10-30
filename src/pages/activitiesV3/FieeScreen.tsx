@@ -48,6 +48,11 @@ const M19_HOLD_MS = motion.fieeHoldMs;
 const M19_SPIN_MS = motion.sproutSpinMs;
 const CHIP_LABEL = '#171311';
 const WORD_RISE = -36;
+const WORD_LINE = 40;
+const WORD_SLOT_PAD_TOP = 18;
+const WORD_SLOT_PAD_BOTTOM = 16;
+const WORD_SLOT_H = WORD_SLOT_PAD_TOP + WORD_LINE + WORD_SLOT_PAD_BOTTOM;
+const CHIPS_PAD_TOP = 28;
 const PAGE_ENTER = 20;
 const RESULT_LABELS = ['Fisicamente', 'Na cabeça', 'Por dentro', 'Com as pessoas'] as const;
 
@@ -107,14 +112,14 @@ export default function FieeScreen() {
   const fills = [fill0, fill1, fill2, fill3];
   const outlines = [outline0, outline1, outline2, outline3];
 
-  const displayFiee = (key: string, value: string | undefined) => {
+  const displayFiee = (value: string | undefined) => {
     if (!value) return '';
-    return key === 'intelectual' ? value : g(value);
+    return g(value);
   };
-  const result = FIEE_DIMENSIONS.map((dimension) => displayFiee(dimension.key, answers[dimension.key]))
+  const result = FIEE_DIMENSIONS.map((dimension) => displayFiee(answers[dimension.key]))
     .filter(Boolean)
     .join(' · ');
-  const wordText = centeredWord || (step && selected ? displayFiee(step.key, selected) : '');
+  const wordText = centeredWord || (step && selected ? displayFiee(selected) : '');
 
   const persistOnce = async (nextAnswers = answers) => {
     if (!user?.id) return;
@@ -197,7 +202,7 @@ export default function FieeScreen() {
     if (!selected || !step || !asking || busy.current) return;
     busy.current = true;
     const from = index;
-    const word = displayFiee(step.key, selected);
+    const word = displayFiee(selected);
     setCenteredWord(word);
     setPhase('commit');
     animPhase.value = PHASE_COMMIT;
@@ -324,7 +329,7 @@ export default function FieeScreen() {
 
   if (showResult) {
     const insight =
-      FIEE_DIMENSIONS.map((item) => displayFiee(item.key, answers[item.key]))
+      FIEE_DIMENSIONS.map((item) => displayFiee(answers[item.key]))
         .filter(Boolean)
         .join(', ') || 'Seu check-in';
     return (
@@ -351,7 +356,7 @@ export default function FieeScreen() {
             <ResultEntry
               key={dimension.key}
               label={RESULT_LABELS[i]}
-              value={displayFiee(dimension.key, answers[dimension.key])}
+              value={displayFiee(answers[dimension.key])}
               colors={colors}
             />
           ) : null,
@@ -469,9 +474,9 @@ export default function FieeScreen() {
           <View
             collapsable={false}
             onLayout={(event) => {
-              slotY.value = event.nativeEvent.layout.y + 18;
+              slotY.value = event.nativeEvent.layout.y + WORD_SLOT_PAD_TOP;
             }}
-            style={{ minHeight: 56, paddingTop: 18 }}
+            style={{ height: WORD_SLOT_H }}
           />
 
           <View
@@ -485,12 +490,12 @@ export default function FieeScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 24, gap: 8, paddingTop: 28 }}
+            contentContainerStyle={{ paddingHorizontal: 24, gap: 8, paddingTop: CHIPS_PAD_TOP }}
           >
             {step?.options.map((option) => (
               <FieeChip
                 key={option}
-                label={displayFiee(step.key, option)}
+                label={displayFiee(option)}
                 selected={selected === option}
                 dimmed={Boolean(selected) && selected !== option}
                 color={step.color}

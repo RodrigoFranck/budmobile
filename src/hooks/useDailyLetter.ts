@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTabScreenContext } from '@/contexts/TabScreenContext';
 import { queryKeys } from '@/lib/queryKeys';
 import {
-  fetchStoredDailyLetter,
+  loadDailyLetter,
   markStoredDailyLetterOpened,
 } from '@/services/dailyLetterQuery';
 import { conversationDayKey } from '@/utils/homeRecaps';
@@ -27,22 +27,35 @@ function hadConversationOn(conversations: { conversation_date: string | null; cr
 
 export function useDailyLetter() {
   const { user } = useAuth();
-  const { yesterdayInsight, conversations, insightsLoading, profileLoading, conversationsLoading } =
-    useTabScreenContext();
+  const {
+    yesterdayInsight,
+    conversations,
+    insightsLoading,
+    profileLoading,
+    conversationsLoading,
+    historyTitlesLoading,
+  } = useTabScreenContext();
   const queryClient = useQueryClient();
   const today = getTodayInBrasilia();
   const yesterday = getYesterdayInBrasilia();
   const userId = user?.id;
+  const conversationsReady = !conversationsLoading && !historyTitlesLoading;
   const hadYesterdayConversation = hadConversationOn(conversations, yesterday);
   const queryKey = useMemo(
-    () => queryKeys.dailyLetter(userId ?? '', today),
-    [today, userId],
+    () => [...queryKeys.dailyLetter(userId ?? '', today), hadYesterdayConversation] as const,
+    [hadYesterdayConversation, today, userId],
   );
 
   const storedQuery = useQuery({
     queryKey,
-    queryFn: () => fetchStoredDailyLetter(userId!, today),
-    enabled: Boolean(userId) && !profileLoading && !insightsLoading && !conversationsLoading,
+    queryFn: () =>
+      loadDailyLetter({
+        userId: userId!,
+        letterDate: today,
+        hadYesterdayConversation,
+      }),
+    enabled: Boolean(userId) && conversationsReady,
+    staleTime: Infinity,
   });
 
   const openedQuery = useQuery({
@@ -63,10 +76,17 @@ export function useDailyLetter() {
         today,
         hadYesterdayConversation,
         stored: storedQuery.data ?? null,
-        insight: yesterdayInsight,
+        insight: storedQuery.isFetched && !storedQuery.data ? yesterdayInsight : undefined,
         openedAt: storedQuery.data?.opened_at ?? openedQuery.data ?? null,
       }),
-    [hadYesterdayConversation, openedQuery.data, storedQuery.data, today, yesterdayInsight],
+    [
+      hadYesterdayConversation,
+      openedQuery.data,
+      storedQuery.data,
+      storedQuery.isFetched,
+      today,
+      yesterdayInsight,
+    ],
   );
 
   const markOpened = useCallback(async () => {
@@ -97,7 +117,12 @@ export function useDailyLetter() {
     letter: resolved.letter,
     available: resolved.available,
     hadYesterdayConversation,
-    loading: Boolean(userId) && (storedQuery.isLoading || profileLoading || insightsLoading || conversationsLoading),
+    loading:
+      Boolean(userId) &&
+      (profileLoading ||
+        insightsLoading ||
+        !conversationsReady ||
+        !storedQuery.isFetched),
     markOpened,
     refetch,
   };

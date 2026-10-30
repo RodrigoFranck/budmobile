@@ -39,6 +39,20 @@ const FORMS: GenderedForm[] = [
   form('chamada', 'chamado'),
   form('honesta', 'honesto'),
   form('Cansada', 'Cansado'),
+  form('Energizada', 'Energizado'),
+  form('Relaxada', 'Relaxado'),
+  form('Descansada', 'Descansado'),
+  form('Bloqueada', 'Bloqueado'),
+  form('Esperançosa', 'Esperançoso'),
+  form('Solitária', 'Solitário'),
+  form('Apoiada', 'Apoiado'),
+  form('Valorizada', 'Valorizado'),
+  form('Curiosa', 'Curioso'),
+  form('Afiada', 'Afiado'),
+  form('Inspirada', 'Inspirado'),
+  form('Criativa', 'Criativo'),
+  form('Grata', 'Grato'),
+  form('Calma', 'Calmo'),
   form('Tranquila', 'Tranquilo'),
   form('Ansiosa', 'Ansioso'),
   form('Irritada', 'Irritado'),
@@ -65,9 +79,22 @@ const FORMS: GenderedForm[] = [
   form('Crítica', 'Crítico'),
   form('Justa', 'Justo'),
   form('Dura', 'Duro'),
+  form('você mesma', 'você mesmo'),
   form('eu mesma', 'eu mesmo'),
+  form('Ser vista, escolhida', 'Ser visto, escolhido'),
+  form('Continuar curiosa', 'Continuar curioso'),
+  form('sobrecarregada', 'sobrecarregado'),
   form('divertidos juntas', 'divertidos juntos', 'divertidos juntos(as)'),
   form('Somos parceiras', 'Somos parceiros'),
+  form('Determinada', 'Determinado'),
+  form('Distraída', 'Distraído'),
+  form('Frustrada', 'Frustrado'),
+  form('Acelerada', 'Acelerado'),
+  form('Nublada', 'Nublado'),
+  form('Dispersa', 'Disperso'),
+  form('Focada', 'Focado'),
+  form('Quieta', 'Quieto'),
+  form('Cheia', 'Cheio'),
 ].sort((a, b) => {
   const len = (item: GenderedForm) =>
     Math.max(item.feminine.length, item.masculine.length, item.neutral.length);
@@ -93,6 +120,10 @@ function adaptCase(matched: string, target: string) {
   return target.charAt(0).toLowerCase() + target.slice(1);
 }
 
+function isLetter(ch: string | undefined) {
+  return Boolean(ch && /[A-Za-zÀ-ÿ]/.test(ch));
+}
+
 function replaceAllInsensitive(text: string, source: string, target: string) {
   const needle = source.toLowerCase();
   const lower = text.toLowerCase();
@@ -101,12 +132,17 @@ function replaceAllInsensitive(text: string, source: string, target: string) {
   while (from <= lower.length - needle.length) {
     const index = lower.indexOf(needle, from);
     if (index < 0) break;
-    if (text.slice(index + source.length, index + source.length + 3) === '(a)') {
+    const afterIndex = index + source.length;
+    if (isLetter(index > 0 ? text[index - 1] : undefined) || isLetter(text[afterIndex])) {
       from = index + needle.length;
       continue;
     }
+    if (text.slice(afterIndex, afterIndex + 3) === '(a)') {
+      from = afterIndex;
+      continue;
+    }
     hits.push(index);
-    from = index + needle.length;
+    from = afterIndex;
   }
   let next = text;
   for (let i = hits.length - 1; i >= 0; i -= 1) {

@@ -298,7 +298,7 @@ export default function RelationMapScreen() {
       return (
         <View style={{ flex: 1, paddingTop: 88 }}>
           <ActivityPrompt>
-            {current === 'nome' ? 'Qual é o nome dela?' : `Quantos anos ${person} tem?`}
+            {current === 'nome' ? 'Qual é o nome?' : `Quantos anos ${person} tem?`}
           </ActivityPrompt>
           <TextInput
             value={current === 'nome' ? nome : idade}

@@ -1,8 +1,8 @@
 import { Platform } from 'react-native';
 
-import { supabase } from '@/integrations/supabase/client';
 import {
-  buildSupportEmailPayload,
+  buildNetlifySupportFields,
+  NETLIFY_SUPPORT_FORM_ENDPOINT,
   SUPPORT_MESSAGE_MAX_LENGTH,
   type SupportScreenshot,
   validateSupportScreenshot,
@@ -12,37 +12,10 @@ export type SendSupportEmailInput = {
   message: string;
   topic?: string | null;
   replyTo?: string | null;
+  name?: string | null;
   appVersion?: string;
   screenshot?: SupportScreenshot | null;
 };
-
-async function resolveFunctionsError(
-  error: { message?: string; context?: unknown } | null,
-  response?: Response | null,
-): Promise<string> {
-  const fallback = error?.message || 'Não foi possível enviar sua mensagem. Tente novamente.';
-  const errorContext =
-    response ??
-    (typeof error === 'object' && error !== null && 'context' in error && error.context instanceof Response
-      ? error.context
-      : null);
-
-  if (!errorContext) return fallback;
-
-  try {
-    const body = (await errorContext.clone().json()) as { error?: string; message?: string };
-    if (body.error) return body.error;
-    if (body.message) return body.message;
-  } catch {
-    // keep default message
-  }
-
-  if (fallback.includes('non-2xx')) {
-    return 'Não foi possível enviar sua mensagem. Tente novamente.';
-  }
-
-  return fallback;
-}
 
 export async function sendSupportEmail(input: SendSupportEmailInput): Promise<void> {
   const message = input.message.trim();
@@ -58,22 +31,25 @@ export async function sendSupportEmail(input: SendSupportEmailInput): Promise<vo
     throw new Error(screenshotError);
   }
 
-  const { data, error, response } = await supabase.functions.invoke('send-support-email', {
-    body: buildSupportEmailPayload({
+  const body = new URLSearchParams(
+    buildNetlifySupportFields({
       message,
       topic: input.topic,
       replyTo: input.replyTo,
+      name: input.name,
       appVersion: input.appVersion,
       platform: Platform.OS,
-      screenshot: input.screenshot,
+      screenshotFilename: input.screenshot?.filename,
     }),
+  );
+
+  const response = await fetch(NETLIFY_SUPPORT_FORM_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
   });
 
-  if (error) {
-    throw new Error(await resolveFunctionsError(error, response));
-  }
-
-  if (data && typeof data === 'object' && 'error' in data && data.error) {
-    throw new Error(String(data.error));
+  if (!response.ok) {
+    throw new Error('Não foi possível enviar sua mensagem. Tente novamente.');
   }
 }

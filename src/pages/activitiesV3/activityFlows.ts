@@ -122,7 +122,7 @@ export const FIEE_DIMENSIONS: FieeDimension[] = [
     title: 'Físico',
     prompt: 'Como você está se sentindo fisicamente?',
     color: activityColors.folha,
-    options: ['Lenta', 'Forte', 'Com energia', 'Pesada', 'Cansada', 'Tensa', 'Dolorida', 'Inquieta'],
+    options: ['Cansada', 'Esgotada', 'Energizada', 'Relaxada', 'Inquieta', 'Descansada', 'Calma', 'Leve'],
   },
   {
     key: 'intelectual',
@@ -130,7 +130,7 @@ export const FIEE_DIMENSIONS: FieeDimension[] = [
     title: 'Intelectual',
     prompt: 'Como está a sua cabeça hoje?',
     color: activityColors.menta,
-    options: ['Nublada', 'Sobrecarregada', 'Dispersa', 'Travada', 'Confusa', 'Distraída'],
+    options: ['Distraída', 'Afiada', 'Curiosa', 'Bloqueada', 'Focada', 'Inspirada', 'Criativa', 'Sobrecarregada'],
   },
   {
     key: 'emocional',
@@ -138,7 +138,7 @@ export const FIEE_DIMENSIONS: FieeDimension[] = [
     title: 'Emocional',
     prompt: 'Como você está se sentindo por dentro?',
     color: activityColors.ardosia,
-    options: ['Satisfeita', 'Anestesiada', 'Ansiosa', 'Pesada', 'Apática', 'Preocupada'],
+    options: ['Ansiosa', 'Frustrada', 'Satisfeita', 'Leve', 'Preocupada', 'Esperançosa', 'Grata', 'Alegre'],
   },
   {
     key: 'social',
@@ -146,7 +146,7 @@ export const FIEE_DIMENSIONS: FieeDimension[] = [
     title: 'Social',
     prompt: 'Como você está com as pessoas ao seu redor?',
     color: activityColors.argila,
-    options: ['Conectada', 'Esgotada', 'Sozinha', 'Isolada', 'Retraída', 'Distante'],
+    options: ['Solitária', 'Conectada', 'Presente', 'Distante', 'Valorizada', 'Isolada', 'Apoiada', 'Retraída'],
   },
 ];
 

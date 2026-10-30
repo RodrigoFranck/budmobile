@@ -6,6 +6,7 @@ import { X } from 'lucide-react-native';
 import { BudChip } from '@/components/v3';
 import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAppProfileQuery } from '@/hooks/useAppProfileQuery';
 import { APP_VERSION, SUPPORT_TOPICS, type SupportTopic } from '@/pages/menu/menuCatalog';
 import { AccentTitle, BudButton, MenuHeader, ScreenScaffold, SectionLabel } from '@/pages/menu/menuUi';
 import { pickSupportScreenshot } from '@/pages/menu/pickSupportScreenshot';
@@ -20,6 +21,7 @@ export default function SupportScreen() {
   const navigation = useNavigation<MainTabNavigationProp>();
   const { showAlert } = useAppAlert();
   const { user } = useAuth();
+  const { data: profile } = useAppProfileQuery();
   const [topic, setTopic] = useState<SupportTopic | null>(null);
   const [body, setBody] = useState('');
   const [replyTo, setReplyTo] = useState(user?.email ?? '');
@@ -48,6 +50,7 @@ export default function SupportScreen() {
         message: body,
         topic,
         replyTo,
+        name: profile?.name,
         appVersion: APP_VERSION,
         screenshot,
       });

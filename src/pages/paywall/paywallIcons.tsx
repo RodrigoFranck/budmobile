@@ -56,3 +56,20 @@ export function PaywallCheckIcon({ color }: { color: string }) {
     </PaywallIcon>
   );
 }
+
+export function PaywallMicIcon({ color }: { color: string }) {
+  return (
+    <PaywallIcon>
+      <Path
+        d="M11 2.75C12.5188 2.75 13.75 3.98122 13.75 5.5V10.0833C13.75 11.6021 12.5188 12.8333 11 12.8333C9.48122 12.8333 8.25 11.6021 8.25 10.0833V5.5C8.25 3.98122 9.48122 2.75 11 2.75Z"
+        stroke={color}
+        {...stroke}
+      />
+      <Path
+        d="M4.58333 10.0833C4.58333 11.7851 5.25937 13.4172 6.46273 14.6206C7.66609 15.824 9.29819 16.5 11 16.5M11 16.5C12.7018 16.5 14.3339 15.824 15.5373 14.6206C16.7406 13.4172 17.4167 11.7851 17.4167 10.0833M11 16.5V19.25"
+        stroke={color}
+        {...stroke}
+      />
+    </PaywallIcon>
+  );
+}

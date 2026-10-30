@@ -17,6 +17,7 @@ import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { ArrowUp, ChevronLeft, MessageSquare, Mic, ThumbsDown, ThumbsUp, X } from 'lucide-react-native';
 
 import { BudButton, BudIconButton } from '@/components/v3';
+import { useGenderedCopy } from '@/hooks/useGenderedCopy';
 import { activityEasing, activityMotion } from '@/pages/activitiesV3/activityMotion';
 import { activityColors, fonts, useV3Colors, type V3Colors } from '@/theme';
 import type { ActivityIntroCopy } from '@/pages/activitiesV3/activityFlows';
@@ -107,6 +108,7 @@ export function ActivityIntro({
 }) {
   const colors = useV3Colors();
   const insets = useSafeAreaInsets();
+  const { g } = useGenderedCopy();
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -144,11 +146,11 @@ export function ActivityIntro({
             <ActivityLeafIcon color={colors.text2} />
             <Text style={[styles.metaText, { color: colors.text2 }]}>{copy.category}</Text>
           </View>
-          <Text style={[styles.body, { color: colors.text2, paddingTop: 18 }]}>{copy.lead}</Text>
+          <Text style={[styles.body, { color: colors.text2, paddingTop: 18 }]}>{g(copy.lead)}</Text>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Como funciona</Text>
-          <Text style={[styles.body, { color: colors.text2, paddingTop: 10 }]}>{copy.how}</Text>
+          <Text style={[styles.body, { color: colors.text2, paddingTop: 10 }]}>{g(copy.how)}</Text>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Por que funciona</Text>
-          <Text style={[styles.body, { color: colors.text2, paddingTop: 10 }]}>{copy.why}</Text>
+          <Text style={[styles.body, { color: colors.text2, paddingTop: 10 }]}>{g(copy.why)}</Text>
         </View>
       </ScrollView>
 
@@ -240,11 +242,14 @@ export function ActivityOptionRow({
   onPress: () => void;
 }) {
   const colors = useV3Colors();
+  const { g } = useGenderedCopy();
+  const display = g(label);
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: Boolean(selected) }}
+      accessibilityLabel={display}
       style={[
         styles.optionRow,
         {
@@ -261,7 +266,7 @@ export function ActivityOptionRow({
           color: selected ? activityColors.ardosia : colors.text,
         }}
       >
-        {label}
+        {display}
       </Text>
     </Pressable>
   );
@@ -332,6 +337,7 @@ export function ActivityPrompt({
   align?: 'center' | 'left';
 }) {
   const colors = useV3Colors();
+  const { g } = useGenderedCopy();
   return (
     <Text
       style={[
@@ -339,7 +345,7 @@ export function ActivityPrompt({
         { color: colors.text, textAlign: align },
       ]}
     >
-      {children}
+      {g(children)}
     </Text>
   );
 }
@@ -425,6 +431,7 @@ export function ActivityResult({
 }) {
   const colors = useV3Colors();
   const insets = useSafeAreaInsets();
+  const { g } = useGenderedCopy();
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -460,11 +467,11 @@ export function ActivityResult({
           {followUps.map((prompt) => (
             <Pressable
               key={prompt}
-              onPress={() => onTalk(prompt)}
+              onPress={() => onTalk(g(prompt))}
               accessibilityRole="button"
               style={[styles.followUp, { borderBottomColor: colors.line }]}
             >
-              <Text style={[styles.followUpText, { color: colors.text }]}>{prompt}</Text>
+              <Text style={[styles.followUpText, { color: colors.text }]}>{g(prompt)}</Text>
               <View style={{ paddingTop: 2 }}>
                 <MessageSquare color={colors.text2} size={22} />
               </View>
@@ -475,7 +482,7 @@ export function ActivityResult({
               icon={MessageSquare}
               label="Conversar sobre isso"
               loading={talking}
-              onPress={() => onTalk(followUps[0])}
+              onPress={() => onTalk(g(followUps[0]))}
             />
           </View>
         </View>

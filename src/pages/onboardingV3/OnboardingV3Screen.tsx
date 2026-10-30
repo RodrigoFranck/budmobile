@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { Audio } from 'expo-av';
 import { useNavigation } from '@react-navigation/native';
-import { ChevronLeft, List, MessageCircle, Mic, Sparkles } from 'lucide-react-native';
+import { ChevronLeft, List } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Extrapolation,
@@ -47,6 +47,7 @@ import {
   OnboardingShareIcon,
 } from '@/pages/onboardingV3/onboardingIcons';
 import { OnboardingHub, OnboardingIndexList, stepIndexForKey } from '@/pages/onboardingV3/OnboardingIndex';
+import { PaywallOfferCard } from '@/pages/paywall/PaywallOfferCard';
 import {
   displayedOptionsFrom,
   optionsMatch,
@@ -1061,48 +1062,9 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
     }
 
     if (step.layout === 'paywall') {
-      const annual = planInterval === 'annual';
       return (
-        <View style={[styles.paywallCard, { backgroundColor: colors.surface }]}>
-          <View style={[styles.planSwitch, { backgroundColor: colors.surface2 }]}>
-            {(['monthly', 'annual'] as const).map((interval) => {
-              const active = planInterval === interval;
-              return (
-                <Pressable
-                  key={interval}
-                  onPress={() => setPlanInterval(interval)}
-                  style={[styles.planTab, active ? { backgroundColor: colors.btn } : null]}
-                >
-                  <Text style={[styles.planTabText, { color: active ? colors.onBtn : colors.text2 }]}>
-                    {interval === 'annual' ? 'Anual · economize 36%' : 'Mensal'}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <View style={styles.priceRow}>
-            <Text style={[styles.price, { color: colors.text }]}>{annual ? 'R$ 83,33' : 'R$ 129,90'}</Text>
-            <Text style={[styles.priceSuffix, { color: colors.text2 }]}>/ mês</Text>
-            {annual ? (
-              <View style={[styles.bestBadge, { backgroundColor: colors.accent }]}>
-                <Text style={[styles.bestBadgeText, { color: colors.onAccent }]}>Melhor valor</Text>
-              </View>
-            ) : null}
-          </View>
-          <Text style={[styles.billedHint, { color: colors.text3 }]}>
-            {annual ? 'Cobrado R$ 999,90 por ano' : 'Cobrado todo mês'}
-          </Text>
-          <View style={[styles.paywallRule, { backgroundColor: colors.line }]} />
-          {[
-            { Icon: MessageCircle, text: 'Conversas sem limite' },
-            { Icon: Sparkles, text: 'Memória que liga os pontos entre as conversas' },
-            { Icon: Mic, text: 'Converse por voz quando quiser' },
-          ].map((item) => (
-            <View key={item.text} style={styles.featureRow}>
-              <item.Icon color={colors.text} size={22} />
-              <Text style={[styles.featureText, { color: colors.text }]}>{item.text}</Text>
-            </View>
-          ))}
+        <View style={styles.paywallCardWrap}>
+          <PaywallOfferCard interval={planInterval} onChangeInterval={setPlanInterval} />
         </View>
       );
     }
@@ -1118,7 +1080,8 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
       <View
         style={[
           styles.titleBlock,
-          step.layout === 'paywall' || step.layout === 'ready' ? { marginTop: 12 } : null,
+          step.layout === 'paywall' ? { marginTop: 12, paddingHorizontal: 24 } : null,
+          step.layout === 'ready' ? { marginTop: 12 } : null,
           step.layout === 'deepen' ? { marginTop: 26 } : null,
         ]}
       >
@@ -1247,7 +1210,11 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
 
           {step.layout === 'paywall' ? (
             <>
-              <Pressable onPress={() => void finishOnboarding()} style={styles.sheetSkipHit} accessibilityRole="button">
+              <Pressable
+                onPress={() => void finishOnboarding()}
+                style={styles.paywallSkipHit}
+                accessibilityRole="button"
+              >
                 <Text style={[styles.skipText, { color: colors.text }]}>Agora não</Text>
               </Pressable>
               <Text style={[styles.legal, { color: colors.text3 }]}>
@@ -1548,43 +1515,24 @@ const styles = StyleSheet.create({
     top: -65,
   },
   waveArt: { width: 280, height: 110 },
-  paywallCard: {
-    marginTop: 40,
-    marginHorizontal: 20,
-    borderRadius: 26,
-    paddingHorizontal: 22,
-    paddingTop: 20,
-    paddingBottom: 24,
-  },
-  planSwitch: { borderRadius: 28, padding: 4, flexDirection: 'row' },
-  planTab: { flex: 1, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  planTabText: { fontFamily: fonts.sansSemi, fontSize: 15, lineHeight: 15 },
-  priceRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 24 },
-  price: { fontFamily: fonts.display, fontSize: 46, lineHeight: 46, letterSpacing: -0.4 },
-  priceSuffix: { fontFamily: fonts.sans, fontSize: 17, marginLeft: 8, marginTop: 12 },
-  bestBadge: {
-    marginLeft: 'auto',
-    height: 30,
-    borderRadius: 20,
-    paddingHorizontal: 12,
+  paywallCardWrap: {
+    flex: 1,
     justifyContent: 'center',
+    paddingTop: 24,
+    paddingBottom: 20,
   },
-  bestBadgeText: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 13 },
-  billedHint: { fontFamily: fonts.sans, fontSize: 14, lineHeight: 14, marginTop: 10 },
-  paywallRule: { height: 1, marginTop: 20 },
-  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 16 },
-  featureText: { flex: 1, fontFamily: fonts.sans, fontSize: 16, lineHeight: 22 },
   footer: { paddingHorizontal: 24, paddingTop: 8 },
   renew: {
     fontFamily: fonts.sans,
     fontSize: 14,
     lineHeight: 14,
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 18,
   },
   skipHit: { alignItems: 'center', paddingTop: 42, paddingBottom: 8 },
   skipText: { fontFamily: fonts.sansSemi, fontSize: 16, lineHeight: 16 },
-  legal: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 13, textAlign: 'center', marginBottom: 8 },
+  paywallSkipHit: { alignItems: 'center', paddingTop: 26 },
+  legal: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 13, textAlign: 'center', marginTop: 23 },
   loadingOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 4 },
   loadingBody: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadingArt: { width: 220, height: 220 },

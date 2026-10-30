@@ -112,6 +112,8 @@ export const v3Assets = {
   historyCalendarGiz: require('@/assets/v3/history/calendar-giz.png'),
   historyCalendarMarks: require('@/assets/v3/history/calendar-marks.png'),
   historyRecapMist: require('@/assets/v3/history/recap-mist.png'),
+  letterUnderlineDark: require('@/assets/v3/letter/underline-dark.png'),
+  letterUnderlineLight: require('@/assets/v3/letter/underline-light.png'),
 } as const;
 
 export const voiceOptions = [
@@ -218,6 +220,7 @@ export type V3ThemedAssets = {
   historyCalendarGiz: ImageSourcePropType;
   historyCalendarMarks: ImageSourcePropType;
   historyRecapMist: ImageSourcePropType;
+  letterUnderline: ImageSourcePropType;
   fieeLeaf: ImageSourcePropType;
   fieeCompassLeaf: ImageSourcePropType;
   fieeLeafOutline: ImageSourcePropType;
@@ -304,6 +307,7 @@ export function useV3Asset(): V3ThemedAssets {
       historyCalendarGiz: v3Assets.historyCalendarGiz,
       historyCalendarMarks: v3Assets.historyCalendarMarks,
       historyRecapMist: v3Assets.historyRecapMist,
+      letterUnderline: isDarkMode ? v3Assets.letterUnderlineDark : v3Assets.letterUnderlineLight,
       fieeLeaf: v3Assets.fieeLeaf,
       fieeCompassLeaf: v3Assets.fieeCompassLeaf,
       fieeLeafOutline: isDarkMode ? v3Assets.fieeLeafOutlineDark : v3Assets.fieeLeafOutlineLight,

@@ -55,3 +55,64 @@ test('option matching across voices', () => {
   assert.equal(optionsMatch('Cansada', 'Cansado(a)'), true);
   assert.equal(optionsMatch('Livros', 'Filmes'), false);
 });
+
+test('activity copy follows user gender', () => {
+  assert.equal(
+    applyGenderedCopy('Um check-in rápido com você mesma', 'masculine'),
+    'Um check-in rápido com você mesmo',
+  );
+  assert.equal(
+    applyGenderedCopy('Um check-in rápido com você mesma', 'neutral'),
+    'Um check-in rápido com você mesmo(a)',
+  );
+  assert.equal(
+    applyGenderedCopy('Quando a gente está sobrecarregada, decide no automático.', 'masculine'),
+    'Quando a gente está sobrecarregado, decide no automático.',
+  );
+  assert.equal(
+    applyGenderedCopy('Continuar curiosa, mesmo quando já parece que você deveria saber.', 'masculine'),
+    'Continuar curioso, mesmo quando já parece que você deveria saber.',
+  );
+  assert.equal(
+    applyGenderedCopy('Ser vista, escolhida, e ocupar um lugar que os outros notam.', 'masculine'),
+    'Ser visto, escolhido, e ocupar um lugar que os outros notam.',
+  );
+  assert.equal(applyGenderedCopy('Nublada', 'masculine'), 'Nublado');
+  assert.equal(applyGenderedCopy('Dispersa', 'masculine'), 'Disperso');
+  assert.equal(applyGenderedCopy('Distraída', 'masculine'), 'Distraído');
+  assert.equal(applyGenderedCopy('Cansada', 'masculine'), 'Cansado');
+  assert.equal(applyGenderedCopy('Confusa', 'masculine'), 'Confuso');
+  assert.equal(applyGenderedCopy('Energizada', 'masculine'), 'Energizado');
+  assert.equal(applyGenderedCopy('Relaxada', 'masculine'), 'Relaxado');
+  assert.equal(applyGenderedCopy('Curiosa', 'masculine'), 'Curioso');
+  assert.equal(applyGenderedCopy('Bloqueada', 'masculine'), 'Bloqueado');
+  assert.equal(applyGenderedCopy('Esperançosa', 'masculine'), 'Esperançoso');
+  assert.equal(applyGenderedCopy('Solitária', 'masculine'), 'Solitário');
+  assert.equal(applyGenderedCopy('Apoiada', 'masculine'), 'Apoiado');
+  assert.equal(applyGenderedCopy('Focada', 'masculine'), 'Focado');
+  assert.equal(applyGenderedCopy('Irritada', 'masculine'), 'Irritado');
+  assert.equal(applyGenderedCopy('Descansada', 'masculine'), 'Descansado');
+  assert.equal(applyGenderedCopy('Calma', 'masculine'), 'Calmo');
+  assert.equal(applyGenderedCopy('Mais calma', 'masculine'), 'Mais calmo');
+  assert.equal(applyGenderedCopy('Afiada', 'masculine'), 'Afiado');
+  assert.equal(applyGenderedCopy('Inspirada', 'masculine'), 'Inspirado');
+  assert.equal(applyGenderedCopy('Criativa', 'masculine'), 'Criativo');
+  assert.equal(applyGenderedCopy('Grata', 'masculine'), 'Grato');
+  assert.equal(applyGenderedCopy('Valorizada', 'masculine'), 'Valorizado');
+  assert.equal(applyGenderedCopy('Esgotada', 'masculine'), 'Esgotado');
+  assert.equal(applyGenderedCopy('Inquieta', 'masculine'), 'Inquieto');
+  assert.equal(applyGenderedCopy('Frustrada', 'masculine'), 'Frustrado');
+  assert.equal(applyGenderedCopy('Retraída', 'masculine'), 'Retraído');
+});
+
+test('does not rewrite words that only contain a gendered form', () => {
+  assert.equal(
+    applyGenderedCopy('Como estava sua cabeça durante o treino?', 'masculine'),
+    'Como estava sua cabeça durante o treino?',
+  );
+  assert.equal(applyGenderedCopy('Dura', 'masculine'), 'Duro');
+  assert.equal(
+    applyGenderedCopy('uma decisão travada', 'masculine'),
+    'uma decisão travada',
+  );
+});

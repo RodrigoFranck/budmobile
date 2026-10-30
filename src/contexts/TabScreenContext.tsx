@@ -35,6 +35,7 @@ interface TabScreenContextValue {
   profileLoading: boolean;
   memoryLoading: boolean;
   conversationsLoading: boolean;
+  historyTitlesLoading: boolean;
   insightsLoading: boolean;
   themeLoaded: boolean;
   chatConversationReady: boolean;
@@ -173,6 +174,12 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
 
   const exploreReady = !insightsLoading && themeLoaded;
   const historyReady = !conversationsLoading && !historyTitlesLoading && themeLoaded;
+  const homeReady =
+    themeLoaded &&
+    !profileLoading &&
+    !insightsLoading &&
+    !conversationsLoading &&
+    !historyTitlesLoading;
   const activitiesReady = themeLoaded;
 
   const [latchedReady, setLatchedReady] = useState<Record<TabScreenName, boolean>>({
@@ -196,13 +203,13 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
     }
 
     setLatchedReady((prev) => ({
-      Home: prev.Home || exploreReady,
+      Home: prev.Home || homeReady,
       Chat: prev.Chat || chatReady,
       Explore: prev.Explore || exploreReady,
       History: prev.History || historyReady,
       Activities: prev.Activities || activitiesReady,
     }));
-  }, [user?.id, chatReady, exploreReady, historyReady, activitiesReady]);
+  }, [user?.id, chatReady, exploreReady, homeReady, historyReady, activitiesReady]);
 
   const readiness = useMemo(
     () => ({
@@ -231,6 +238,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
       profileLoading,
       memoryLoading,
       conversationsLoading,
+      historyTitlesLoading,
       insightsLoading,
       themeLoaded,
       conversations: historyConversations,
@@ -263,6 +271,7 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
       profileLoading,
       memoryLoading,
       conversationsLoading,
+      historyTitlesLoading,
       insightsLoading,
       themeLoaded,
       historyConversations,

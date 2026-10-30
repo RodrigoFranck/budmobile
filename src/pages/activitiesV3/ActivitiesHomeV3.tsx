@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 
 import { BudIconButton } from '@/components/v3';
+import { useGenderedCopy } from '@/hooks/useGenderedCopy';
 import { fonts, useV3Asset, useV3Colors } from '@/theme';
 import type { ActivityId } from '@/pages/activitiesV3/activityFlows';
 import type { MainTabNavigationProp } from '@/types/navigation';
@@ -53,6 +54,7 @@ export default function ActivitiesHomeV3() {
   const assets = useV3Asset();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainTabNavigationProp>();
+  const { g } = useGenderedCopy();
   const { width } = useWindowDimensions();
   const coverSize = (width - H_PADDING * 2 - GRID_GAP) / 2;
 
@@ -80,7 +82,7 @@ export default function ActivitiesHomeV3() {
               key={card.id}
               onPress={() => navigation.navigate('ActivityFlow', { activityId: card.id })}
               accessibilityRole="button"
-              accessibilityLabel={`${card.title}. ${card.subtitle}. ${card.duration}`}
+              accessibilityLabel={`${card.title}. ${g(card.subtitle)}. ${card.duration}`}
               style={{ width: coverSize }}
             >
               <Image
@@ -89,7 +91,7 @@ export default function ActivitiesHomeV3() {
                 resizeMode="cover"
               />
               <Text style={[styles.cardTitle, { color: colors.text }]}>{card.title}</Text>
-              <Text style={[styles.cardSubtitle, { color: colors.text2 }]}>{card.subtitle}</Text>
+              <Text style={[styles.cardSubtitle, { color: colors.text2 }]}>{g(card.subtitle)}</Text>
               <Text style={[styles.cardDuration, { color: colors.text3 }]}>{card.duration}</Text>
             </Pressable>
           ))}

@@ -13,6 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 
 import { BudChip } from '@/components/v3';
 import { useAuth } from '@/contexts/AuthContext';
+import { useGenderedCopy } from '@/hooks/useGenderedCopy';
 import {
   ACTIVITY_FOLLOWUPS,
   ACTIVITY_INTROS,
@@ -495,6 +496,7 @@ function CardHints() {
 }
 
 function ValueCardBody({ card, colors }: { card: ValueCard; colors: V3Colors }) {
+  const { g } = useGenderedCopy();
   return (
     <>
       <Text
@@ -525,7 +527,7 @@ function ValueCardBody({ card, colors }: { card: ValueCard; colors: V3Colors }) 
           width: 262,
         }}
       >
-        {card.body}
+        {g(card.body)}
       </Text>
     </>
   );

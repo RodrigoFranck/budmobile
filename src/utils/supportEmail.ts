@@ -115,3 +115,44 @@ export function buildSupportEmailPayload({
 
   return payload;
 }
+
+export const NETLIFY_SUPPORT_FORM_ENDPOINT = 'https://falecombud.com.br/__forms.html';
+export const NETLIFY_SUPPORT_FORM_NAME = 'contato-clubes';
+
+export function buildNetlifySupportFields({
+  message,
+  topic,
+  replyTo,
+  name,
+  appVersion,
+  platform,
+  screenshotFilename,
+}: {
+  message: string;
+  topic?: string | null;
+  replyTo?: string | null;
+  name?: string | null;
+  appVersion?: string;
+  platform?: string;
+  screenshotFilename?: string | null;
+}): Record<string, string> {
+  const subjectTopic = topic?.trim() || 'Nova mensagem';
+  const email = replyTo?.trim() || '';
+  const senderName = name?.trim() || email.split('@')[0] || 'Usuário';
+  const appLabel = [platform, appVersion].filter(Boolean).join(' · ');
+
+  const messageParts = [message.trim()];
+  if (screenshotFilename) messageParts.push(`Print: ${screenshotFilename}`);
+  if (appLabel) messageParts.push(`App: ${appLabel}`);
+
+  return {
+    'form-name': NETLIFY_SUPPORT_FORM_NAME,
+    subject: `[Bud App] ${subjectTopic}`,
+    name: senderName,
+    email,
+    organization: `App · ${subjectTopic}`,
+    institutionType: 'Outro',
+    teamSize: 'Até 50',
+    message: messageParts.join('\n\n'),
+  };
+}

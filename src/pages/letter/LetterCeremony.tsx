@@ -33,8 +33,16 @@ import { useDailyLetter } from '@/hooks/useDailyLetter';
 import { useGenderedCopy } from '@/hooks/useGenderedCopy';
 import { fonts, motion, useV3Asset, useV3Colors } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
+import {
+  formatDailyLetterPlain,
+  LETTER_NOTICED_HEADING,
+  LETTER_SIGNOFF,
+  LETTER_TAKEAWAY_HEADING,
+  parseDailyLetterBody,
+} from '@/utils/dailyLetter';
 import { getNowInBrasilia, getWeekStartBrasilia } from '@/utils/dateUtils';
 import { navigateToChatTab } from '@/utils/navigateToChat';
+
 import { playLetterHaptic } from './letterSounds';
 
 export type LetterOrigin = {
@@ -128,7 +136,14 @@ export default function LetterCeremony({ origin, onClose }: LetterCeremonyProps)
   const days = useMemo(() => weekStrip(), []);
   const title = g(letter?.title ?? 'O que ficou de ontem?');
   const { lead, last } = splitAccentTitle(title);
-  const body = g(letter?.body ?? '');
+  const sections = useMemo(() => parseDailyLetterBody(letter?.body), [letter?.body]);
+  const opening = g(sections.opening);
+  const noticed = g(sections.noticed);
+  const takeaway = g(sections.takeaway);
+  const shareText = useMemo(
+    () => formatDailyLetterPlain(title, { opening, noticed, takeaway }),
+    [noticed, opening, takeaway, title],
+  );
   const lastStyle = { fontFamily: fonts.displayItalic, color: colors.accent };
 
   const progress = useSharedValue(0);
@@ -349,21 +364,21 @@ export default function LetterCeremony({ origin, onClose }: LetterCeremonyProps)
   }));
 
   const shareLetter = useCallback(() => {
-    void Share.share({ message: `${title}\n\n${body}` });
-  }, [body, title]);
+    void Share.share({ message: shareText });
+  }, [shareText]);
 
   const openChat = useCallback(() => {
     navigateToChatTab(navigation, {
       chatInsight: {
         insightType: 'yesterday_journey',
         title,
-        contextSummary: body,
-        internalContext: body,
-        cardDescription: body,
+        contextSummary: opening,
+        internalContext: shareText,
+        cardDescription: opening,
         backgroundType: 'yesterday',
       },
     });
-  }, [body, navigation, title]);
+  }, [navigation, opening, shareText, title]);
 
   return (
     <View style={styles.overlay} pointerEvents="auto">
@@ -450,8 +465,34 @@ export default function LetterCeremony({ origin, onClose }: LetterCeremonyProps)
               style={[styles.readingTitle, { color: colors.text }]}
               lastStyle={lastStyle}
             />
-            <Text style={[styles.body, { color: colors.text2 }]}>{body}</Text>
-            <Text style={[styles.signoff, { color: colors.text2 }]}>Com cuidado, Bud.</Text>
+            {opening ? (
+              <Text style={[styles.body, { color: colors.text2 }]}>{opening}</Text>
+            ) : null}
+            {noticed ? (
+              <>
+                <View style={styles.noticedHeading}>
+                  <Image
+                    pointerEvents="none"
+                    source={assets.letterUnderline}
+                    style={styles.noticedUnderline}
+                    resizeMode="contain"
+                  />
+                  <Text style={[styles.sectionHeading, { color: colors.text }]}>
+                    {LETTER_NOTICED_HEADING}
+                  </Text>
+                </View>
+                <Text style={[styles.sectionBody, { color: colors.text2 }]}>{noticed}</Text>
+              </>
+            ) : null}
+            {takeaway ? (
+              <>
+                <Text style={[styles.takeawayHeading, { color: colors.text }]}>
+                  {LETTER_TAKEAWAY_HEADING}
+                </Text>
+                <Text style={[styles.sectionBody, { color: colors.text2 }]}>{takeaway}</Text>
+              </>
+            ) : null}
+            <Text style={[styles.signoff, { color: colors.text2 }]}>{LETTER_SIGNOFF}</Text>
           </ScrollView>
         </View>
         <View
@@ -596,15 +637,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   weekLabel: {
-    fontFamily: fonts.sans,
+    fontFamily: fonts.sansMedium,
     fontSize: 13,
-    lineHeight: 16,
+    lineHeight: 13,
     textAlign: 'center',
   },
   weekDay: {
-    fontFamily: fonts.sans,
+    fontFamily: fonts.sansMedium,
     fontSize: 19,
-    lineHeight: 22,
+    lineHeight: 19,
     marginTop: 8,
     textAlign: 'center',
   },
@@ -627,6 +668,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 25,
     marginTop: 22,
+  },
+  noticedHeading: {
+    marginTop: 28,
+    paddingBottom: 16,
+    overflow: 'visible',
+  },
+  noticedUnderline: {
+    position: 'absolute',
+    left: -6,
+    top: 16,
+    width: 190,
+    height: 26,
+  },
+  sectionHeading: {
+    fontFamily: fonts.display,
+    fontSize: 20,
+    lineHeight: 26,
+    letterSpacing: -0.4,
+  },
+  takeawayHeading: {
+    fontFamily: fonts.display,
+    fontSize: 20,
+    lineHeight: 26,
+    letterSpacing: -0.4,
+    marginTop: 28,
+  },
+  sectionBody: {
+    fontFamily: fonts.sans,
+    fontSize: 16,
+    lineHeight: 25,
+    marginTop: 16,
   },
   signoff: {
     fontFamily: fonts.displayItalic,

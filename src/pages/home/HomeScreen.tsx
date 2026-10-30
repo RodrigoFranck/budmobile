@@ -15,7 +15,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Menu } from 'lucide-react-native';
 
-import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
+import { SplashScreen } from '@/components/SplashScreen';
 import { BudIconButton } from '@/components/v3';
 import { firstGivenName } from '@/copy/nameGender';
 import { useTabScreenContext, useTabScreenLoading } from '@/contexts/TabScreenContext';
@@ -200,8 +200,15 @@ export default function HomeScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const navigation = useNavigation<MainTabNavigationProp>();
   const tabLoading = useTabScreenLoading('Home');
-  const { profile, yesterdayInsight, conversations } = useTabScreenContext();
-  const { available: hasLetter } = useDailyLetter();
+  const {
+    profile,
+    yesterdayInsight,
+    conversations,
+    conversationsLoading,
+    historyTitlesLoading,
+  } = useTabScreenContext();
+  const { available: hasLetter, loading: letterLoading } = useDailyLetter();
+  const conversationsReady = !conversationsLoading && !historyTitlesLoading;
   const { g } = useGenderedCopy();
   const firstName = firstGivenName(profile?.name ?? '') || 'você';
   const greeting = greetingForHour();
@@ -210,6 +217,7 @@ export default function HomeScreen() {
   const [openingRecapId, setOpeningRecapId] = useState<string | null>(null);
   const [letterOrigin, setLetterOrigin] = useState<LetterOrigin | null>(null);
   const [recapStuck, setRecapStuck] = useState(false);
+  const [revealed, setRevealed] = useState(false);
   const envelopeRef = useRef<View>(null);
   const homeRootRef = useRef<View>(null);
   const scrollRef = useRef<ScrollView>(null);
@@ -248,12 +256,17 @@ export default function HomeScreen() {
     });
   }, [envH, envW, insets.top, windowWidth]);
 
-  const { recaps, recapCountLabel } = useHomeRecaps({
+  const { recaps, recapCountLabel, loading: recapsLoading } = useHomeRecaps({
     conversations,
     yesterdayInsight,
     hasLetter,
+    conversationsReady,
     dateLabel: recapDateLabel,
   });
+  const contentReady = !tabLoading && !letterLoading && !recapsLoading;
+  if (contentReady && !revealed) {
+    setRevealed(true);
+  }
 
   const openRecap = useCallback(
     async (item: RecapItem) => {
@@ -309,9 +322,20 @@ export default function HomeScreen() {
     scrollRef.current?.scrollTo({ y: recapOffset, animated: true });
   }, []);
 
+  if (!revealed) {
+    return (
+      <View
+        style={{ flex: 1, backgroundColor: colors.bg }}
+        accessibilityRole="progressbar"
+        accessibilityLabel="Carregando conteúdo"
+      >
+        <SplashScreen visible />
+      </View>
+    );
+  }
+
   return (
-    <ScreenLoadingGate loading={tabLoading}>
-      <View ref={homeRootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.bg }}>
+    <View ref={homeRootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.bg }}>
       <View
         style={{
           flex: 1,
@@ -608,7 +632,6 @@ export default function HomeScreen() {
       {letterOrigin ? (
         <LetterCeremony origin={letterOrigin} onClose={() => setLetterOrigin(null)} />
       ) : null}
-      </View>
-    </ScreenLoadingGate>
+    </View>
   );
 }
