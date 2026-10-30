@@ -3,6 +3,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Activity, Clock, Mail, MessageSquare } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 
+import { useAppAudience } from '@/hooks/useAppAudience';
 import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
 import { useV3Preferences } from '@/hooks/useV3Preferences';
 import { NOTIFICATION_ROWS } from '@/pages/menu/menuCatalog';
@@ -22,7 +23,9 @@ export default function NotificationsScreen() {
   const navigation = useNavigation();
   const { values, persist } = useV3Preferences();
   const { setNotificationsEnabled } = useNotificationPreferences();
+  const { can } = useAppAudience();
   const notifications = values.notifications;
+  const rows = NOTIFICATION_ROWS.filter((row) => !row.capability || can(row.capability));
 
   const toggle = async (key: keyof typeof notifications, next: boolean) => {
     const updated = { ...notifications, [key]: next };
@@ -51,13 +54,13 @@ export default function NotificationsScreen() {
         Escolha o que o Bud pode te lembrar. Nada de spam, prometemos.
       </Text>
       <PrefGroup style={{ marginTop: 20 }}>
-        {NOTIFICATION_ROWS.map((row, index) => (
+        {rows.map((row, index) => (
           <PrefRow
             key={row.key}
             icon={ICONS[row.icon]}
             label={row.label}
             hint={row.hint}
-            last={index === NOTIFICATION_ROWS.length - 1}
+            last={index === rows.length - 1}
             trailing={
               <BudToggle
                 value={notifications[row.key]}

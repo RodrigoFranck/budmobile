@@ -2,6 +2,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import type { CheckInChipOption } from '@/features/checkin/checkInFlow.types';
 import { getOptionLabel, getOptionSubtitle } from '@/features/checkin/checkInSteps';
+import { useGenderedCopy } from '@/hooks/useGenderedCopy';
 import { useCheckInFlowStyles } from './checkInFlow.styles';
 
 interface CheckInChipListProps {
@@ -12,6 +13,7 @@ interface CheckInChipListProps {
 
 export function CheckInChipList({ options, value, onChange }: CheckInChipListProps) {
   const styles = useCheckInFlowStyles();
+  const { g } = useGenderedCopy();
 
   return (
     <View>
@@ -19,6 +21,7 @@ export function CheckInChipList({ options, value, onChange }: CheckInChipListPro
         const label = getOptionLabel(opt);
         const subtitle = getOptionSubtitle(opt);
         const selected = value === label;
+        const display = g(label);
 
         const handlePress = () => {
           onChange(label);
@@ -35,9 +38,9 @@ export function CheckInChipList({ options, value, onChange }: CheckInChipListPro
             ]}
             accessibilityRole="button"
             accessibilityState={{ selected }}
-            accessibilityLabel={subtitle ? `${label}, ${subtitle}` : label}
+            accessibilityLabel={subtitle ? `${display}, ${subtitle}` : display}
           >
-            <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>{label}</Text>
+            <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>{display}</Text>
             {subtitle ? (
               <Text style={[styles.chipSubtitle, selected && styles.chipSubtitleSelected]}>
                 {subtitle}

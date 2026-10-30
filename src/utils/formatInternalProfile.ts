@@ -85,9 +85,14 @@ export function formatInternalProfileForPrompt(
     recentInsights?: MemoryInsight[];
     sessionSummaries?: string[];
     biographicalNotes?: string | null;
+    declaredUserContext?: string | null;
   },
 ): string {
   const sections: string[] = [];
+
+  if (options?.declaredUserContext?.trim()) {
+    sections.push(options.declaredUserContext.trim());
+  }
 
   const sessionSummaries = options?.sessionSummaries ?? [];
   if (sessionSummaries.length > 0) {
@@ -192,6 +197,7 @@ export function buildChatMemoryContext(
   extras?: {
     sessionSummaries?: string[];
     biographicalNotes?: string | null;
+    declaredUserContext?: string | null;
   },
 ): ChatMemoryContext {
   return {
@@ -200,6 +206,7 @@ export function buildChatMemoryContext(
       recentInsights,
       sessionSummaries: extras?.sessionSummaries,
       biographicalNotes: extras?.biographicalNotes,
+      declaredUserContext: extras?.declaredUserContext,
     }),
     approachGuidance: buildApproachGuidance(profile),
     recentInsights,

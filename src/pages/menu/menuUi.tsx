@@ -14,6 +14,7 @@ import { Check, ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 
 import { BudButton, BudIconButton } from '@/components/v3';
+import { useGenderedCopy } from '@/hooks/useGenderedCopy';
 import { fonts, useV3Colors } from '@/theme';
 
 export function MenuHeader({
@@ -72,6 +73,7 @@ export function AccentTitle({
   align?: 'left' | 'center';
 }) {
   const colors = useV3Colors();
+  const { g } = useGenderedCopy();
   return (
     <Text
       style={{
@@ -83,11 +85,11 @@ export function AccentTitle({
         textAlign: align,
       }}
     >
-      {before}
+      {g(before)}
       <Text style={{ fontFamily: fonts.displayItalic, fontStyle: 'italic', color: colors.accent }}>
-        {accent}
+        {g(accent)}
       </Text>
-      {after ?? ''}
+      {after ? g(after) : ''}
     </Text>
   );
 }
@@ -226,17 +228,22 @@ export function BudToggle({
   value,
   onValueChange,
   accessibilityLabel,
+  disabled,
 }: {
   value: boolean;
   onValueChange: (next: boolean) => void;
   accessibilityLabel: string;
+  disabled?: boolean;
 }) {
   const colors = useV3Colors();
   return (
     <Pressable
-      onPress={() => onValueChange(!value)}
+      onPress={() => {
+        if (disabled) return;
+        onValueChange(!value);
+      }}
       accessibilityRole="switch"
-      accessibilityState={{ checked: value }}
+      accessibilityState={{ checked: value, disabled: Boolean(disabled) }}
       accessibilityLabel={accessibilityLabel}
       style={{
         width: 52,
@@ -244,6 +251,7 @@ export function BudToggle({
         borderRadius: 16,
         backgroundColor: value ? colors.accent : colors.line,
         justifyContent: 'center',
+        opacity: disabled ? 0.55 : 1,
       }}
     >
       <View
@@ -271,6 +279,7 @@ export function SelectOption({
   multi?: boolean;
 }) {
   const colors = useV3Colors();
+  const { g } = useGenderedCopy();
   return (
     <Pressable
       onPress={onPress}
@@ -296,7 +305,7 @@ export function SelectOption({
           textAlign: multi ? 'left' : 'center',
         }}
       >
-        {label}
+        {g(label)}
       </Text>
       {multi ? (
         selected ? (
@@ -313,25 +322,32 @@ export function ScreenScaffold({
   children,
   padded = true,
   bottom,
+  scroll = true,
 }: {
   children: ReactNode;
   padded?: boolean;
   bottom?: ReactNode;
+  scroll?: boolean;
 }) {
   const colors = useV3Colors();
   const insets = useSafeAreaInsets();
+  const body = padded ? <View style={{ paddingHorizontal: 20 }}>{children}</View> : children;
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top }}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{
-          paddingBottom: insets.bottom + (bottom ? 108 : 40),
-          flexGrow: 1,
-        }}
-      >
-        {padded ? <View style={{ paddingHorizontal: 20 }}>{children}</View> : children}
-      </ScrollView>
+      {scroll ? (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{
+            paddingBottom: insets.bottom + (bottom ? 108 : 40),
+            flexGrow: 1,
+          }}
+        >
+          {body}
+        </ScrollView>
+      ) : (
+        <View style={{ flex: 1, paddingBottom: insets.bottom + (bottom ? 108 : 40) }}>{body}</View>
+      )}
       {bottom ? (
         <View
           style={{

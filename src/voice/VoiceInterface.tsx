@@ -27,7 +27,9 @@ import {
   type VoiceChatMessage,
 } from '@/voice/voiceClinicalContext';
 import type { UserContext } from '@/voice/voicePrompt';
+import { useAppProfileQuery } from '@/hooks/useAppProfileQuery';
 import { useAppColors } from '@/lib/colors';
+import { elevenLabsVoiceIdFor, storedVoiceId } from '@/theme';
 import { useVoiceSessionKeepAwake } from '@/hooks/useVoiceSessionKeepAwake';
 import {
   getVoiceButtonDimensions,
@@ -244,14 +246,20 @@ function VoiceInterfaceNativeInner(
   >(null);
   const processVoiceUserTurnRef = useRef<(text: string) => void>(() => {});
   const processVoiceAssistantTurnRef = useRef<(text: string) => void>(() => {});
+  const { data: profile } = useAppProfileQuery();
+  const elevenLabsVoiceId = elevenLabsVoiceIdFor(
+    storedVoiceId(profile?.selected_voice, profile?.v3_preferences),
+  );
   const userContextRef = useRef(userContext);
   const messageHistoryRef = useRef(messageHistory);
   const recentInsightsRef = useRef(recentInsights);
   const internalProfileRef = useRef(internalProfile);
+  const elevenLabsVoiceIdRef = useRef(elevenLabsVoiceId);
   userContextRef.current = userContext;
   messageHistoryRef.current = messageHistory;
   recentInsightsRef.current = recentInsights;
   internalProfileRef.current = internalProfile;
+  elevenLabsVoiceIdRef.current = elevenLabsVoiceId;
   const isSessionLocked =
     sessionPhase === 'connecting' || sessionPhase === 'disconnecting';
 
@@ -773,6 +781,7 @@ function VoiceInterfaceNativeInner(
         userId: user?.id,
         userContext: userContextRef.current,
         firstMessage: resolveVoiceFirstMessage(options),
+        elevenLabsVoiceId: elevenLabsVoiceIdRef.current,
       });
       lastSessionConfigRef.current = omitVoiceFirstMessage(sessionOptions);
       const startPromise = Promise.resolve(conversation.startSession(sessionOptions));
@@ -892,14 +901,20 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
     >(null);
     const processVoiceUserTurnRef = useRef<(text: string) => void>(() => {});
     const processVoiceAssistantTurnRef = useRef<(text: string) => void>(() => {});
+    const { data: profile } = useAppProfileQuery();
+    const elevenLabsVoiceId = elevenLabsVoiceIdFor(
+      storedVoiceId(profile?.selected_voice, profile?.v3_preferences),
+    );
     const userContextRef = useRef(userContext);
     const messageHistoryRef = useRef(messageHistory);
     const recentInsightsRef = useRef(recentInsights);
     const internalProfileRef = useRef(internalProfile);
+    const elevenLabsVoiceIdRef = useRef(elevenLabsVoiceId);
     userContextRef.current = userContext;
     messageHistoryRef.current = messageHistory;
     recentInsightsRef.current = recentInsights;
     internalProfileRef.current = internalProfile;
+    elevenLabsVoiceIdRef.current = elevenLabsVoiceId;
     const isSessionLocked =
       sessionPhase === 'connecting' || sessionPhase === 'disconnecting';
 
@@ -1100,6 +1115,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
           userId: user?.id,
           userContext: userContextRef.current,
           firstMessage: resolveVoiceFirstMessage(options),
+          elevenLabsVoiceId: elevenLabsVoiceIdRef.current,
         });
         lastSessionConfigRef.current = omitVoiceFirstMessage(sessionOptions);
         const { Conversation } = await import('@elevenlabs/client');

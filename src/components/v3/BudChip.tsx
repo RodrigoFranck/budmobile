@@ -6,10 +6,22 @@ interface BudChipProps {
   label: string;
   selected?: boolean;
   onPress: () => void;
+  selectedTone?: 'btn' | 'accent';
+  selectedColor?: string;
+  selectedLabelColor?: string;
 }
 
-export function BudChip({ label, selected, onPress }: BudChipProps) {
+export function BudChip({
+  label,
+  selected,
+  onPress,
+  selectedTone = 'btn',
+  selectedColor,
+  selectedLabelColor,
+}: BudChipProps) {
   const colors = useV3Colors();
+  const selectedBg = selectedColor ?? (selectedTone === 'accent' ? colors.accent : colors.btn);
+  const selectedFg = selectedLabelColor ?? (selectedTone === 'accent' ? colors.onAccent : colors.onBtn);
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -21,14 +33,15 @@ export function BudChip({ label, selected, onPress }: BudChipProps) {
         borderRadius: 20,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: selected ? colors.btn : colors.surface2,
+        backgroundColor: selected ? selectedBg : colors.surface2,
       }}
     >
       <Text
         style={{
           fontFamily: fonts.sans,
           fontSize: 15,
-          color: selected ? colors.onBtn : colors.text,
+          lineHeight: 15,
+          color: selected ? selectedFg : colors.text,
         }}
       >
         {label}

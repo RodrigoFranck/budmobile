@@ -1,3 +1,5 @@
+import type { Capability } from '@/access';
+import { applyOnboardingVoice, genderVoiceFrom } from '@/pages/onboardingV3/onboardingGender';
 import {
   AGE_OPTIONS,
   MOOD_STOPS,
@@ -125,10 +127,17 @@ export const NOTIFICATION_ROWS: {
   label: string;
   hint: string;
   icon: 'mail' | 'clock' | 'activity' | 'message';
+  capability?: Capability;
 }[] = [
   { key: 'letter', label: 'Carta do dia', hint: 'Todo dia às 7h', icon: 'mail' },
   { key: 'weekly', label: 'Resumo da semana', hint: 'Domingo às 17h', icon: 'clock' },
-  { key: 'screening', label: 'Pesquisa de saúde', hint: 'A cada 3 meses', icon: 'activity' },
+  {
+    key: 'screening',
+    label: 'Pesquisa de saúde',
+    hint: 'A cada 3 meses',
+    icon: 'activity',
+    capability: 'health_survey',
+  },
   {
     key: 'reminders',
     label: 'Lembretes para conversar',
@@ -143,8 +152,24 @@ export function splitPrefList(value: string | string[] | null | undefined): stri
   return value.split(' · ').map((item) => item.trim()).filter(Boolean);
 }
 
-export function formatPrefValue(value: string | string[] | null | undefined): string {
+export function genderPrefSpec(spec: PrefEditSpec, gender: string | null | undefined): PrefEditSpec {
+  const voice = genderVoiceFrom(gender);
+  return {
+    ...spec,
+    titleBefore: applyOnboardingVoice(spec.titleBefore, voice),
+    titleAccent: applyOnboardingVoice(spec.titleAccent, voice),
+    titleAfter: spec.titleAfter ? applyOnboardingVoice(spec.titleAfter, voice) : spec.titleAfter,
+    subtitle: applyOnboardingVoice(spec.subtitle, voice),
+    options: spec.options?.map((option) => applyOnboardingVoice(option, voice)),
+  };
+}
+
+export function formatPrefValue(
+  value: string | string[] | null | undefined,
+  gender?: string | null,
+): string {
   const items = splitPrefList(value);
   if (items.length === 0) return UNANSWERED;
-  return items.join(', ');
+  const voice = genderVoiceFrom(gender);
+  return items.map((item) => applyOnboardingVoice(item, voice)).join(', ');
 }

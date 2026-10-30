@@ -23,6 +23,7 @@ import {
   PSYCHOLOGICAL_ASSESSMENT_TOTAL_QUESTIONS,
   psychologicalAssessmentSteps,
 } from '@/features/psychologicalAssessment/psychologicalAssessmentSteps';
+import { useGenderedCopy } from '@/hooks/useGenderedCopy';
 import { usePsychologicalAssessment } from '@/hooks/usePsychologicalAssessment';
 import { useActivitiesTheme } from '@/lib/activitiesTheme';
 import type { PsychologicalAssessmentStackParamList } from '@/types/psychologicalAssessmentNavigation';
@@ -45,6 +46,7 @@ export default function PsychologicalAssessmentFlowScreen() {
   const { showAlert } = useAppAlert();
   const theme = useActivitiesTheme();
   const styles = useCheckInFlowStyles();
+  const { g } = useGenderedCopy();
 
   const steps = useMemo(() => psychologicalAssessmentSteps, []);
   const [currentStep, setCurrentStep] = useState(0);
@@ -199,8 +201,8 @@ export default function PsychologicalAssessmentFlowScreen() {
           scrollEnabled={step.inputType !== 'slider'}
         >
           <Text style={styles.category}>{step.category}</Text>
-          <Text style={styles.question}>{step.question}</Text>
-          {step.subtitle ? <Text style={styles.subtitle}>{step.subtitle}</Text> : null}
+          <Text style={styles.question}>{g(step.question)}</Text>
+          {step.subtitle ? <Text style={styles.subtitle}>{g(step.subtitle)}</Text> : null}
           <View style={styles.inputArea}>{renderInput()}</View>
         </ScrollView>
 

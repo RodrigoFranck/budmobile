@@ -1,46 +1,67 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
+  BackHandler,
   Image,
   KeyboardAvoidingView,
   Linking,
   Modal,
-  PanResponder,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
+  type ImageSourcePropType,
 } from 'react-native';
 import { Audio } from 'expo-av';
-import {
-  Check,
-  ChevronLeft,
-  Clock,
-  Mail,
-  MessageCircle,
-  Mic,
-  Plus,
-  Share2,
-  Sparkles,
-  Volume2,
-} from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
+import { ChevronLeft, List, MessageCircle, Mic, Sparkles } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  interpolateColor,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
 
-import { BudButton, BudIconButton } from '@/components/v3';
+import { BudButton, BudIconButton, BudRangePicker, VoicePicker } from '@/components/v3';
 import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/constants/healthSafety';
 import { useOnboardingFlow } from '@/contexts/OnboardingFlowContext';
+import { useAppAudience } from '@/hooks/useAppAudience';
+import { useAppProfileQuery } from '@/hooks/useAppProfileQuery';
 import { useOnboardingComplete } from '@/hooks/useOnboardingComplete';
 import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
 import { useUserPlan } from '@/hooks/useUserPlan';
+import {
+  OnboardingCheckIcon,
+  OnboardingClockIcon,
+  OnboardingEnvelopeIcon,
+  OnboardingMessageIcon,
+  OnboardingPlusIcon,
+  OnboardingShareIcon,
+} from '@/pages/onboardingV3/onboardingIcons';
+import { OnboardingHub, OnboardingIndexList, stepIndexForKey } from '@/pages/onboardingV3/OnboardingIndex';
+import {
+  displayedOptionsFrom,
+  optionsMatch,
+  withOnboardingGender,
+} from '@/pages/onboardingV3/onboardingGender';
+import { onboardingEasing, onboardingMotion } from '@/pages/onboardingV3/onboardingMotion';
 import {
   MOOD_STOPS,
   ONBOARDING_V3_STEPS,
   type OnboardingArt,
   type OnboardingTitle,
 } from '@/pages/onboardingV3/onboardingSteps';
-import { fonts, useV3Asset, useV3Colors, v3LightColors, voiceOptions, type V3ThemedAssets } from '@/theme';
+import { fonts, useV3Asset, useV3Colors, voiceOptions, type V3ThemedAssets } from '@/theme';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const LOADING_PHRASES = ['Entendendo', 'Aprendendo', 'Preparando'] as const;
 
@@ -107,41 +128,66 @@ function SelectRow({
   showMark?: boolean;
 }) {
   const colors = useV3Colors();
+  const progress = useSharedValue(selected ? 1 : 0);
+
+  useEffect(() => {
+    progress.value = withTiming(selected ? 1 : 0, {
+      duration: onboardingMotion.optionMs,
+      easing: onboardingEasing.quick,
+    });
+  }, [progress, selected]);
+
+  const rowStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(progress.value, [0, 1], [colors.surface, colors.accent]),
+  }));
+  const labelStyle = useAnimatedStyle(() => ({
+    color: interpolateColor(progress.value, [0, 1], [colors.text, colors.onAccent]),
+  }));
+  const plusStyle = useAnimatedStyle(() => ({ opacity: 0.7 * (1 - progress.value) }));
+  const checkStyle = useAnimatedStyle(() => ({ opacity: 0.7 * progress.value }));
+
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      style={{
-        minHeight: 60,
-        borderRadius: 20,
-        paddingHorizontal: 22,
-        backgroundColor: selected ? colors.accent : colors.surface,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: showMark ? 'space-between' : 'center',
-      }}
+      style={[
+        {
+          height: 60,
+          borderRadius: 20,
+          paddingHorizontal: 22,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: showMark ? 'space-between' : 'center',
+        },
+        rowStyle,
+      ]}
     >
-      <Text
-        style={{
-          fontFamily: fonts.sansSemi,
-          fontSize: 16.5,
-          lineHeight: 16.5,
-          color: selected ? colors.onAccent : colors.text,
-          flex: showMark ? 1 : undefined,
-          textAlign: showMark ? 'left' : 'center',
-        }}
+      <Animated.Text
+        style={[
+          {
+            fontFamily: fonts.sansSemi,
+            fontSize: 16.5,
+            lineHeight: 16.5,
+            flex: showMark ? 1 : undefined,
+            textAlign: showMark ? 'left' : 'center',
+          },
+          labelStyle,
+        ]}
       >
         {label}
-      </Text>
+      </Animated.Text>
       {showMark ? (
-        selected ? (
-          <Check color={colors.onAccent} size={22} strokeWidth={2.4} />
-        ) : (
-          <Plus color={colors.text} size={22} strokeWidth={2} opacity={0.7} />
-        )
+        <View style={{ width: 22, height: 22 }}>
+          <Animated.View style={[{ position: 'absolute' }, plusStyle]}>
+            <OnboardingPlusIcon color={colors.text} />
+          </Animated.View>
+          <Animated.View style={[{ position: 'absolute' }, checkStyle]}>
+            <OnboardingCheckIcon color={colors.onAccent} />
+          </Animated.View>
+        </View>
       ) : null}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -173,36 +219,235 @@ function BudToggle({ value, onValueChange }: { value: boolean; onValueChange: (n
   );
 }
 
-export default function OnboardingV3Screen() {
+function MoodArtLayer({
+  source,
+  size,
+  layer,
+  progress,
+}: {
+  source: ImageSourcePropType;
+  size: number;
+  layer: number;
+  progress: SharedValue<number>;
+}) {
+  const style = useAnimatedStyle(() => {
+    const dist = Math.abs(progress.value - layer);
+    return {
+      opacity: interpolate(dist, [0, 1], [1, 0], Extrapolation.CLAMP),
+      zIndex: dist < 0.5 ? 1 : 0,
+    };
+  });
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        {
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          width: size,
+          height: size,
+        },
+        style,
+      ]}
+    >
+      <Image source={source} resizeMode="contain" style={{ width: size, height: size }} />
+    </Animated.View>
+  );
+}
+
+function MoodArtBlock({ progress }: { progress: SharedValue<number> }) {
+  const assets = useV3Asset();
+  const [size, setSize] = useState(260);
+  const sources = [
+    assets.onboardingMood,
+    assets.onboardingMoodSolto,
+    assets.onboardingMoodAltos,
+    assets.onboardingMoodLevando,
+    assets.onboardingMoodEspiral,
+  ];
+  const spinStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${progress.value * onboardingMotion.moodRotatePerStop}deg` }],
+  }));
+
+  return (
+    <View
+      style={styles.moodArtSlot}
+      onLayout={(event) => {
+        const { width, height } = event.nativeEvent.layout;
+        const next = Math.max(0, Math.min(260, Math.floor(Math.min(width, height))));
+        if (next > 0) setSize(next);
+      }}
+    >
+      <Animated.View style={[{ width: size, height: size }, spinStyle]}>
+        {sources.map((source, artLayer) => (
+          <MoodArtLayer key={artLayer} source={source} size={size} layer={artLayer} progress={progress} />
+        ))}
+      </Animated.View>
+    </View>
+  );
+}
+
+function LoadingPhrase({ phrase, color, accent }: { phrase: string; color: string; accent: string }) {
+  const progress = useSharedValue(1);
+  const [incoming, setIncoming] = useState(phrase);
+  const [outgoing, setOutgoing] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (phrase === incoming) return;
+    setOutgoing(incoming);
+    setIncoming(phrase);
+    progress.value = 0;
+    progress.value = withTiming(1, {
+      duration: onboardingMotion.loadingPhraseMs,
+      easing: onboardingEasing.gentle,
+    });
+  }, [incoming, phrase, progress]);
+
+  const incomingStyle = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    transform: [{ translateY: interpolate(progress.value, [0, 1], [8, 0]) }],
+  }));
+  const outgoingStyle = useAnimatedStyle(() => ({
+    opacity: 1 - progress.value,
+    transform: [{ translateY: interpolate(progress.value, [0, 1], [0, -8]) }],
+  }));
+
+  return (
+    <View style={styles.loadingPhraseSlot}>
+      {outgoing ? (
+        <Animated.Text
+          style={[styles.loadingPhrase, { color, position: 'absolute', left: 0, right: 0 }, outgoingStyle]}
+        >
+          {outgoing}
+          <Text style={{ color: accent }}>.</Text>
+        </Animated.Text>
+      ) : null}
+      <Animated.Text style={[styles.loadingPhrase, { color }, incomingStyle]}>
+        {incoming}
+        <Text style={{ color: accent }}>.</Text>
+      </Animated.Text>
+    </View>
+  );
+}
+
+function MoodLabelCrossfade({ label, color }: { label: string; color: string }) {
+  const progress = useSharedValue(1);
+  const [incoming, setIncoming] = useState(label);
+  const [outgoing, setOutgoing] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (label === incoming) return;
+    setOutgoing(incoming);
+    setIncoming(label);
+    progress.value = 0;
+    progress.value = withTiming(1, {
+      duration: onboardingMotion.moodMs,
+      easing: onboardingEasing.gentle,
+    });
+  }, [incoming, label, progress]);
+
+  const incomingStyle = useAnimatedStyle(() => ({ opacity: progress.value }));
+  const outgoingStyle = useAnimatedStyle(() => ({ opacity: 1 - progress.value }));
+
+  return (
+    <View style={{ marginTop: 40, height: 21, alignItems: 'center', justifyContent: 'center' }}>
+      {outgoing ? (
+        <Animated.Text
+          style={[
+            {
+              position: 'absolute',
+              fontFamily: fonts.sansSemi,
+              fontSize: 21,
+              lineHeight: 21,
+              color,
+            },
+            outgoingStyle,
+          ]}
+        >
+          {outgoing}
+        </Animated.Text>
+      ) : null}
+      <Animated.Text
+        style={[
+          {
+            fontFamily: fonts.sansSemi,
+            fontSize: 21,
+            lineHeight: 21,
+            color,
+          },
+          incomingStyle,
+        ]}
+      >
+        {incoming}
+      </Animated.Text>
+    </View>
+  );
+}
+
+export default function OnboardingV3Screen({ replay = false }: { replay?: boolean } = {}) {
   const colors = useV3Colors();
   const assets = useV3Asset();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const navigation = useNavigation();
   const flow = useOnboardingFlow();
+  const { data: profile } = useAppProfileQuery();
   const { completeOnboarding, submitting } = useOnboardingComplete();
+  const { can } = useAppAudience();
+  const showPaywall = can('paywall');
   const { startCheckout } = useUserPlan();
   const { setNotificationsEnabled } = useNotificationPreferences();
   const [index, setIndex] = useState(0);
+  const [hubOpen, setHubOpen] = useState(replay);
+  const [fromHub, setFromHub] = useState(false);
+  const [sheetMode, setSheetMode] = useState<null | 'skip' | 'index'>(null);
   const [skipDeep, setSkipDeep] = useState(false);
-  const [confirmSkip, setConfirmSkip] = useState(false);
   const [planInterval, setPlanInterval] = useState<'annual' | 'monthly'>('annual');
   const [moodIndex, setMoodIndex] = useState(0);
   const [voiceIndex, setVoiceIndex] = useState(0);
   const [loadingTick, setLoadingTick] = useState(0);
+  const [loadingMounted, setLoadingMounted] = useState(false);
   const [selectedMany, setSelectedMany] = useState<string[]>([]);
-  const sliderWidth = useRef(300);
   const indexRef = useRef(0);
+  const animatingRef = useRef(false);
+  const loadingMountedRef = useRef(false);
+  const hubOpenRef = useRef(hubOpen);
+  const fromHubRef = useRef(fromHub);
+  const questionRef = useRef<ReactNode>(null);
   indexRef.current = index;
+  loadingMountedRef.current = loadingMounted;
+  hubOpenRef.current = hubOpen;
+  fromHubRef.current = fromHub;
+  const stepProgress = useSharedValue(1);
+  const stepDir = useSharedValue(1);
+  const screenOpacity = useSharedValue(1);
+  const sheetProgress = useSharedValue(0);
+  const loadingOpacity = useSharedValue(0);
+  const readyReveal = useSharedValue(1);
+  const moodProgress = useSharedValue(0);
+  const [exitTree, setExitTree] = useState<ReactNode>(null);
+  const [flashOption, setFlashOption] = useState<string | null>(null);
+  const [sheetHeight, setSheetHeight] = useState(360);
 
   const visibleIndexes = useMemo(
     () =>
       ONBOARDING_V3_STEPS.map((_, stepIndex) => stepIndex).filter((stepIndex) => {
         if (skipDeep && ONBOARDING_V3_STEPS[stepIndex].group === 'deep') return false;
+        if (ONBOARDING_V3_STEPS[stepIndex].layout === 'paywall' && (replay || !showPaywall)) {
+          return false;
+        }
         return true;
       }),
-    [skipDeep],
+    [replay, showPaywall, skipDeep],
   );
 
-  const step = ONBOARDING_V3_STEPS[index];
+  const genderValue = flow.answers.gender || profile?.gender || '';
+  const step = useMemo(
+    () => withOnboardingGender(ONBOARDING_V3_STEPS[index], genderValue),
+    [genderValue, index],
+  );
   const visiblePos = Math.max(0, visibleIndexes.indexOf(index));
 
   const currentValue = useMemo(() => {
@@ -214,7 +459,7 @@ export default function OnboardingV3Screen() {
 
   useEffect(() => {
     if (step.layout === 'multiSelect') {
-      setSelectedMany(splitList(currentValue));
+      setSelectedMany(displayedOptionsFrom(splitList(currentValue), step.options));
     }
     if (step.layout === 'mood') {
       const found = MOOD_STOPS.findIndex((item) => item.label === currentValue);
@@ -227,7 +472,7 @@ export default function OnboardingV3Screen() {
     if (step.layout === 'ageWheel' && !flow.ageRange) {
       flow.setAgeRange('30 a 34');
     }
-  }, [currentValue, flow.ageRange, flow.setAgeRange, step.key, step.layout]);
+  }, [currentValue, flow.ageRange, flow.setAgeRange, step.key, step.layout, step.options]);
 
   const setValue = (value: string) => {
     if (step.field === 'displayName') {
@@ -241,13 +486,6 @@ export default function OnboardingV3Screen() {
     if (step.field) {
       flow.setAnswer(step.field, value);
     }
-  };
-
-  const goToVisible = (from: number, direction: 1 | -1) => {
-    const pos = visibleIndexes.indexOf(from);
-    const nextPos = pos + direction;
-    if (nextPos < 0 || nextPos >= visibleIndexes.length) return;
-    setIndex(visibleIndexes[nextPos]);
   };
 
   const persistStep = () => {
@@ -265,6 +503,78 @@ export default function OnboardingV3Screen() {
     }
   };
 
+  const clearExitLayer = useCallback(() => {
+    animatingRef.current = false;
+    setExitTree(null);
+  }, []);
+
+  const commitLoadingIndex = useCallback((nextIndex: number) => {
+    setIndex(nextIndex);
+    animatingRef.current = false;
+  }, []);
+
+  const finishLoadingOverlay = useCallback(() => {
+    setLoadingMounted(false);
+    animatingRef.current = false;
+  }, []);
+
+  const animateToIndex = (nextIndex: number, direction: 1 | -1) => {
+    if (animatingRef.current || nextIndex === index) return;
+    persistStep();
+    const nextLayout = ONBOARDING_V3_STEPS[nextIndex]?.layout;
+    if (nextLayout === 'loading') {
+      animatingRef.current = true;
+      setLoadingTick(0);
+      setLoadingMounted(true);
+      loadingOpacity.value = 0;
+      loadingOpacity.value = withTiming(
+        1,
+        { duration: onboardingMotion.loadingEnterMs, easing: onboardingEasing.gentle },
+        (finished) => {
+          if (finished) runOnJS(commitLoadingIndex)(nextIndex);
+        },
+      );
+      return;
+    }
+    if (step.layout === 'loading' && nextLayout === 'ready') {
+      animatingRef.current = true;
+      readyReveal.value = 0;
+      setIndex(nextIndex);
+      readyReveal.value = withTiming(1, {
+        duration: onboardingMotion.loadingRevealMs,
+        easing: onboardingEasing.gentle,
+      });
+      loadingOpacity.value = withTiming(
+        0,
+        { duration: onboardingMotion.loadingRevealMs, easing: onboardingEasing.gentle },
+        (finished) => {
+          if (finished) runOnJS(finishLoadingOverlay)();
+        },
+      );
+      return;
+    }
+    animatingRef.current = true;
+    stepDir.value = direction;
+    stepProgress.value = 0;
+    setExitTree(questionRef.current);
+    setIndex(nextIndex);
+  };
+
+  useLayoutEffect(() => {
+    if (!exitTree) return;
+    const duration = stepDir.value > 0 ? onboardingMotion.nextMs : onboardingMotion.backMs;
+    stepProgress.value = withTiming(1, { duration, easing: onboardingEasing.standard }, (finished) => {
+      if (finished) runOnJS(clearExitLayer)();
+    });
+  }, [clearExitLayer, exitTree, stepDir, stepProgress]);
+
+  const goToVisible = (from: number, direction: 1 | -1) => {
+    const pos = visibleIndexes.indexOf(from);
+    const nextPos = pos + direction;
+    if (nextPos < 0 || nextPos >= visibleIndexes.length) return;
+    animateToIndex(visibleIndexes[nextPos], direction);
+  };
+
   const finishOnboarding = async () => {
     persistStep();
     if (!flow.conversationGoal && flow.answers.focus) {
@@ -273,11 +583,25 @@ export default function OnboardingV3Screen() {
     if (!flow.initialThoughts && (flow.answers.mood || flow.answers.anythingElse)) {
       flow.setInitialThoughts(flow.answers.anythingElse || flow.answers.mood);
     }
-    await completeOnboarding();
+    const { error } = await completeOnboarding({ replay });
+    if (replay && !error) {
+      navigation.goBack();
+    }
+  };
+
+  const exitReplay = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    }
   };
 
   const goNext = async () => {
     persistStep();
+    if (fromHubRef.current) {
+      setFromHub(false);
+      setHubOpen(true);
+      return;
+    }
     if (step.layout === 'paywall') {
       await startCheckout(planInterval);
       await finishOnboarding();
@@ -291,16 +615,76 @@ export default function OnboardingV3Screen() {
   };
 
   const skipAprofundar = () => {
-    setSkipDeep(true);
+    if (animatingRef.current) return;
     const quase = ONBOARDING_V3_STEPS.findIndex((item) => item.key === 'quase');
-    setIndex(quase);
+    setSkipDeep(true);
+    animateToIndex(quase, 1);
+  };
+
+  const fadeThenFinish = () => {
+    screenOpacity.value = withTiming(
+      0,
+      {
+        duration: onboardingMotion.fadeExitMs,
+        easing: onboardingEasing.standard,
+      },
+      (finished) => {
+        if (finished) runOnJS(finishOnboarding)();
+      },
+    );
+  };
+
+  const openSheet = (mode: 'skip' | 'index') => {
+    setSheetMode(mode);
+    sheetProgress.value = withTiming(1, {
+      duration: onboardingMotion.sheetMs,
+      easing: onboardingEasing.standard,
+    });
+  };
+
+  const closeSheet = (after?: () => void) => {
+    sheetProgress.value = withTiming(
+      0,
+      {
+        duration: onboardingMotion.sheetMs,
+        easing: onboardingEasing.standard,
+      },
+      (finished) => {
+        if (!finished) return;
+        runOnJS(setSheetMode)(null);
+        if (after) runOnJS(after)();
+      },
+    );
+  };
+
+  const jumpToStepKey = (stepKey: string, viaHub: boolean) => {
+    const nextIndex = stepIndexForKey(stepKey);
+    if (nextIndex < 0 || animatingRef.current) return;
+    const next = ONBOARDING_V3_STEPS[nextIndex];
+    if (next.group === 'deep') setSkipDeep(false);
+    persistStep();
+    setFromHub(viaHub);
+    setHubOpen(false);
+    if (nextIndex === index) return;
+    animateToIndex(nextIndex, nextIndex > index ? 1 : -1);
+  };
+
+  const returnToHub = () => {
+    persistStep();
+    setFromHub(false);
+    setHubOpen(true);
+  };
+
+  const startLinearReplay = () => {
+    setFromHub(false);
+    setSkipDeep(false);
+    setHubOpen(false);
+    if (index === 0) return;
+    animateToIndex(0, 1);
   };
 
   useEffect(() => {
-    if (step.layout !== 'loading') {
-      setLoadingTick(0);
-      return;
-    }
+    if (step.layout !== 'loading') return;
     setLoadingTick(0);
     const timers = [
       setTimeout(() => setLoadingTick(1), 900),
@@ -312,8 +696,8 @@ export default function OnboardingV3Screen() {
 
   const toggleMany = (option: string) => {
     setSelectedMany((current) => {
-      if (current.includes(option)) {
-        return current.filter((item) => item !== option);
+      if (current.some((item) => optionsMatch(item, option))) {
+        return current.filter((item) => !optionsMatch(item, option));
       }
       if (step.maxSelect && current.length >= step.maxSelect) {
         return current;
@@ -321,23 +705,6 @@ export default function OnboardingV3Screen() {
       return [...current, option];
     });
   };
-
-  const sliderResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (event) => {
-          const x = Math.max(0, Math.min(sliderWidth.current, event.nativeEvent.locationX));
-          setMoodIndex(Math.round((x / sliderWidth.current) * 4));
-        },
-        onPanResponderMove: (event) => {
-          const x = Math.max(0, Math.min(sliderWidth.current, event.nativeEvent.locationX));
-          setMoodIndex(Math.round((x / sliderWidth.current) * 4));
-        },
-      }),
-    [],
-  );
 
   const handleCta = async () => {
     if (step.layout === 'notify') {
@@ -359,14 +726,83 @@ export default function OnboardingV3Screen() {
     await goNext();
   };
 
-  const showBack = visiblePos > 0 && step.layout !== 'loading' && step.layout !== 'ready';
+  const outgoingStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateX: interpolate(stepProgress.value, [0, 1], [0, -windowWidth * stepDir.value]),
+      },
+    ],
+  }));
+  const incomingStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateX: interpolate(stepProgress.value, [0, 1], [windowWidth * stepDir.value, 0]),
+      },
+    ],
+  }));
+  const screenFadeStyle = useAnimatedStyle(() => ({
+    opacity: screenOpacity.value * interpolate(readyReveal.value, [0, 1], [0.88, 1]),
+    transform: [{ translateY: interpolate(readyReveal.value, [0, 1], [16, 0]) }],
+  }));
+  const loadingOverlayStyle = useAnimatedStyle(() => ({ opacity: loadingOpacity.value }));
+  const loadingMistStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(loadingOpacity.value, [0, 0.35, 1], [0, 0.7, 0.7]),
+  }));
+  const loadingArtStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: interpolate(loadingOpacity.value, [0, 1], [0.94, 1]) }],
+  }));
+  const scrimStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(sheetProgress.value, [0, 1], [0, onboardingMotion.scrim]),
+  }));
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateY: interpolate(sheetProgress.value, [0, 1], [sheetHeight, 0]),
+      },
+    ],
+  }));
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (sheetMode) {
+        closeSheet();
+        return true;
+      }
+      if (hubOpenRef.current) {
+        if (replay) exitReplay();
+        return true;
+      }
+      const layout = ONBOARDING_V3_STEPS[indexRef.current]?.layout;
+      if (layout === 'loading' || layout === 'ready' || loadingMountedRef.current) {
+        return true;
+      }
+      if (fromHubRef.current) {
+        returnToHub();
+        return true;
+      }
+      const pos = visibleIndexes.indexOf(indexRef.current);
+      if (pos > 0) {
+        goToVisible(indexRef.current, -1);
+        return true;
+      }
+      if (replay) {
+        setHubOpen(true);
+        return true;
+      }
+      return false;
+    });
+    return () => subscription.remove();
+  }, [replay, sheetMode, visibleIndexes]);
+
+  const showBack = (replay || visiblePos > 0) && step.layout !== 'loading' && step.layout !== 'ready';
+  const showMap =
+    !hubOpen && step.layout !== 'loading' && step.layout !== 'ready' && step.layout !== 'paywall';
   const showSkip = Boolean(step.skippable) && step.layout !== 'ready' && step.layout !== 'paywall';
   const ctaDisabled =
     (step.layout === 'multiSelect' && selectedMany.length === 0) ||
     (step.layout === 'text' && !currentValue.trim());
 
-  const misted = step.layout === 'mistHero' || step.layout === 'deepen' || step.layout === 'loading';
-  const mistOpacity = step.layout === 'loading' ? 0.7 : step.layout === 'deepen' ? 0.4 : 0.55;
+  const misted = step.layout === 'mistHero' || step.layout === 'deepen';
+  const mistOpacity = step.layout === 'deepen' ? 0.4 : 0.55;
 
   const renderBody = () => {
     if (step.layout === 'commitment') {
@@ -410,20 +846,26 @@ export default function OnboardingV3Screen() {
     }
 
     if (step.layout === 'deepen') {
+      const deepenListWidth = Math.min(
+        262,
+        windowWidth - 28 - 170 - 20 + 40,
+      );
       return (
         <View style={styles.flex}>
           <View style={[styles.timeChip, { backgroundColor: colors.surface2 }]}>
-            <Clock color={colors.text} size={22} />
+            <OnboardingClockIcon color={colors.accent} />
             <Text style={[styles.timeChipText, { color: colors.text }]}>Cerca de 4 minutos</Text>
           </View>
-          <View style={styles.benefitList}>
+          <View style={[styles.benefitList, { width: deepenListWidth }]}>
             {[
-              { Icon: MessageCircle, text: 'Conversas mais certeiras desde o primeiro dia' },
-              { Icon: Mail, text: 'Cartas do dia com a sua cara' },
-              { Icon: Share2, text: 'Dá para mudar tudo depois em Preferências' },
+              { Icon: OnboardingMessageIcon, text: 'Conversas mais certeiras desde o primeiro dia' },
+              { Icon: OnboardingEnvelopeIcon, text: 'Cartas do dia com a sua cara' },
+              { Icon: OnboardingShareIcon, text: 'Dá para mudar tudo depois em Preferências' },
             ].map((item) => (
               <View key={item.text} style={styles.benefitRow}>
-                <item.Icon color={colors.text} size={22} />
+                <View style={styles.benefitIcon}>
+                  <item.Icon color={colors.accent} />
+                </View>
                 <Text style={[styles.benefitText, { color: colors.text }]}>{item.text}</Text>
               </View>
             ))}
@@ -526,11 +968,23 @@ export default function OnboardingV3Screen() {
             <SelectRow
               key={option}
               label={option}
-              selected={false}
+              selected={
+                flashOption ? flashOption === option : optionsMatch(option, currentValue)
+              }
               showMark={false}
               onPress={() => {
+                if (animatingRef.current) return;
                 setValue(option);
-                setTimeout(() => goToVisible(index, 1), 40);
+                setFlashOption(option);
+                setTimeout(() => {
+                  setFlashOption(null);
+                  if (fromHubRef.current) {
+                    setFromHub(false);
+                    setHubOpen(true);
+                    return;
+                  }
+                  goToVisible(index, 1);
+                }, onboardingMotion.optionMs);
               }}
             />
           ))}
@@ -549,7 +1003,7 @@ export default function OnboardingV3Screen() {
             <SelectRow
               key={option}
               label={option}
-              selected={selectedMany.includes(option)}
+              selected={selectedMany.some((item) => optionsMatch(item, option))}
               onPress={() => toggleMany(option)}
             />
           ))}
@@ -559,68 +1013,26 @@ export default function OnboardingV3Screen() {
 
     if (step.layout === 'mood') {
       const stop = MOOD_STOPS[moodIndex];
-      const knobLeft = (moodIndex / 4) * 300 - 26;
       return (
         <View style={styles.moodBody}>
-          <Image source={assets.onboardingMood} style={styles.moodArt} resizeMode="contain" />
-          <Text style={[styles.moodLabel, { color: colors.text }]}>{stop.label}</Text>
-          <View
-            {...sliderResponder.panHandlers}
-            onLayout={(event) => {
-              sliderWidth.current = event.nativeEvent.layout.width;
-            }}
-            style={styles.slider}
-          >
-            <View style={[styles.sliderTrack, { backgroundColor: colors.text }]} />
-            {[0, 1, 2, 3, 4].map((tick) => (
-              <View
-                key={tick}
-                style={[styles.sliderTick, { left: (tick / 4) * 300 - 1, backgroundColor: colors.text }]}
-              />
-            ))}
-            <View style={[styles.sliderKnob, { left: knobLeft, backgroundColor: colors.accent }]} />
-          </View>
+          <MoodArtBlock progress={moodProgress} />
+          <MoodLabelCrossfade label={stop.label} color={colors.text} />
+          <BudRangePicker
+            index={moodIndex}
+            progress={moodProgress}
+            onIndexChange={setMoodIndex}
+            style={styles.moodPicker}
+          />
         </View>
       );
     }
 
     if (step.layout === 'voice') {
-      const voice = voiceOptions[voiceIndex];
       return (
         <View style={styles.flex}>
-          <View style={styles.voiceRow}>
-            <Pressable
-              onPress={() => setVoiceIndex((current) => (current + 1) % voiceOptions.length)}
-              style={[styles.voicePortrait, { backgroundColor: v3LightColors.surface }]}
-            >
-              <Image source={voice.image} style={styles.voiceImage} />
-            </Pressable>
-            <View style={styles.voiceCopy}>
-              <Text style={[styles.voiceName, { color: colors.text }]}>{voice.label}</Text>
-              <Text style={[styles.voiceBio, { color: colors.text2 }]}>{voice.bio}</Text>
-              <View style={styles.voiceListen}>
-                <Volume2 color={colors.accent} size={22} />
-                <Text style={[styles.voiceListenText, { color: colors.accent }]}>Ouvir</Text>
-              </View>
-            </View>
+          <View style={styles.voicePicker}>
+            <VoicePicker index={voiceIndex} onIndexChange={setVoiceIndex} showSilentHint />
           </View>
-          <View style={styles.dots}>
-            {voiceOptions.map((item, itemIndex) => (
-              <Pressable
-                key={item.id}
-                onPress={() => setVoiceIndex(itemIndex)}
-                style={{
-                  height: 9,
-                  width: itemIndex === voiceIndex ? 28 : 9,
-                  borderRadius: 5,
-                  backgroundColor: itemIndex === voiceIndex ? colors.text : colors.text3,
-                }}
-              />
-            ))}
-          </View>
-          <Text style={[styles.voiceHint, { color: colors.text2 }]}>
-            Se o celular estiver no silencioso, você não vai ouvir as vozes.
-          </Text>
         </View>
       );
     }
@@ -633,14 +1045,17 @@ export default function OnboardingV3Screen() {
             {
               backgroundColor: colors.surface,
               height: step.layout === 'notify' ? 360 : 340,
+              marginTop: step.layout === 'notify' ? 62 : 48,
             },
           ]}
         >
-          <Image
-            source={artSource(step.art, assets)}
-            style={step.layout === 'notify' ? styles.bellArt : styles.waveArt}
-            resizeMode="contain"
-          />
+          {step.layout === 'notify' ? (
+            <View style={styles.bellWindow}>
+              <Image source={artSource(step.art, assets)} style={styles.bellArt} />
+            </View>
+          ) : (
+            <Image source={artSource(step.art, assets)} style={styles.waveArt} resizeMode="contain" />
+          )}
         </View>
       );
     }
@@ -695,17 +1110,47 @@ export default function OnboardingV3Screen() {
     return <View style={styles.flex} />;
   };
 
-  if (step.layout === 'loading') {
+  const questionNode =
+    step.layout === 'loading' ? (
+      <View style={styles.flex} />
+    ) : (
+    <>
+      <View
+        style={[
+          styles.titleBlock,
+          step.layout === 'paywall' || step.layout === 'ready' ? { marginTop: 12 } : null,
+          step.layout === 'deepen' ? { marginTop: 26 } : null,
+        ]}
+      >
+        <AccentTitle title={step.title} color={colors.text} accent={colors.accent} />
+        {step.subtitle ? (
+          <Text
+            style={[
+              styles.subtitle,
+              { color: colors.text2 },
+              step.layout === 'paywall' ? styles.paywallSubtitle : null,
+            ]}
+          >
+            {step.subtitle}
+          </Text>
+        ) : null}
+      </View>
+      {renderBody()}
+    </>
+    );
+  questionRef.current = questionNode;
+
+  if (hubOpen) {
     return (
       <View style={[styles.root, { backgroundColor: colors.bg }]}>
-        <Image source={assets.onboardingMist} style={[styles.mist, { opacity: 0.7 }]} resizeMode="cover" />
-        <View style={styles.loadingBody}>
-          <Image source={assets.onboardingLoading} style={styles.loadingArt} resizeMode="contain" />
-          <Text style={[styles.loadingPhrase, { color: colors.text }]}>
-            {LOADING_PHRASES[loadingTick]}
-            <Text style={{ color: colors.accent }}>.</Text>
-          </Text>
-        </View>
+        <OnboardingHub
+          flow={flow}
+          saving={submitting}
+          onBack={exitReplay}
+          onSelect={(stepKey) => jumpToStepKey(stepKey, true)}
+          onSave={() => void finishOnboarding()}
+          onReplayAll={startLinearReplay}
+        />
       </View>
     );
   }
@@ -715,6 +1160,7 @@ export default function OnboardingV3Screen() {
       style={[styles.root, { backgroundColor: colors.bg }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <Animated.View style={[{ flex: 1 }, screenFadeStyle]}>
       {misted ? (
         <Image source={assets.onboardingMist} style={[styles.mist, { opacity: mistOpacity }]} resizeMode="cover" />
       ) : null}
@@ -725,29 +1171,57 @@ export default function OnboardingV3Screen() {
         ) : (
           <View style={styles.header}>
             {showBack ? (
-              <BudIconButton icon={ChevronLeft} accessibilityLabel="Voltar" onPress={() => goToVisible(index, -1)} />
+              <BudIconButton
+                icon={ChevronLeft}
+                accessibilityLabel="Voltar"
+                onPress={() => {
+                  if (fromHub) {
+                    returnToHub();
+                    return;
+                  }
+                  if (visiblePos <= 0) {
+                    if (replay) {
+                      setHubOpen(true);
+                      return;
+                    }
+                    return;
+                  }
+                  goToVisible(index, -1);
+                }}
+              />
+            ) : (
+              <View style={styles.headerSpacer} />
+            )}
+            {showMap ? (
+              <BudIconButton
+                icon={List}
+                accessibilityLabel="Ir para uma pergunta"
+                onPress={() => {
+                  if (replay) {
+                    returnToHub();
+                    return;
+                  }
+                  openSheet('index');
+                }}
+              />
             ) : (
               <View style={styles.headerSpacer} />
             )}
           </View>
         )}
 
-        <View style={[styles.titleBlock, step.layout === 'paywall' || step.layout === 'ready' ? { marginTop: 12 } : null]}>
-          <AccentTitle title={step.title} color={colors.text} accent={colors.accent} />
-          {step.subtitle ? (
-            <Text
-              style={[
-                styles.subtitle,
-                { color: colors.text2 },
-                step.layout === 'paywall' ? styles.paywallSubtitle : null,
-              ]}
-            >
-              {step.subtitle}
-            </Text>
-          ) : null}
+        <View style={styles.questionStage}>
+          {exitTree ? (
+            <>
+              <Animated.View style={[styles.questionLayerExit, outgoingStyle]} pointerEvents="none">
+                {exitTree}
+              </Animated.View>
+              <Animated.View style={[styles.questionLayerExit, incomingStyle]}>{questionNode}</Animated.View>
+            </>
+          ) : (
+            <View style={styles.questionLayer}>{questionNode}</View>
+          )}
         </View>
-
-        {renderBody()}
 
         <View style={styles.footer}>
           {step.layout === 'paywall' ? (
@@ -763,7 +1237,7 @@ export default function OnboardingV3Screen() {
           {step.cta ? (
             <BudButton
               label={step.cta}
-              disabled={ctaDisabled}
+              disabled={ctaDisabled || Boolean(exitTree) || loadingMounted}
               loading={submitting}
               onPress={() => {
                 void handleCta();
@@ -773,7 +1247,7 @@ export default function OnboardingV3Screen() {
 
           {step.layout === 'paywall' ? (
             <>
-              <Pressable onPress={() => void finishOnboarding()} style={styles.skipHit} accessibilityRole="button">
+              <Pressable onPress={() => void finishOnboarding()} style={styles.sheetSkipHit} accessibilityRole="button">
                 <Text style={[styles.skipText, { color: colors.text }]}>Agora não</Text>
               </Pressable>
               <Text style={[styles.legal, { color: colors.text3 }]}>
@@ -787,56 +1261,130 @@ export default function OnboardingV3Screen() {
 
           {showSkip ? (
             <Pressable
-              onPress={() => (step.key === 'deepen' ? skipAprofundar() : setConfirmSkip(true))}
+              onPress={() => {
+                if (fromHub) {
+                  returnToHub();
+                  return;
+                }
+                if (step.key === 'deepen') {
+                  skipAprofundar();
+                  return;
+                }
+                openSheet('skip');
+              }}
               style={styles.skipHit}
               accessibilityRole="button"
             >
-              <Text style={[styles.skipText, { color: colors.text2 }]}>Pular por agora</Text>
+              <Text style={[styles.skipText, { color: colors.text2 }]}>
+                {fromHub ? 'Voltar às perguntas' : 'Pular por agora'}
+              </Text>
             </Pressable>
           ) : null}
         </View>
       </View>
+      </Animated.View>
 
-      <Modal visible={confirmSkip} transparent animationType="slide" onRequestClose={() => setConfirmSkip(false)}>
-        <View style={styles.modalRoot}>
-          <Pressable
-            style={[styles.scrim, { backgroundColor: colors.scrim }]}
-            onPress={() => setConfirmSkip(false)}
+      {loadingMounted ? (
+        <View style={styles.loadingOverlay}>
+          <Animated.View
+            style={[StyleSheet.absoluteFill, { backgroundColor: colors.bg }, loadingOverlayStyle]}
           />
-          <View
+          <Animated.Image
+            source={assets.onboardingMist}
+            style={[styles.mist, loadingMistStyle]}
+            resizeMode="cover"
+          />
+          <Animated.View style={[styles.loadingBody, loadingOverlayStyle]} pointerEvents="none">
+            <Animated.Image
+              source={assets.onboardingLoading}
+              style={[styles.loadingArt, loadingArtStyle]}
+              resizeMode="contain"
+            />
+            <LoadingPhrase phrase={LOADING_PHRASES[loadingTick]} color={colors.text} accent={colors.accent} />
+          </Animated.View>
+          <Pressable style={StyleSheet.absoluteFill} accessible={false} />
+        </View>
+      ) : null}
+
+      <Modal visible={Boolean(sheetMode)} transparent animationType="none" onRequestClose={() => closeSheet()}>
+        <View style={styles.modalRoot}>
+          <AnimatedPressable
+            style={[styles.scrimFill, { backgroundColor: colors.scrim }, scrimStyle]}
+            onPress={() => closeSheet()}
+          />
+          <Animated.View
+            onLayout={(event) => setSheetHeight(event.nativeEvent.layout.height)}
             style={[
               styles.sheet,
               { backgroundColor: colors.surface, paddingBottom: Math.max(insets.bottom, 24) },
+              sheetStyle,
             ]}
           >
             <View style={styles.handleWrap}>
               <View style={[styles.handle, { backgroundColor: colors.line }]} />
             </View>
-            <View style={styles.sheetTitle}>
-              <AccentTitle
-                title={{ before: 'Tudo bem ', accent: 'pular' }}
-                color={colors.text}
-                accent={colors.accent}
-                size={26}
-                lineHeight={32}
-              />
-            </View>
-            <Text style={[styles.sheetCopy, { color: colors.text2 }]}>
-              Não tem problema. Você pode responder quando quiser em Preferências, e o Bud vai se adaptando
-              enquanto vocês conversam.
-            </Text>
-            <BudButton label="Continuar respondendo" onPress={() => setConfirmSkip(false)} style={{ marginTop: 28 }} />
-            <Pressable
-              onPress={() => {
-                setConfirmSkip(false);
-                void finishOnboarding();
-              }}
-              style={styles.skipHit}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.skipText, { color: colors.text2 }]}>Pular e ir para o início</Text>
-            </Pressable>
-          </View>
+            {sheetMode === 'index' ? (
+              <>
+                <View style={styles.sheetTitle}>
+                  <AccentTitle
+                    title={{ before: 'Para onde você quer ', accent: 'ir', after: '?' }}
+                    color={colors.text}
+                    accent={colors.accent}
+                    size={26}
+                    lineHeight={32}
+                  />
+                </View>
+                <Text style={[styles.sheetCopy, { color: colors.text2 }]}>
+                  Toque para pular até uma pergunta. O que você já escolheu continua marcado.
+                </Text>
+                <ScrollView
+                  style={{ maxHeight: windowHeight * 0.55, marginTop: 8 }}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <OnboardingIndexList
+                    flow={flow}
+                    onSelect={(stepKey) => {
+                      closeSheet(() => jumpToStepKey(stepKey, false));
+                    }}
+                  />
+                </ScrollView>
+              </>
+            ) : (
+              <>
+                <View style={styles.sheetTitle}>
+                  <AccentTitle
+                    title={{ before: 'Tudo bem ', accent: 'pular' }}
+                    color={colors.text}
+                    accent={colors.accent}
+                    size={26}
+                    lineHeight={32}
+                  />
+                </View>
+                <Text style={[styles.sheetCopy, { color: colors.text2 }]}>
+                  Não tem problema. Você pode responder quando quiser em Preferências, e o Bud vai se adaptando
+                  enquanto vocês conversam.
+                </Text>
+                <BudButton label="Continuar respondendo" onPress={() => closeSheet()} style={{ marginTop: 28 }} />
+                <Pressable
+                  onPress={() => {
+                    closeSheet(() => {
+                      if (replay) {
+                        returnToHub();
+                        return;
+                      }
+                      fadeThenFinish();
+                    });
+                  }}
+                  style={styles.sheetSkipHit}
+                  accessibilityRole="button"
+                >
+                  <Text style={[styles.skipText, { color: colors.text2 }]}>
+                    {replay ? 'Voltar às perguntas' : 'Pular e ir para o início'}
+                  </Text>
+                </Pressable>
+              </>
+            )}
+          </Animated.View>
         </View>
       </Modal>
     </KeyboardAvoidingView>
@@ -850,10 +1398,15 @@ const styles = StyleSheet.create({
   header: {
     height: 56,
     paddingHorizontal: 20,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   headerSpacer: { width: 48, height: 48 },
   readyHeader: { height: 20 },
+  questionStage: { flex: 1, overflow: 'hidden' },
+  questionLayer: { flex: 1 },
+  questionLayerExit: { ...StyleSheet.absoluteFillObject },
   titleBlock: {
     paddingHorizontal: 28,
     marginTop: 36,
@@ -876,20 +1429,20 @@ const styles = StyleSheet.create({
     width: 290,
     height: 390,
     position: 'absolute',
-    right: -18,
-    bottom: 8,
+    right: 20,
+    bottom: 0,
   },
   leafSit: {
     width: 170,
     height: 230,
     position: 'absolute',
-    right: 0,
-    bottom: 8,
+    right: 20,
+    bottom: 0,
   },
   leafWalk: { width: 300, height: 400 },
   toggleCard: {
     marginHorizontal: 24,
-    marginBottom: 16,
+    marginBottom: 26,
     borderRadius: 22,
     padding: 22,
     flexDirection: 'row',
@@ -903,7 +1456,7 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
   timeChip: {
-    marginTop: 24,
+    marginTop: 32,
     marginLeft: 28,
     alignSelf: 'flex-start',
     height: 44,
@@ -915,9 +1468,10 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   timeChipText: { fontFamily: fonts.sansSemi, fontSize: 15, lineHeight: 15 },
-  benefitList: { marginLeft: 28, marginTop: 10, width: 262 },
-  benefitRow: { flexDirection: 'row', gap: 14, paddingTop: 14 },
-  benefitText: { flex: 1, fontFamily: fonts.sans, fontSize: 16, lineHeight: 25 },
+  benefitList: { marginLeft: 28, marginTop: 10, zIndex: 1 },
+  benefitRow: { flexDirection: 'row', gap: 14, paddingTop: 14, alignItems: 'flex-start' },
+  benefitIcon: { width: 22, height: 22, marginTop: 1, flexShrink: 0 },
+  benefitText: { flex: 1, flexShrink: 1, fontFamily: fonts.sans, fontSize: 16, lineHeight: 25 },
   nameBlock: { marginTop: 78, paddingHorizontal: 28, flex: 1 },
   nameInput: {
     fontFamily: fonts.display,
@@ -944,7 +1498,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   promptChipText: { fontFamily: fonts.sans, fontSize: 15, lineHeight: 15 },
-  ageList: { marginTop: 72, paddingHorizontal: 24, flex: 1 },
+  ageList: { marginTop: 108, paddingHorizontal: 24, flex: 1 },
   ageContent: { gap: 2, paddingBottom: 12 },
   ageRow: {
     height: 58,
@@ -952,49 +1506,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  choiceList: { marginTop: 48, paddingHorizontal: 24, flex: 1 },
+  choiceList: { marginTop: 88, paddingHorizontal: 24, flex: 1 },
   choiceListTight: { marginTop: 28, paddingHorizontal: 24, flex: 1 },
   choiceContent: { gap: 10, paddingBottom: 12 },
-  moodBody: { flex: 1, alignItems: 'center' },
-  moodArt: { width: 260, height: 260, marginTop: 48 },
-  moodLabel: {
-    fontFamily: fonts.sansSemi,
-    fontSize: 21,
-    lineHeight: 21,
-    marginTop: 40,
+  moodBody: {
+    flex: 1,
+    alignItems: 'center',
+    minHeight: 0,
+    width: '100%',
+    paddingTop: 68,
+    paddingBottom: 12,
   },
-  slider: { width: 300, height: 52, marginTop: 28, justifyContent: 'center' },
-  sliderTrack: { height: 2, width: 300 },
-  sliderTick: { position: 'absolute', width: 2, height: 20 },
-  sliderKnob: {
-    position: 'absolute',
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    opacity: 0.85,
+  moodArtSlot: {
+    flex: 1,
+    minHeight: 0,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  voiceRow: { marginTop: 88, flexDirection: 'row', paddingHorizontal: 28 },
-  voicePortrait: { width: 200, height: 200, borderRadius: 22, overflow: 'hidden' },
-  voiceImage: { width: 200, height: 200 },
-  voiceCopy: { flex: 1, marginLeft: 22, paddingTop: 8 },
-  voiceName: {
-    fontFamily: fonts.display,
-    fontSize: 26,
-    lineHeight: 32,
-    letterSpacing: -0.4,
+  moodPicker: {
+    marginTop: 13,
   },
-  voiceBio: { fontFamily: fonts.sans, fontSize: 16, lineHeight: 25, marginTop: 8 },
-  voiceListen: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14 },
-  voiceListenText: { fontFamily: fonts.sansSemi, fontSize: 14, lineHeight: 14 },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 7, marginTop: 80 },
-  voiceHint: {
-    fontFamily: fonts.sans,
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-    marginTop: 32,
-    paddingHorizontal: 40,
-  },
+  voicePicker: { marginTop: 88 },
   artCard: {
     marginTop: 48,
     marginHorizontal: 24,
@@ -1002,7 +1535,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bellArt: { width: 220, height: 260 },
+  bellWindow: {
+    width: 220,
+    height: 260,
+    overflow: 'hidden',
+  },
+  bellArt: {
+    position: 'absolute',
+    width: 420,
+    height: 420,
+    left: -117,
+    top: -65,
+  },
   waveArt: { width: 280, height: 110 },
   paywallCard: {
     marginTop: 40,
@@ -1038,20 +1582,28 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 12,
   },
-  skipHit: { alignItems: 'center', paddingTop: 16, paddingBottom: 8 },
+  skipHit: { alignItems: 'center', paddingTop: 42, paddingBottom: 8 },
   skipText: { fontFamily: fonts.sansSemi, fontSize: 16, lineHeight: 16 },
   legal: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 13, textAlign: 'center', marginBottom: 8 },
+  loadingOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 4 },
   loadingBody: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadingArt: { width: 220, height: 220 },
+  loadingPhraseSlot: {
+    marginTop: 120,
+    height: 32,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   loadingPhrase: {
     fontFamily: fonts.display,
     fontSize: 26,
     lineHeight: 32,
     letterSpacing: -0.4,
-    marginTop: 120,
+    textAlign: 'center',
   },
   modalRoot: { flex: 1, justifyContent: 'flex-end' },
-  scrim: { ...StyleSheet.absoluteFillObject, opacity: 0.55 },
+  scrimFill: { ...StyleSheet.absoluteFillObject },
   sheet: {
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
@@ -1062,4 +1614,5 @@ const styles = StyleSheet.create({
   handle: { width: 44, height: 5, borderRadius: 3 },
   sheetTitle: { marginTop: 26 },
   sheetCopy: { fontFamily: fonts.sans, fontSize: 16, lineHeight: 25, marginTop: 12 },
+  sheetSkipHit: { alignItems: 'center', paddingTop: 22, paddingBottom: 8 },
 });

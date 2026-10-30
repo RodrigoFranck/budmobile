@@ -26,6 +26,7 @@ import {
   TERMS_OF_SERVICE_URL,
 } from "@/constants/healthSafety";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useAppAudience } from "@/hooks/useAppAudience";
 import { useNotificationPreferences } from "@/hooks/useNotificationPreferences";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -40,6 +41,7 @@ export default function SettingsScreen() {
   const { showAlert } = useAppAlert();
   const { user, signOut, deleteAccount, refreshOnboardingStatus } = useAuth();
   const { mode, loaded: themeLoaded, setMode } = useTheme();
+  const { can } = useAppAudience();
   const {
     enabled: notificationsEnabled,
     loaded: notificationsLoaded,
@@ -235,15 +237,17 @@ export default function SettingsScreen() {
           <Text style={styles.rowText}>Recursos de crise</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={openPsychologicalAssessment}
-          activeOpacity={0.8}
-          style={styles.row}
-          accessibilityRole="button"
-          accessibilityLabel="Avaliação psicológica"
-        >
-          <Text style={styles.rowText}>Avaliação psicológica</Text>
-        </TouchableOpacity>
+        {can("health_survey") ? (
+          <TouchableOpacity
+            onPress={openPsychologicalAssessment}
+            activeOpacity={0.8}
+            style={styles.row}
+            accessibilityRole="button"
+            accessibilityLabel="Avaliação psicológica"
+          >
+            <Text style={styles.rowText}>Avaliação psicológica</Text>
+          </TouchableOpacity>
+        ) : null}
 
         <View style={styles.row}>
           <Text style={styles.rowText}>Modo escuro</Text>

@@ -1,30 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CheckInChipList } from '@/components/checkin/CheckInChipList';
-import { CheckInFlowHeader } from '@/components/checkin/CheckInFlowHeader';
-import { CheckInSliderInput } from '@/components/checkin/CheckInSliderInput';
-import { CheckInTextInput } from '@/components/checkin/CheckInTextInput';
-import { useCheckInFlowStyles } from '@/components/checkin/checkInFlow.styles';
+import { BudButton } from '@/components/v3';
 import { ACTION_EVENTS, logActionEvent } from '@/analytics';
 import { useAppAlert } from '@/contexts/AppAlertContext';
-import { getCheckInSteps } from '@/features/checkin/checkInSteps';
+import { getCheckInSteps, getOptionLabel, getOptionSubtitle } from '@/features/checkin/checkInSteps';
 import type { CheckInStepConfig } from '@/features/checkin/checkInFlow.types';
 import { useCheckIns, type CheckinType } from '@/hooks/useCheckIns';
-import { resolveCheckInGradient, useActivitiesTheme } from '@/lib/activitiesTheme';
+import { SurveyChoice, SurveyHeader, SurveyScale } from '@/pages/institution/surveyChrome';
+import { useGenderedCopy } from '@/hooks/useGenderedCopy';
+import { fonts, useV3Colors } from '@/theme';
 import type { CheckInStackParamList } from '@/types/checkInNavigation.types';
 
 type Route = RouteProp<CheckInStackParamList, 'CheckInFlow'>;
@@ -42,10 +31,10 @@ export default function CheckInFlowScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
+  const colors = useV3Colors();
   const { submitCheckin } = useCheckIns();
   const { showAlert } = useAppAlert();
-  const theme = useActivitiesTheme();
-  const styles = useCheckInFlowStyles();
+  const { g } = useGenderedCopy();
 
   const checkinType: CheckinType = route.params.type;
   const steps = useMemo(() => getCheckInSteps(checkinType), [checkinType]);
@@ -56,38 +45,14 @@ export default function CheckInFlowScreen() {
 
   const step = steps[currentStep];
   const value = responses[step.key];
-  const progress = ((currentStep + 1) / steps.length) * 100;
+  const progress = (currentStep + 1) / steps.length;
   const answered = isStepAnswered(step, value);
   const isLastStep = currentStep === steps.length - 1;
-
-  const stepGradient = useMemo(
-    () => resolveCheckInGradient(step.gradientColors, theme.surface),
-    [step.gradientColors, theme.surface],
-  );
+  const needsContinue = step.inputType !== 'chips';
 
   useEffect(() => {
     void logActionEvent(ACTION_EVENTS.CHECKIN_STARTED, { checkin_type: checkinType });
   }, [checkinType]);
-
-  useEffect(() => {
-    if (step.inputType !== 'slider') return;
-    setResponses((prev) => {
-      if (prev[step.key] !== undefined) return prev;
-      const mid = Math.round(((step.min ?? 1) + (step.max ?? 10)) / 2);
-      return { ...prev, [step.key]: mid };
-    });
-  }, [step.key, step.inputType, step.min, step.max]);
-
-  const setValue = useCallback((key: string, next: unknown) => {
-    setResponses((prev) => ({ ...prev, [key]: next }));
-  }, []);
-
-  const handleSliderChange = useCallback(
-    (next: number) => {
-      setResponses((prev) => ({ ...prev, [step.key]: next }));
-    },
-    [step.key],
-  );
 
   const handleClose = useCallback(() => {
     showAlert({
@@ -95,17 +60,21 @@ export default function CheckInFlowScreen() {
       message: 'Suas respostas desta sessão serão perdidas.',
       buttons: [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Sair', style: 'destructive', onPress: () => {
-          void logActionEvent(ACTION_EVENTS.CHECKIN_ABANDONED, {
-            checkin_type: checkinType,
-            step_index: currentStep,
-            progress_percent: Math.round(progress),
-          });
-          navigation.goBack();
-        } },
+        {
+          text: 'Sair',
+          style: 'destructive',
+          onPress: () => {
+            void logActionEvent(ACTION_EVENTS.CHECKIN_ABANDONED, {
+              checkin_type: checkinType,
+              step_index: currentStep,
+              progress_percent: Math.round(progress * 100),
+            });
+            navigation.goBack();
+          },
+        },
       ],
     });
-  }, [navigation, showAlert]);
+  }, [checkinType, currentStep, navigation, progress, showAlert]);
 
   const handleBack = useCallback(() => {
     if (currentStep === 0) {
@@ -115,131 +84,177 @@ export default function CheckInFlowScreen() {
     setCurrentStep((s) => s - 1);
   }, [currentStep, handleClose]);
 
-  const finishFlow = useCallback(async () => {
-    setSubmitting(true);
-    try {
-      const saved = await submitCheckin(checkinType, responses);
-      if (!saved) {
-        showAlert({ title: 'Erro', message: 'Não foi possível salvar o check-in.' });
+  const finishFlow = useCallback(
+    async (nextResponses: Record<string, unknown>) => {
+      setSubmitting(true);
+      try {
+        const saved = await submitCheckin(checkinType, nextResponses);
+        if (!saved) {
+          showAlert({ title: 'Erro', message: 'Não foi possível salvar o check-in.' });
+          return;
+        }
+
+        navigation.replace('CheckInResult', {
+          type: checkinType,
+          checkinId: saved.id,
+          report: null,
+          pendingReport: true,
+          responses: nextResponses,
+          checkinResponses: nextResponses,
+        });
+        void logActionEvent(ACTION_EVENTS.CHECKIN_COMPLETED, {
+          checkin_type: checkinType,
+          step_count: steps.length,
+        });
+      } catch (err) {
+        console.error(err);
+        showAlert({ title: 'Erro', message: 'Não foi possível concluir o check-in.' });
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [checkinType, navigation, showAlert, steps.length, submitCheckin],
+  );
+
+  const goNext = useCallback(
+    (nextResponses = responses) => {
+      if (submitting) return;
+      if (isLastStep) {
+        void finishFlow(nextResponses);
         return;
       }
+      setCurrentStep((s) => s + 1);
+    },
+    [finishFlow, isLastStep, responses, submitting],
+  );
 
-      navigation.replace('CheckInResult', {
-        type: checkinType,
-        checkinId: saved.id,
-        report: null,
-        pendingReport: true,
-        responses,
-        checkinResponses: responses,
-      });
-      void logActionEvent(ACTION_EVENTS.CHECKIN_COMPLETED, {
-        checkin_type: checkinType,
-        step_count: steps.length,
-      });
-    } catch (err) {
-      console.error(err);
-      showAlert({ title: 'Erro', message: 'Não foi possível concluir o check-in.' });
-    } finally {
-      setSubmitting(false);
-    }
-  }, [checkinType, navigation, responses, showAlert, submitCheckin]);
-
-  const handleNext = useCallback(() => {
-    if (!answered || submitting) return;
-    if (isLastStep) {
-      finishFlow();
-      return;
-    }
-    setCurrentStep((s) => s + 1);
-  }, [answered, finishFlow, isLastStep, submitting]);
-
-  const renderInput = () => {
-    switch (step.inputType) {
-      case 'slider':
-        return (
-          <CheckInSliderInput
-            min={step.min ?? 1}
-            max={step.max ?? 10}
-            value={(value as number | undefined) ?? Math.round(((step.min ?? 1) + (step.max ?? 10)) / 2)}
-            minLabel={step.minLabel}
-            maxLabel={step.maxLabel}
-            onChange={handleSliderChange}
-          />
-        );
-      case 'chips':
-        return (
-          <CheckInChipList
-            options={step.options ?? []}
-            value={value as string | undefined}
-            onChange={(v) => setValue(step.key, v)}
-          />
-        );
-      case 'text':
-        return (
-          <CheckInTextInput
-            value={(value as string | undefined) ?? ''}
-            placeholder={step.textPlaceholder}
-            onChange={(v) => setValue(step.key, v)}
-          />
-        );
-      default:
-        return null;
-    }
-  };
+  const choose = useCallback(
+    (next: string) => {
+      const nextResponses = { ...responses, [step.key]: next };
+      setResponses(nextResponses);
+      goNext(nextResponses);
+    },
+    [goNext, responses, step.key],
+  );
 
   return (
-    <View style={styles.root}>
-      <LinearGradient
-        colors={[...stepGradient]}
-        locations={[0, 0.5, 1]}
-        style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.bg }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <SurveyHeader
+        title="Check-in"
+        onBack={handleBack}
+        onClose={handleClose}
+        progress={progress}
       />
 
-      <KeyboardAvoidingView
+      <ScrollView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingHorizontal: 24,
+          paddingTop: 32,
+          paddingBottom: needsContinue ? 24 : Math.max(insets.bottom, 16) + 16,
+        }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <CheckInFlowHeader
-          progress={progress}
-          topInset={insets.top}
-          onBack={handleBack}
-          onClose={handleClose}
-        />
-
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          scrollEnabled={step.inputType !== 'slider'}
-        >
-          <Text style={styles.category}>{step.category}</Text>
-          <Text style={styles.question}>{step.question}</Text>
-          {step.subtitle ? <Text style={styles.subtitle}>{step.subtitle}</Text> : null}
-          <View style={styles.inputArea}>{renderInput()}</View>
-        </ScrollView>
-
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          <Pressable
-            style={[styles.primaryButton, (!answered || submitting) && styles.primaryButtonDisabled]}
-            onPress={handleNext}
-            disabled={!answered || submitting}
-            accessibilityRole="button"
-            accessibilityLabel={isLastStep ? 'Finalizar check-in' : 'Próximo passo'}
-          >
-            {submitting ? (
-              <ActivityIndicator color={theme.ctaText} />
-            ) : (
-              <Text style={styles.primaryButtonLabel}>
-                {isLastStep ? 'Finalizar' : 'Próximo'}
-              </Text>
-            )}
-          </Pressable>
-          <Text style={styles.stepCounter}>
-            {currentStep + 1} de {steps.length}
+        {step.subtitle ? (
+          <Text style={{ fontFamily: fonts.sans, fontSize: 15, lineHeight: 22, color: colors.text2 }}>
+            {g(step.subtitle)}
           </Text>
+        ) : (
+          <Text style={{ fontFamily: fonts.sans, fontSize: 15, lineHeight: 22, color: colors.text2 }}>
+            {step.category}
+          </Text>
+        )}
+        <Text
+          style={{
+            fontFamily: fonts.display,
+            fontSize: 26,
+            lineHeight: 32,
+            letterSpacing: -0.4,
+            color: colors.text,
+            marginTop: 14,
+          }}
+        >
+          {g(step.question)}
+        </Text>
+
+        {step.inputType === 'slider' ? (
+          <View style={{ marginTop: 48 }}>
+            <SurveyScale
+              value={(value as number | undefined) ?? undefined}
+              min={step.min ?? 1}
+              max={step.max ?? 10}
+              minLabel={step.minLabel ?? ''}
+              maxLabel={step.maxLabel ?? ''}
+              onChange={(next) => setResponses((prev) => ({ ...prev, [step.key]: next }))}
+            />
+          </View>
+        ) : null}
+
+        {step.inputType === 'text' ? (
+          <View
+            style={{
+              marginTop: 28,
+              minHeight: 120,
+              borderRadius: 20,
+              backgroundColor: colors.surface2,
+              paddingHorizontal: 22,
+              paddingVertical: 16,
+            }}
+          >
+            <TextInput
+              value={(value as string | undefined) ?? ''}
+              onChangeText={(next) => setResponses((prev) => ({ ...prev, [step.key]: next }))}
+              placeholder={step.textPlaceholder}
+              placeholderTextColor={colors.text3}
+              multiline
+              textAlignVertical="top"
+              style={{
+                fontFamily: fonts.sans,
+                fontSize: 16,
+                lineHeight: 22,
+                color: colors.text,
+                minHeight: 88,
+                padding: 0,
+              }}
+            />
+          </View>
+        ) : null}
+
+        {step.inputType === 'chips' ? <View style={{ flex: 1 }} /> : null}
+
+        {step.inputType === 'chips' ? (
+          <View style={{ gap: 8 }}>
+            {(step.options ?? []).map((option) => {
+              const label = getOptionLabel(option);
+              return (
+                <SurveyChoice
+                  key={label}
+                  label={label}
+                  subtitle={getOptionSubtitle(option)}
+                  selected={value === label}
+                  onPress={() => choose(label)}
+                />
+              );
+            })}
+          </View>
+        ) : null}
+      </ScrollView>
+
+      {needsContinue ? (
+        <View style={{ paddingHorizontal: 24, paddingBottom: Math.max(insets.bottom, 16) + 16 }}>
+          <BudButton
+            label={isLastStep ? 'Finalizar' : 'Continuar'}
+            disabled={!answered}
+            loading={submitting}
+            onPress={() => goNext()}
+          />
         </View>
-      </KeyboardAvoidingView>
-    </View>
+      ) : null}
+    </KeyboardAvoidingView>
   );
 }

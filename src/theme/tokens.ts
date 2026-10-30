@@ -45,16 +45,30 @@ export const fonts = {
   display: 'Fraunces_400Regular',
   displayItalic: 'Fraunces_400Regular_Italic',
   sans: 'DMSans_400Regular',
+  sansItalic: 'DMSans_400Regular_Italic',
+  sansMedium: 'DMSans_500Medium',
   sansSemi: 'DMSans_600SemiBold',
 } as const;
 
 export const motion = {
-  letterOpenMs: 800,
+  letterFlapMs: 450,
+  letterRiseMs: 800,
+  letterEnterMs: 1200,
+  letterExitMs: 1100,
+  letterOpenMs: 2450,
   letterDissolveMs: 600,
   activitySheetMs: 420,
   questionStepMs: 450,
-  sproutSpinMs: 500,
+  sproutSpinMs: 550,
+  fieeHoldMs: 700,
   chipMs: 300,
+  optionMs: 250,
+  nextQuestionMs: 400,
+  previousQuestionMs: 350,
+  moodMs: 450,
+  sheetMs: 300,
+  fadeExitMs: 450,
+  reorderMs: 200,
 } as const;
 
 export type V3Colors = {

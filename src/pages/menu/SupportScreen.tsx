@@ -1,32 +1,65 @@
 import { useState } from 'react';
-import { Linking, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { X } from 'lucide-react-native';
 
 import { BudChip } from '@/components/v3';
-import { BUD_SUPPORT_EMAIL } from '@/constants/preferences';
+import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { SUPPORT_TOPICS, type SupportTopic } from '@/pages/menu/menuCatalog';
+import { APP_VERSION, SUPPORT_TOPICS, type SupportTopic } from '@/pages/menu/menuCatalog';
 import { AccentTitle, BudButton, MenuHeader, ScreenScaffold, SectionLabel } from '@/pages/menu/menuUi';
+import { pickSupportScreenshot } from '@/pages/menu/pickSupportScreenshot';
+import { SupportPaperclipIcon } from '@/pages/menu/supportIcons';
+import { sendSupportEmail } from '@/services/sendSupportEmail';
 import { fonts, useV3Colors } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
+import { SUPPORT_MESSAGE_MAX_LENGTH, type SupportScreenshot } from '@/utils/supportEmail';
 
 export default function SupportScreen() {
   const colors = useV3Colors();
   const navigation = useNavigation<MainTabNavigationProp>();
+  const { showAlert } = useAppAlert();
   const { user } = useAuth();
   const [topic, setTopic] = useState<SupportTopic | null>(null);
   const [body, setBody] = useState('');
   const [replyTo, setReplyTo] = useState(user?.email ?? '');
+  const [screenshot, setScreenshot] = useState<SupportScreenshot | null>(null);
+  const [sending, setSending] = useState(false);
   const canSend = Boolean(topic && body.trim());
 
+  const attachPrint = async () => {
+    if (sending) return;
+    try {
+      const next = await pickSupportScreenshot();
+      if (next) setScreenshot(next);
+    } catch (error) {
+      showAlert({
+        title: 'Não foi possível anexar',
+        message: error instanceof Error ? error.message : 'Tente outra imagem.',
+      });
+    }
+  };
+
   const send = async () => {
-    if (!topic || !body.trim()) return;
-    const subject = `[${topic}] Bud app`;
-    const mailto = `mailto:${BUD_SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
-      `${body.trim()}\n\nResponder para: ${replyTo.trim() || user?.email || ''}`,
-    )}`;
-    await Linking.openURL(mailto);
-    navigation.navigate('SupportSent');
+    if (!topic || !body.trim() || sending) return;
+    setSending(true);
+    try {
+      await sendSupportEmail({
+        message: body,
+        topic,
+        replyTo,
+        appVersion: APP_VERSION,
+        screenshot,
+      });
+      navigation.navigate('SupportSent');
+    } catch (error) {
+      showAlert({
+        title: 'Não foi possível enviar',
+        message: error instanceof Error ? error.message : 'Tente novamente.',
+      });
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -36,6 +69,7 @@ export default function SupportScreen() {
         <BudButton
           label="Enviar"
           onPress={() => void send()}
+          loading={sending}
           disabled={!canSend}
           variant={canSend ? 'primary' : 'disabled'}
         />
@@ -69,7 +103,13 @@ export default function SupportScreen() {
         }}
       >
         {SUPPORT_TOPICS.map((item) => (
-          <BudChip key={item} label={item} selected={topic === item} onPress={() => setTopic(item)} />
+          <BudChip
+            key={item}
+            label={item}
+            selected={topic === item}
+            selectedTone="accent"
+            onPress={() => setTopic(item)}
+          />
         ))}
       </View>
       <TextInput
@@ -78,6 +118,7 @@ export default function SupportScreen() {
         placeholder="Conte o que aconteceu"
         placeholderTextColor={colors.text3}
         multiline
+        maxLength={SUPPORT_MESSAGE_MAX_LENGTH}
         textAlignVertical="top"
         style={{
           marginTop: 20,
@@ -111,6 +152,48 @@ export default function SupportScreen() {
           color: colors.text,
         }}
       />
+      <View
+        style={{
+          marginTop: 20,
+          marginHorizontal: 30,
+          flexDirection: 'row',
+          alignItems: 'center',
+        }}
+      >
+        <Pressable
+          onPress={() => void attachPrint()}
+          disabled={sending}
+          accessibilityRole="button"
+          accessibilityLabel={screenshot ? 'Trocar print anexado' : 'Anexar um print (opcional)'}
+          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+        >
+          <SupportPaperclipIcon color={colors.text2} />
+          <Text
+            numberOfLines={1}
+            style={{
+              flex: 1,
+              fontFamily: fonts.sansMedium,
+              fontSize: 15,
+              lineHeight: 15,
+              color: colors.text2,
+            }}
+          >
+            {screenshot ? screenshot.filename : 'Anexar um print (opcional)'}
+          </Text>
+        </Pressable>
+        {screenshot ? (
+          <Pressable
+            onPress={() => setScreenshot(null)}
+            disabled={sending}
+            accessibilityRole="button"
+            accessibilityLabel="Remover print"
+            hitSlop={8}
+            style={{ width: 22, height: 22, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <X color={colors.text3} size={18} strokeWidth={2} />
+          </Pressable>
+        ) : null}
+      </View>
     </ScreenScaffold>
   );
 }

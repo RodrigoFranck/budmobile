@@ -132,6 +132,12 @@ const SCREEN_EVENT_MAP: Record<string, ScreenAnalytics> = {
     module: 'settings',
     moduleLabel: 'Configurações',
   },
+  OnboardingReplay: {
+    id: 'preferences_onboarding_replay',
+    title: 'Refazer onboarding',
+    module: 'settings',
+    moduleLabel: 'Configurações',
+  },
   AboutMe: {
     id: 'preferences_about_me',
     title: 'Sobre mim',

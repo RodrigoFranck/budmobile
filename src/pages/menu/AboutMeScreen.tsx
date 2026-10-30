@@ -10,7 +10,7 @@ import { Text } from 'react-native';
 export default function AboutMeScreen() {
   const colors = useV3Colors();
   const navigation = useNavigation<MainTabNavigationProp>();
-  const { fieldValue } = useV3Preferences();
+  const { fieldValue, values } = useV3Preferences();
 
   return (
     <ScreenScaffold>
@@ -33,7 +33,7 @@ export default function AboutMeScreen() {
           <PrefRow
             key={row.field}
             label={row.label}
-            value={formatPrefValue(fieldValue(row.field))}
+            value={formatPrefValue(fieldValue(row.field), values.gender)}
             last={index === ABOUT_ME_ROWS.length - 1}
             onPress={() => navigation.navigate('PrefEdit', { field: row.field })}
           />

@@ -52,6 +52,7 @@ export type MainTabParamList = {
   Menu: undefined;
   VoiceSelect: undefined;
   Preferences: undefined;
+  OnboardingReplay: undefined;
   AboutMe: undefined;
   Motives: undefined;
   PrefEdit: { field: PrefEditField };

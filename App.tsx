@@ -3,7 +3,12 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import { Fraunces_400Regular, Fraunces_400Regular_Italic } from '@expo-google-fonts/fraunces';
-import { DMSans_400Regular, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
+import {
+  DMSans_400Regular,
+  DMSans_400Regular_Italic,
+  DMSans_500Medium,
+  DMSans_600SemiBold,
+} from '@expo-google-fonts/dm-sans';
 import { Audio } from 'expo-av';
 import { useEffect } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
@@ -11,6 +16,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConversationProvider } from '@elevenlabs/react-native';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AppAlertProvider } from '@/contexts/AppAlertContext';
+import { AppLockProvider } from '@/contexts/AppLockContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { AnalyticsUserSync, initAnalytics } from '@/analytics';
 import AppNavigator from '@/navigation/AppNavigator';
@@ -29,6 +35,8 @@ export default function App() {
     Fraunces_400Regular,
     Fraunces_400Regular_Italic,
     DMSans_400Regular,
+    DMSans_400Regular_Italic,
+    DMSans_500Medium,
     DMSans_600SemiBold,
   });
 
@@ -70,8 +78,10 @@ export default function App() {
             <ThemeProvider>
               <AnalyticsUserSync />
               <AppAlertProvider>
-                <AppNavigator />
-                <ThemedStatusBar />
+                <AppLockProvider>
+                  <AppNavigator />
+                  <ThemedStatusBar />
+                </AppLockProvider>
               </AppAlertProvider>
             </ThemeProvider>
           </AuthProvider>

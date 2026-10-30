@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useEffect } from 'react';
 import {
   Image,
   Pressable,
@@ -10,11 +11,13 @@ import {
   View,
   type ImageSourcePropType,
 } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { ArrowUp, ChevronLeft, MessageSquare, Mic, ThumbsDown, ThumbsUp, X } from 'lucide-react-native';
 
 import { BudButton, BudIconButton } from '@/components/v3';
+import { activityEasing, activityMotion } from '@/pages/activitiesV3/activityMotion';
 import { activityColors, fonts, useV3Colors, type V3Colors } from '@/theme';
 import type { ActivityIntroCopy } from '@/pages/activitiesV3/activityFlows';
 
@@ -69,15 +72,19 @@ export function AccentTitle({
   after,
   color,
   accentColor,
+  fontSize = 34,
+  lineHeight = 40,
 }: {
   before?: string;
   accent: string;
   after?: string;
   color: string;
   accentColor: string;
+  fontSize?: number;
+  lineHeight?: number;
 }) {
   return (
-    <Text style={styles.displayTitle}>
+    <Text style={[styles.displayTitle, { fontSize, lineHeight }]}>
       {before ? <Text style={{ color }}>{before}</Text> : null}
       <Text style={{ color: accentColor, fontFamily: fonts.displayItalic }}>{accent}</Text>
       {after ? <Text style={{ color }}>{after}</Text> : null}
@@ -172,6 +179,20 @@ export function ActivityFlowHeader({
 }) {
   const colors = useV3Colors();
   const insets = useSafeAreaInsets();
+  const clamped = Math.max(0.02, Math.min(1, progress ?? 0));
+  const fill = useSharedValue(clamped);
+
+  useEffect(() => {
+    if (progress === undefined) return;
+    fill.value = withTiming(Math.max(0.02, Math.min(1, progress)), {
+      duration: activityMotion.nextMs,
+      easing: activityEasing.standard,
+    });
+  }, [fill, progress]);
+
+  const fillStyle = useAnimatedStyle(() => ({
+    width: `${fill.value * 100}%`,
+  }));
 
   return (
     <View style={{ paddingTop: insets.top }}>
@@ -196,10 +217,11 @@ export function ActivityFlowHeader({
       </View>
       {progress !== undefined ? (
         <View style={[styles.progressTrack, { backgroundColor: colors.surface2 }]}>
-          <View
+          <Animated.View
             style={[
               styles.progressFill,
-              { width: `${Math.max(2, Math.min(100, progress * 100))}%`, backgroundColor: activityColors.ardosia },
+              { backgroundColor: activityColors.ardosia },
+              fillStyle,
             ]}
           />
         </View>
@@ -280,22 +302,25 @@ export function ActivityComposer({
           disabled={!canSend}
           accessibilityRole="button"
           accessibilityLabel="Enviar"
-          style={[
-            styles.send,
-            { backgroundColor: colors.accent, opacity: canSend ? 1 : 0.35 },
-          ]}
+          style={[styles.send, { backgroundColor: canSend ? colors.accent : colors.line }]}
         >
-          <ArrowUp color={colors.onAccent} size={20} />
+          <ArrowUp color={canSend ? colors.onAccent : colors.text3} size={20} />
         </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-export function ActivityKicker({ label }: { label: string }) {
+export function ActivityKicker({
+  label,
+  align = 'center',
+}: {
+  label: string;
+  align?: 'center' | 'left';
+}) {
   const colors = useV3Colors();
   return (
-    <Text style={[styles.kicker, { color: colors.text3 }]}>{label}</Text>
+    <Text style={[styles.kicker, { color: colors.text3, textAlign: align }]}>{label}</Text>
   );
 }
 
@@ -321,6 +346,58 @@ export function ActivityPrompt({
 
 export function Glow({ color, style }: { color: string; style?: object }) {
   return <View pointerEvents="none" style={[styles.glow, { backgroundColor: color }, style]} />;
+}
+
+export function LayerGlow({
+  color,
+  top,
+  id,
+  size = 420,
+  opacity = 0.28,
+}: {
+  color: string;
+  top: number;
+  id: string;
+  size?: number;
+  opacity?: number;
+}) {
+  const radius = size / 2;
+  return (
+    <View pointerEvents="none" style={[styles.layerGlow, { top, height: size }]}>
+      <Svg width={size} height={size}>
+        <Defs>
+          <RadialGradient id={id} cx={radius} cy={radius} r={radius} gradientUnits="userSpaceOnUse">
+            <Stop offset="0" stopColor={color} stopOpacity="1" />
+            <Stop offset="0.7" stopColor={color} stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Rect width={size} height={size} rx={radius} fill={`url(#${id})`} opacity={opacity} />
+      </Svg>
+    </View>
+  );
+}
+
+export function PreviousAnswerCard({
+  question,
+  answer,
+  compact,
+}: {
+  question: string;
+  answer: string;
+  compact?: boolean;
+}) {
+  const colors = useV3Colors();
+  return (
+    <View
+      style={[
+        styles.answerCard,
+        { backgroundColor: colors.surface, paddingVertical: compact ? 14 : 16 },
+      ]}
+    >
+      <Text style={[styles.answerCardQuestion, { color: colors.text3 }]}>{question}</Text>
+      <Text style={[styles.answerCardAnswer, { color: colors.text }]}>{answer}</Text>
+    </View>
+  );
 }
 
 export function ActivityResult({
@@ -351,10 +428,7 @@ export function ActivityResult({
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
-      >
+      <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <Image source={mist} style={StyleSheet.absoluteFill} resizeMode="cover" />
           <View style={styles.heroGizWrap} pointerEvents="none">
@@ -367,14 +441,22 @@ export function ActivityResult({
 
         <View style={styles.introBody}>
           <Text style={[styles.insight, { color: colors.text }]}>{insight}</Text>
-          <Text style={[styles.body, { color: colors.text2, paddingTop: 18 }]}>{body}</Text>
+          <Text style={[styles.body, { color: colors.text, paddingTop: 18 }]}>{body}</Text>
           <Text style={[styles.kicker, { color: colors.text3, textAlign: 'left', paddingTop: 38 }]}>
             {sectionLabel}
           </Text>
           {children}
-          <Text style={[styles.sectionTitle, { color: colors.text, paddingTop: 40 }]}>
-            Quer ir mais fundo?
-          </Text>
+          <View style={{ paddingTop: 40 }}>
+            <AccentTitle
+              before="Quer ir mais "
+              accent="fundo"
+              after="?"
+              color={colors.text}
+              accentColor={colors.accent}
+              fontSize={26}
+              lineHeight={32}
+            />
+          </View>
           {followUps.map((prompt) => (
             <Pressable
               key={prompt}
@@ -383,19 +465,27 @@ export function ActivityResult({
               style={[styles.followUp, { borderBottomColor: colors.line }]}
             >
               <Text style={[styles.followUpText, { color: colors.text }]}>{prompt}</Text>
-              <MessageSquare color={colors.text2} size={22} />
+              <View style={{ paddingTop: 2 }}>
+                <MessageSquare color={colors.text2} size={22} />
+              </View>
             </Pressable>
           ))}
           <View style={{ paddingTop: 34 }}>
             <BudButton
+              icon={MessageSquare}
               label="Conversar sobre isso"
               loading={talking}
               onPress={() => onTalk(followUps[0])}
             />
           </View>
-          <Text style={[styles.kicker, { color: colors.text3, paddingTop: 34 }]}>
-            O que achou desta atividade?
-          </Text>
+        </View>
+        <View
+          style={[
+            styles.rateFooter,
+            { backgroundColor: colors.surface, paddingBottom: Math.max(insets.bottom, 28) },
+          ]}
+        >
+          <Text style={[styles.kicker, { color: colors.text3 }]}>O que achou desta atividade?</Text>
           <View style={styles.rateRow}>
             <BudIconButton icon={ThumbsDown} accessibilityLabel="Não gostei" onPress={onBack} />
             <BudIconButton icon={X} accessibilityLabel="Mais ou menos" onPress={onBack} />
@@ -418,7 +508,7 @@ export function ResultEntry({
 }) {
   return (
     <View style={{ paddingTop: 18 }}>
-      <Text style={[styles.entryLabel, { color: colors.text2 }]}>{label}</Text>
+      <Text style={[styles.entryLabel, { color: colors.text3 }]}>{label}</Text>
       <Text style={[styles.entryValue, { color: colors.text }]}>{value}</Text>
     </View>
   );
@@ -574,7 +664,7 @@ const styles = StyleSheet.create({
   },
   followUp: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 16,
     paddingVertical: 18,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -582,8 +672,13 @@ const styles = StyleSheet.create({
   followUpText: {
     flex: 1,
     fontFamily: fonts.sans,
-    fontSize: 16,
+    fontSize: 17,
     lineHeight: 25,
+  },
+  rateFooter: {
+    marginTop: 34,
+    paddingTop: 28,
+    paddingHorizontal: 28,
   },
   rateRow: {
     flexDirection: 'row',
@@ -593,13 +688,36 @@ const styles = StyleSheet.create({
   },
   entryLabel: {
     fontFamily: fonts.sans,
-    fontSize: 16,
+    fontSize: 14,
     lineHeight: 20,
   },
   entryValue: {
     fontFamily: fonts.sans,
-    fontSize: 16,
+    fontSize: 17,
     lineHeight: 24,
     paddingTop: 4,
+  },
+  layerGlow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    height: 420,
+  },
+  answerCard: {
+    width: '100%',
+    borderRadius: 20,
+    paddingHorizontal: 20,
+  },
+  answerCardQuestion: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  answerCardAnswer: {
+    fontFamily: fonts.sans,
+    fontSize: 16,
+    lineHeight: 23,
+    paddingTop: 6,
   },
 });

@@ -1,7 +1,15 @@
-import { useState } from 'react';
-import { Image, Linking, Pressable, Text, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { BackHandler, Image, Linking, Pressable, Text, View } from 'react-native';
+import { CommonActions, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  Easing,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import {
   Activity,
   Clock,
@@ -18,10 +26,12 @@ import {
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 
+import type { Capability } from '@/access';
 import { BudButton } from '@/components/v3';
 import { BUD_SHARE_DISPLAY } from '@/constants/preferences';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTabScreenContext } from '@/contexts/TabScreenContext';
+import { useAppAudience } from '@/hooks/useAppAudience';
 import { useScreeningCadence } from '@/hooks/useScreeningCadence';
 import { copyBudLink, shareBud } from '@/pages/menu/shareBud';
 import { AccentTitle, BottomSheet } from '@/pages/menu/menuUi';
@@ -31,19 +41,25 @@ import type { MainTabNavigationProp, MainTabParamList } from '@/types/navigation
 
 type MenuDest = keyof Pick<
   MainTabParamList,
-  'Home' | 'History' | 'Activities' | 'InstitutionOptional' | 'Preferences' | 'Account' | 'AboutBud' | 'Support'
+  'Home' | 'History' | 'Activities' | 'Institution' | 'Preferences' | 'Account' | 'AboutBud' | 'Support'
 >;
 
-const NAV_ITEMS: { label: string; icon: LucideIcon; dest: MenuDest; badge?: boolean }[] = [
+const NAV_ITEMS: { label: string; icon: LucideIcon; dest: MenuDest; capability?: Capability }[] = [
   { label: 'Início', icon: Leaf, dest: 'Home' },
   { label: 'Histórico', icon: Clock, dest: 'History' },
   { label: 'Atividades', icon: Sparkles, dest: 'Activities' },
-  { label: 'Pesquisa de saúde', icon: Activity, dest: 'InstitutionOptional' },
+  { label: 'Pesquisa de saúde', icon: Activity, dest: 'Institution', capability: 'health_survey' },
   { label: 'Preferências', icon: SlidersHorizontal, dest: 'Preferences' },
   { label: 'Conta e dados', icon: User, dest: 'Account' },
   { label: 'Sobre o Bud', icon: Info, dest: 'AboutBud' },
   { label: 'Suporte e feedback', icon: MessageSquare, dest: 'Support' },
 ];
+
+const PANEL_WIDTH = 340;
+const MENU_OPEN_MS = 340;
+const MENU_CLOSE_MS = 280;
+const MENU_EASE = Easing.bezier(0.25, 0.1, 0.25, 1);
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export default function MenuScreen() {
   const colors = useV3Colors();
@@ -52,43 +68,94 @@ export default function MenuScreen() {
   const navigation = useNavigation<MainTabNavigationProp>();
   const { signOut, user } = useAuth();
   const { profile } = useTabScreenContext();
+  const { can } = useAppAudience();
   const screening = useScreeningCadence();
+  const navItems = NAV_ITEMS.filter((item) => !item.capability || can(item.capability));
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const firstName = profile?.name?.split(' ')[0] ?? '';
+  const progress = useSharedValue(0);
+  const closingRef = useRef(false);
+
+  const goBack = useCallback(() => {
+    if (navigation.canGoBack()) navigation.goBack();
+  }, [navigation]);
+
+  const dismiss = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    progress.value = withTiming(0, { duration: MENU_CLOSE_MS, easing: MENU_EASE }, (finished) => {
+      if (finished) runOnJS(goBack)();
+    });
+  }, [goBack, progress]);
+
+  useLayoutEffect(() => {
+    progress.value = withTiming(1, { duration: MENU_OPEN_MS, easing: MENU_EASE });
+  }, [progress]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      dismiss();
+      return true;
+    });
+    return () => sub.remove();
+  }, [dismiss]);
+
+  const overlayStyle = useAnimatedStyle(() => ({
+    opacity: progress.value * 0.55,
+  }));
+
+  const panelStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: interpolate(progress.value, [0, 1], [-PANEL_WIDTH, 0]) }],
+  }));
 
   const go = (dest: MenuDest) => {
     if (dest === 'Home') {
-      navigation.goBack();
+      dismiss();
       return;
     }
-    navigation.navigate(dest);
+
+    navigation.dispatch((state) => {
+      const routes = state.routes.filter((route) => route.name !== 'Menu' && route.name !== dest);
+      return CommonActions.reset({
+        ...state,
+        routes: [...routes, { name: dest }],
+        index: routes.length,
+      });
+    });
   };
 
   return (
     <View style={{ flex: 1 }}>
-      <Pressable
-        onPress={() => navigation.goBack()}
+      <AnimatedPressable
+        onPress={dismiss}
         accessibilityLabel="Fechar menu"
-        style={{
-          position: 'absolute',
-          top: 0,
-          right: 0,
-          bottom: 0,
-          left: 0,
-          backgroundColor: colors.scrim,
-          opacity: 0.55,
-        }}
+        style={[
+          {
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            backgroundColor: colors.scrim,
+            opacity: 0,
+          },
+          overlayStyle,
+        ]}
       />
-      <View
-        style={{
-          width: 340,
-          flex: 1,
-          backgroundColor: colors.surface,
-          paddingTop: insets.top + 50,
-          paddingHorizontal: 30,
-          paddingBottom: insets.bottom + 20,
-        }}
+      <Animated.View
+        style={[
+          {
+            width: PANEL_WIDTH,
+            flex: 1,
+            backgroundColor: colors.surface,
+            paddingTop: insets.top + 50,
+            paddingHorizontal: 30,
+            paddingBottom: insets.bottom + 20,
+            transform: [{ translateX: -PANEL_WIDTH }],
+          },
+          panelStyle,
+        ]}
       >
         <Text
           style={{
@@ -117,7 +184,7 @@ export default function MenuScreen() {
         ) : null}
 
         <View style={{ marginTop: 26, flex: 1 }}>
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <Pressable
               key={item.label}
               onPress={() => go(item.dest)}
@@ -129,7 +196,7 @@ export default function MenuScreen() {
               <Text style={{ fontFamily: fonts.sans, fontSize: 17, lineHeight: 17, color: colors.text }}>
                 {item.label}
               </Text>
-              {item.dest === 'InstitutionOptional' && screening.due ? (
+              {item.dest === 'Institution' && screening.due ? (
                 <View
                   style={{
                     width: 9,
@@ -145,17 +212,19 @@ export default function MenuScreen() {
         </View>
 
         <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 10 }}>
-          <Pressable
-            onPress={() => setShareOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Indicar o Bud"
-            style={{ height: 50, flexDirection: 'row', alignItems: 'center', gap: 14 }}
-          >
-            <Share2 color={colors.text} size={22} />
-            <Text style={{ fontFamily: fonts.sans, fontSize: 16, lineHeight: 16, color: colors.text }}>
-              Indicar o Bud
-            </Text>
-          </Pressable>
+          {can('referral') ? (
+            <Pressable
+              onPress={() => setShareOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Indicar o Bud"
+              style={{ height: 50, flexDirection: 'row', alignItems: 'center', gap: 14 }}
+            >
+              <Share2 color={colors.text} size={22} />
+              <Text style={{ fontFamily: fonts.sans, fontSize: 16, lineHeight: 16, color: colors.text }}>
+                Indicar o Bud
+              </Text>
+            </Pressable>
+          ) : null}
           <Pressable
             onPress={() => void Linking.openURL('https://www.cvv.org.br')}
             accessibilityRole="link"
@@ -186,7 +255,7 @@ export default function MenuScreen() {
             </Text>
           </Pressable>
         </View>
-      </View>
+      </Animated.View>
 
       <BottomSheet visible={signOutOpen} onClose={() => setSignOutOpen(false)} height={300}>
         <View style={{ paddingTop: 26 }}>

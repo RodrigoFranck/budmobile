@@ -18,7 +18,7 @@ import {
 import { unregisterPushNotificationsForUser } from '@/hooks/usePushNotifications';
 import { MOBILE_OAUTH_WEB_CALLBACK } from '@/constants/auth';
 import { queryKeys } from '@/lib/queryKeys';
-import { fetchAppProfile } from '@/services/profileQuery';
+import { fetchAppProfile, isProfileSchemaError } from '@/services/profileQuery';
 import { ensureTermsAcceptance } from '@/services/termsAcceptance';
 import { z } from 'zod';
 
@@ -121,6 +121,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryKey: queryKeys.profile(user?.id ?? ''),
     queryFn: () => fetchAppProfile(user!.id),
     enabled: !!user?.id,
+    retry: (failureCount, error) => {
+      if (isProfileSchemaError(error)) return false;
+      return failureCount < 1;
+    },
   });
 
   useEffect(() => {
@@ -160,8 +164,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (profileQuery.isPending) {
-      setOnboardingStatusLoaded(false);
+    // A failed profile fetch has no cached data, so a refetch sets isPending again.
+    // Flipping this flag remounts Bootstrap ↔ MainTabs and retriggers the query.
+    if (profileQuery.isPending && !profileQuery.isFetched) {
       return;
     }
 
@@ -169,7 +174,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       normalizeOnboardingCompleted(profileQuery.data?.onboarding_completed),
     );
     setOnboardingStatusLoaded(true);
-  }, [user?.id, profileQuery.isPending, profileQuery.data?.onboarding_completed]);
+  }, [
+    user?.id,
+    profileQuery.isPending,
+    profileQuery.isFetched,
+    profileQuery.data?.onboarding_completed,
+  ]);
 
   useEffect(() => {
     void syncAnalyticsUserProfile({

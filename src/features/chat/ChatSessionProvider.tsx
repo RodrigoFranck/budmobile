@@ -20,6 +20,7 @@ import { countUserTurns, matchApproach } from '@/utils/approachMatcher';
 import { buildInsightApproachContext } from '@/utils/buildInsightApproachContext';
 import { isIncompleteAssistantReply } from '@/utils/chatReplyQuality';
 import { streamChat, type InsightContext, type UserContext } from '@/utils/chatStream';
+import { userContextFieldsFromProfile } from '@/utils/userContextFromProfile';
 import type { ChatInsightParam } from '@/types/chatInsight';
 import type { ChatTabParams, MainTabNavigationProp } from '@/types/navigation';
 import {
@@ -143,6 +144,12 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const mapChatInsightToContext = useCallback((insight: ChatInsightParam): InsightContext => ({
     insightType: insight.insightType,
     internalContext: insight.internalContext,
+    contextSummary: insight.contextSummary,
+    conversationId: insight.conversationId,
+    title: insight.title,
+    badge: insight.badge,
+    cardDescription: insight.cardDescription,
+    backgroundType: insight.backgroundType,
   }), []);
 
   const trySendPendingInsightRef = useRef<() => void>(() => {});
@@ -284,14 +291,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     const isFirstInteractionOfDay = todayMessages.length === 0 || Boolean(insightContext);
 
     return {
-      name: profile?.name || null,
-      initialThoughts: profile?.initial_thoughts || null,
-      conversationGoal: profile?.conversation_goal || null,
-      occupation: profile?.occupation || null,
-      age: profile?.age || null,
-      gender: profile?.gender || null,
-      relationship: profile?.relationship || null,
-      hobbies: profile?.hobbies || null,
+      ...userContextFieldsFromProfile(profile),
       isFirstInteractionOfDay,
     };
   }, [profile, dbMessages, currentConversationId, insightContext]);

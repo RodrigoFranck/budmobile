@@ -26,20 +26,6 @@ export function createAuthStyles(colors: V3Colors) {
       flexGrow: 1,
       justifyContent: 'space-between',
     },
-    header: {
-      width: '100%',
-      paddingTop: 12,
-    },
-    welcomeArt: {
-      alignItems: 'center',
-      justifyContent: 'center',
-      flex: 1,
-      minHeight: 220,
-    },
-    welcomeGiz: {
-      width: 220,
-      height: 280,
-    },
     title: {
       fontSize: 34,
       lineHeight: 40,
@@ -68,7 +54,17 @@ export function createAuthStyles(colors: V3Colors) {
       width: '100%',
       paddingBottom: 8,
     },
+    loginBody: {
+      width: '100%',
+    },
+    loginTitleBlock: {
+      paddingHorizontal: 4,
+    },
     socialSection: {
+      gap: 12,
+    },
+    authFormStack: {
+      marginTop: 102,
       gap: 12,
     },
     socialButton: {
@@ -91,9 +87,6 @@ export function createAuthStyles(colors: V3Colors) {
     },
     emailSection: {
       width: '100%',
-    },
-    backRow: {
-      marginBottom: 24,
     },
     emailAuthToggle: {
       height: 58,
@@ -135,7 +128,6 @@ export function createAuthStyles(colors: V3Colors) {
     },
     form: {
       gap: 12,
-      marginBottom: 16,
     },
     inputGroup: {
       gap: 8,
@@ -144,6 +136,7 @@ export function createAuthStyles(colors: V3Colors) {
       flexDirection: 'row',
       justifyContent: 'flex-end',
       alignItems: 'center',
+      paddingTop: 4,
     },
     label: {
       fontSize: 14,
@@ -152,7 +145,8 @@ export function createAuthStyles(colors: V3Colors) {
     },
     forgotPassword: {
       fontSize: 14,
-      fontFamily: fonts.sansSemi,
+      lineHeight: 14,
+      fontFamily: fonts.sans,
       color: colors.text2,
       textAlign: 'right',
     },
@@ -208,8 +202,7 @@ export function createAuthStyles(colors: V3Colors) {
     divider: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginTop: 8,
-      marginBottom: 8,
+      height: 34,
       gap: 12,
     },
     dividerLine: {
@@ -230,12 +223,11 @@ export function createAuthStyles(colors: V3Colors) {
       fontFamily: fonts.sans,
       color: colors.text3,
       textAlign: 'center',
-      paddingHorizontal: 8,
+      paddingHorizontal: 6,
       lineHeight: 17,
-      marginTop: 12,
+      marginTop: 16,
     },
     termsLink: {
-      textDecorationLine: 'underline',
       color: colors.text3,
     },
     secondaryLink: {
@@ -244,6 +236,7 @@ export function createAuthStyles(colors: V3Colors) {
     },
     secondaryLinkText: {
       fontSize: 16,
+      lineHeight: 16,
       fontFamily: fonts.sansSemi,
       color: colors.text2,
     },

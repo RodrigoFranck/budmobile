@@ -11,6 +11,11 @@ export {
   useV3Asset,
   v3Assets,
   voiceOptions,
+  DEFAULT_VOICE_ID,
+  storedVoiceId,
+  voiceFromValue,
+  isVoiceId,
+  elevenLabsVoiceIdFor,
   type VoiceId,
   type V3ThemedAssets,
 } from '@/theme/assets';

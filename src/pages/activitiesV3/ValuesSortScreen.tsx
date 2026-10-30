@@ -1,5 +1,14 @@
-import { useMemo, useRef, useState } from 'react';
-import { Image, PanResponder, Text, View } from 'react-native';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Image, Text, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useNavigation } from '@react-navigation/native';
 
 import { BudChip } from '@/components/v3';
@@ -17,13 +26,19 @@ import {
   ActivityIntro,
   ActivityResult,
 } from '@/pages/activitiesV3/activityChrome';
-import { persistActivity } from '@/pages/activitiesV3/persistActivity';
-import { activityColors, fonts, useV3Asset, useV3Colors } from '@/theme';
+import { activityEasing, activityMotion } from '@/pages/activitiesV3/activityMotion';
+import { createActivityPersister } from '@/pages/activitiesV3/persistActivity';
+import { activityColors, fonts, useV3Asset, useV3Colors, type V3Colors } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
 import { navigateToChatTab } from '@/utils/navigateToChat';
 
 const CARD_W = 324;
 const CARD_H = 440;
+const SWIPE_X = 90;
+const SWIPE_Y = 80;
+const FLICK = 850;
+
+type LeavePile = ValuePileKey | 'help';
 
 export default function ValuesSortScreen() {
   const colors = useV3Colors();
@@ -33,59 +48,131 @@ export default function ValuesSortScreen() {
   const intro = ACTIVITY_INTROS.ordenacao_valores;
   const [started, setStarted] = useState(false);
   const [showHelp, setShowHelp] = useState(true);
+  const [pendingPile, setPendingPile] = useState<LeavePile | null>(null);
   const [deck, setDeck] = useState<ValueCard[]>(VALUE_CARDS);
   const [piles, setPiles] = useState<Record<ValuePileKey, string[]>>({
     muito: [],
     mais: [],
     menos: [],
   });
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [saving, setSaving] = useState(false);
-  const saved = useRef(false);
+  const saveActivity = useRef(createActivityPersister()).current;
+  const flying = pendingPile !== null;
   const current = showHelp ? null : deck[0];
   const currentRef = useRef(current);
   currentRef.current = current;
+  const leavingTitle = useRef<string | null>(null);
 
-  const drop = (pile: ValuePileKey) => {
+  const x = useSharedValue(0);
+  const y = useSharedValue(0);
+  const flyX = useSharedValue(0);
+  const flyY = useSharedValue(0);
+  const followFly = useSharedValue(0);
+  const busy = useSharedValue(false);
+
+  const drop = useCallback((pile: ValuePileKey) => {
     const card = currentRef.current;
     if (!card) return;
     setPiles((existing) => ({ ...existing, [pile]: [...existing[pile], card.title] }));
     setDeck((remaining) => remaining.slice(1));
-    setOffset({ x: 0, y: 0 });
-  };
+  }, []);
+
+  const beginFly = useCallback((pile: LeavePile) => {
+    leavingTitle.current = pile === 'help' ? 'help' : currentRef.current?.title ?? null;
+    setPendingPile(pile);
+  }, []);
+
+  const endFly = useCallback(
+    (pile: LeavePile) => {
+      if (pile === 'help') setShowHelp(false);
+      else drop(pile);
+    },
+    [drop],
+  );
+
+  useLayoutEffect(() => {
+    if (!pendingPile) return;
+    const gone =
+      pendingPile === 'help' ? !showHelp : leavingTitle.current !== deck[0]?.title;
+    if (!gone) return;
+    followFly.value = 0;
+    flyX.value = 0;
+    flyY.value = 0;
+    x.value = 0;
+    y.value = 0;
+    busy.value = false;
+    leavingTitle.current = null;
+    setPendingPile(null);
+  }, [busy, deck, flyX, flyY, followFly, pendingPile, showHelp, x, y]);
 
   const pan = useMemo(
     () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onPanResponderMove: (_, gesture) => {
-          setOffset({ x: gesture.dx, y: gesture.dy });
-        },
-        onPanResponderRelease: (_, gesture) => {
-          if (showHelp) {
-            setShowHelp(false);
-            setOffset({ x: 0, y: 0 });
+      Gesture.Pan()
+        .onUpdate((event) => {
+          if (busy.value) return;
+          x.value = event.translationX;
+          y.value = event.translationY;
+        })
+        .onFinalize((event) => {
+          if (busy.value) return;
+          const dx = x.value;
+          const dy = y.value;
+          const vx = event.velocityX;
+          const vy = event.velocityY;
+          const pile: LeavePile | null = showHelp
+            ? 'help'
+            : dy < -SWIPE_Y || (dy < -36 && vy < -FLICK)
+              ? 'muito'
+              : dx > SWIPE_X || (dx > 40 && vx > FLICK)
+                ? 'mais'
+                : dx < -SWIPE_X || (dx < -40 && vx < -FLICK)
+                  ? 'menos'
+                  : null;
+          if (!pile) {
+            const back = { duration: activityMotion.cardReturnMs, easing: activityEasing.gentle };
+            x.value = withTiming(0, back);
+            y.value = withTiming(0, back);
             return;
           }
-          if (gesture.dy < -80) drop('muito');
-          else if (gesture.dx > 90) drop('mais');
-          else if (gesture.dx < -90) drop('menos');
-          else setOffset({ x: 0, y: 0 });
-        },
-      }),
-    [showHelp],
+          busy.value = true;
+          const follow = activityMotion.cardFollowPx;
+          let toX = dx;
+          let toY = dy;
+          if (pile === 'mais') toX = dx + follow;
+          else if (pile === 'menos') toX = dx - follow;
+          else if (pile === 'muito') toY = dy - follow;
+          else {
+            const dist = Math.hypot(dx, dy);
+            if (dist < 12) toY = dy - follow * 0.7;
+            else {
+              toX = dx + (dx / dist) * follow;
+              toY = dy + (dy / dist) * follow;
+            }
+          }
+          flyX.value = dx;
+          flyY.value = dy;
+          followFly.value = 1;
+          x.value = 0;
+          y.value = 0;
+          const leave = { duration: activityMotion.cardExitMs, easing: activityEasing.gentle };
+          flyX.value = withTiming(toX, leave);
+          flyY.value = withTiming(toY, leave, (finished) => {
+            if (finished) runOnJS(endFly)(pile);
+          });
+          runOnJS(beginFly)(pile);
+        }),
+    [beginFly, busy, endFly, flyX, flyY, followFly, showHelp, x, y],
   );
 
   const remaining = showHelp ? VALUE_CARDS.length : deck.length;
-  const done = started && !showHelp && !current;
+  const done = started && !showHelp && !current && !flying;
   const result = VALUE_PILES.map((pile) => `${pile.label}: ${piles[pile.key].join(', ') || '—'}`).join(
     ' · ',
   );
 
   const persistOnce = async () => {
-    if (saved.current || !user?.id) return;
-    saved.current = true;
-    await persistActivity({
+    if (!user?.id) return;
+    await saveActivity({
       userId: user.id,
       activityId: 'ordenacao_valores',
       answers: {
@@ -96,6 +183,10 @@ export default function ValuesSortScreen() {
       resultText: result,
     });
   };
+
+  useEffect(() => {
+    if (done) void persistOnce();
+  }, [done]);
 
   const talk = async (prompt: string) => {
     setSaving(true);
@@ -111,6 +202,31 @@ export default function ValuesSortScreen() {
       },
     });
   };
+
+  const dragOrFlyStyle = useAnimatedStyle(() => {
+    const px = followFly.value ? flyX.value : x.value;
+    const py = followFly.value ? flyY.value : y.value;
+    return {
+      transform: [
+        { translateX: px },
+        { translateY: py },
+        { rotate: `${px / activityMotion.cardTiltDiv}deg` },
+      ],
+    };
+  });
+
+  const muitoStamp = useAnimatedStyle(() => {
+    const py = followFly.value ? flyY.value : y.value;
+    return { opacity: interpolate(py, [-28, -SWIPE_Y], [0, 1], Extrapolation.CLAMP) };
+  });
+  const maisStamp = useAnimatedStyle(() => {
+    const px = followFly.value ? flyX.value : x.value;
+    return { opacity: interpolate(px, [32, SWIPE_X], [0, 1], Extrapolation.CLAMP) };
+  });
+  const menosStamp = useAnimatedStyle(() => {
+    const px = followFly.value ? flyX.value : x.value;
+    return { opacity: interpolate(px, [-32, -SWIPE_X], [0, 1], Extrapolation.CLAMP) };
+  });
 
   if (!started) {
     return (
@@ -172,73 +288,86 @@ export default function ValuesSortScreen() {
     );
   }
 
-  const rotate = `${offset.x / 18}deg`;
-  const hint =
-    offset.y < -40 ? 'MUITO' : offset.x > 50 ? 'MAIS' : offset.x < -50 ? 'MENOS' : null;
+  const visibleCards = showHelp ? deck.slice(0, 1) : deck.slice(0, 2);
+  const stamps = (
+    <>
+      <Animated.Text
+        pointerEvents="none"
+        style={[
+          stampStyle,
+          { top: 22, left: 0, right: 0, textAlign: 'center', color: activityColors.menta },
+          muitoStamp,
+        ]}
+      >
+        MUITO
+      </Animated.Text>
+      <Animated.Text
+        pointerEvents="none"
+        style={[
+          stampStyle,
+          { top: 36, left: 22, color: activityColors.folha, transform: [{ rotate: '-8deg' }] },
+          maisStamp,
+        ]}
+      >
+        MAIS
+      </Animated.Text>
+      <Animated.Text
+        pointerEvents="none"
+        style={[
+          stampStyle,
+          { top: 36, right: 22, color: activityColors.ardosia, transform: [{ rotate: '8deg' }] },
+          menosStamp,
+        ]}
+      >
+        MENOS
+      </Animated.Text>
+    </>
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ActivityFlowHeader closeOnLeft onClose={() => navigation.goBack()} />
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <View style={{ width: CARD_W, height: CARD_H + 20 }}>
-          {[4, 3, 2, 1].map((depth) => (
-            <View
-              key={depth}
-              style={{
-                position: 'absolute',
-                left: depth * 2,
-                top: 20 + depth * 6,
-                width: CARD_W - depth * 4,
-                height: CARD_H,
-                borderRadius: 26,
-                borderWidth: 1,
-                borderColor: colors.line,
-                backgroundColor: colors.bg,
-              }}
-            />
-          ))}
-          <View
-            {...pan.panHandlers}
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: 0,
-              width: CARD_W,
-              height: CARD_H,
-              borderRadius: 26,
-              borderWidth: 1,
-              borderColor: colors.line,
-              backgroundColor: colors.surface,
-              shadowColor: '#000',
-              shadowOpacity: 0.25,
-              shadowRadius: 20,
-              shadowOffset: { width: 0, height: 18 },
-              transform: [{ translateX: offset.x }, { translateY: offset.y }, { rotate }],
-              paddingHorizontal: 31,
-              alignItems: 'center',
-            }}
-          >
-            {hint ? (
-              <View style={{ paddingTop: 24 }}>
-                <Text
-                  style={{
-                    fontFamily: fonts.sansSemi,
-                    fontSize: 15,
-                    letterSpacing: 1.4,
-                    color:
-                      hint === 'MUITO'
-                        ? activityColors.menta
-                        : hint === 'MAIS'
-                          ? activityColors.folha
-                          : activityColors.ardosia,
-                  }}
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
+        <GestureDetector gesture={pan}>
+          <Animated.View style={{ width: CARD_W, height: CARD_H + 20, overflow: 'visible' }}>
+            {[4, 3, 2, 1].map((depth) => (
+              <View
+                key={depth}
+                style={{
+                  position: 'absolute',
+                  left: depth * 2,
+                  top: 20 + depth * 6,
+                  width: CARD_W - depth * 4,
+                  height: CARD_H,
+                  borderRadius: 26,
+                  borderWidth: 1,
+                  borderColor: colors.line,
+                  backgroundColor: colors.bg,
+                }}
+              />
+            ))}
+            {visibleCards.map((card, index) => {
+              const isLeaving = flying && card.title === leavingTitle.current;
+              const isFront = !showHelp && !flying && index === 0;
+              const moving = isFront || isLeaving;
+              return (
+                <Animated.View
+                  key={card.title}
+                  pointerEvents="none"
+                  style={[
+                    cardChrome(colors, moving),
+                    moving ? dragOrFlyStyle : null,
+                  ]}
                 >
-                  {hint}
-                </Text>
-              </View>
-            ) : null}
+                  <ValueCardBody card={card} colors={colors} />
+                  {moving ? stamps : null}
+                  {moving ? <CardHints /> : null}
+                </Animated.View>
+              );
+            })}
             {showHelp ? (
-              <>
+              <Animated.View style={[cardChrome(colors, true), dragOrFlyStyle]}>
+                {stamps}
                 <Text
                   style={{
                     fontFamily: fonts.display,
@@ -270,80 +399,11 @@ export default function ValuesSortScreen() {
                   style={{ width: 140, height: 140, marginTop: 24 }}
                   resizeMode="contain"
                 />
-              </>
-            ) : (
-              <>
-                <Text
-                  style={{
-                    fontFamily: fonts.display,
-                    fontSize: 34,
-                    lineHeight: 40,
-                    letterSpacing: -0.4,
-                    color: colors.text,
-                    textAlign: 'center',
-                    marginTop: 151,
-                  }}
-                >
-                  {current?.title}
-                </Text>
-                <Text
-                  style={{
-                    fontFamily: fonts.sans,
-                    fontSize: 16,
-                    lineHeight: 25,
-                    color: colors.text2,
-                    textAlign: 'center',
-                    marginTop: 20,
-                    width: 262,
-                  }}
-                >
-                  {current?.body}
-                </Text>
-              </>
-            )}
-            <View
-              style={{
-                position: 'absolute',
-                left: 25,
-                right: 25,
-                bottom: 24,
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-              }}
-            >
-              <Text
-                style={{
-                  fontFamily: fonts.sansSemi,
-                  fontSize: 11,
-                  letterSpacing: 1.4,
-                  color: activityColors.ardosia,
-                }}
-              >
-                ← MENOS
-              </Text>
-              <Text
-                style={{
-                  fontFamily: fonts.sansSemi,
-                  fontSize: 11,
-                  letterSpacing: 1.4,
-                  color: activityColors.menta,
-                }}
-              >
-                ↑ MUITO
-              </Text>
-              <Text
-                style={{
-                  fontFamily: fonts.sansSemi,
-                  fontSize: 11,
-                  letterSpacing: 1.4,
-                  color: activityColors.folha,
-                }}
-              >
-                MAIS →
-              </Text>
-            </View>
-          </View>
-        </View>
+                <CardHints />
+              </Animated.View>
+            ) : null}
+          </Animated.View>
+        </GestureDetector>
         <Text
           style={{
             fontFamily: fonts.sans,
@@ -357,5 +417,116 @@ export default function ValuesSortScreen() {
         </Text>
       </View>
     </View>
+  );
+}
+
+const stampStyle = {
+  position: 'absolute' as const,
+  fontFamily: fonts.sansSemi,
+  fontSize: 15,
+  letterSpacing: 1.4,
+};
+
+function cardChrome(colors: V3Colors, front: boolean) {
+  return {
+    position: 'absolute' as const,
+    left: 0,
+    top: 0,
+    width: CARD_W,
+    height: CARD_H,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    alignItems: 'center' as const,
+    zIndex: front ? 2 : 1,
+    shadowColor: '#000',
+    shadowOpacity: front ? 0.25 : 0,
+    shadowRadius: front ? 20 : 0,
+    shadowOffset: { width: 0, height: front ? 18 : 0 },
+  };
+}
+
+function CardHints() {
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        left: 25,
+        right: 25,
+        bottom: 24,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+      }}
+    >
+      <Text
+        style={{
+          fontFamily: fonts.sansSemi,
+          fontSize: 11,
+          letterSpacing: 1.4,
+          color: activityColors.ardosia,
+        }}
+      >
+        ← MENOS
+      </Text>
+      <Text
+        style={{
+          fontFamily: fonts.sansSemi,
+          fontSize: 11,
+          letterSpacing: 1.4,
+          color: activityColors.menta,
+        }}
+      >
+        ↑ MUITO
+      </Text>
+      <Text
+        style={{
+          fontFamily: fonts.sansSemi,
+          fontSize: 11,
+          letterSpacing: 1.4,
+          color: activityColors.folha,
+        }}
+      >
+        MAIS →
+      </Text>
+    </View>
+  );
+}
+
+function ValueCardBody({ card, colors }: { card: ValueCard; colors: V3Colors }) {
+  return (
+    <>
+      <Text
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.72}
+        style={{
+          fontFamily: fonts.display,
+          fontSize: 34,
+          lineHeight: 40,
+          letterSpacing: -0.4,
+          color: colors.text,
+          textAlign: 'center',
+          marginTop: 151,
+          width: CARD_W - 24,
+        }}
+      >
+        {card.title}
+      </Text>
+      <Text
+        style={{
+          fontFamily: fonts.sans,
+          fontSize: 16,
+          lineHeight: 25,
+          color: colors.text2,
+          textAlign: 'center',
+          marginTop: 20,
+          width: 262,
+        }}
+      >
+        {card.body}
+      </Text>
+    </>
   );
 }

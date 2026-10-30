@@ -5,17 +5,18 @@ import { ExternalLink, FileText, Heart, Shield } from 'lucide-react-native';
 import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/constants/healthSafety';
 import { APP_VERSION } from '@/pages/menu/menuCatalog';
 import { MenuHeader, PrefGroup, PrefRow, ScreenScaffold } from '@/pages/menu/menuUi';
-import { fonts, useV3Colors, v3Assets } from '@/theme';
+import { fonts, useV3Asset, useV3Colors } from '@/theme';
 
 export default function AboutBudScreen() {
   const colors = useV3Colors();
+  const assets = useV3Asset();
   const navigation = useNavigation();
 
   return (
     <ScreenScaffold>
       <MenuHeader title="Sobre o Bud" onBack={() => navigation.goBack()} />
       <View style={{ alignItems: 'center', marginTop: 26 }}>
-        <Image source={v3Assets.wordmark} style={{ width: 140, height: 70 }} resizeMode="contain" />
+        <Image source={assets.wordmark} style={{ width: 140, height: 70 }} resizeMode="contain" />
         <Text
           style={{
             fontFamily: fonts.displayItalic,

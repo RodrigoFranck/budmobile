@@ -2,7 +2,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { queryKeys } from '@/lib/queryKeys';
-import { fetchAppProfile, type AppProfile } from '@/services/profileQuery';
+import {
+  fetchAppProfile,
+  isProfileSchemaError,
+  type AppProfile,
+} from '@/services/profileQuery';
 
 export function useAppProfileQuery() {
   const { user } = useAuth();
@@ -12,6 +16,10 @@ export function useAppProfileQuery() {
     queryKey: queryKeys.profile(userId ?? ''),
     queryFn: () => fetchAppProfile(userId!),
     enabled: !!userId,
+    retry: (failureCount, error) => {
+      if (isProfileSchemaError(error)) return false;
+      return failureCount < 1;
+    },
   });
 }
 

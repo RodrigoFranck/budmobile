@@ -5,6 +5,7 @@ import { Activity, CreditCard, KeyRound, Mail, MessageSquare, Trash2 } from 'luc
 
 import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAppAudience } from '@/hooks/useAppAudience';
 import { useUserPlan } from '@/hooks/useUserPlan';
 import { useV3Preferences } from '@/hooks/useV3Preferences';
 import { supabase } from '@/integrations/supabase/client';
@@ -34,8 +35,10 @@ export default function AccountScreen() {
   const { user } = useAuth();
   const { values, persist } = useV3Preferences();
   const { planId, status } = useUserPlan();
+  const { can } = useAppAudience();
   const [sendingReset, setSendingReset] = useState(false);
   const planLabel = planId === 'free' || status === 'free' ? 'Grátis' : 'Premium';
+  const showPaywall = can('paywall');
 
   const handlePassword = useCallback(async () => {
     if (!user?.email) {
@@ -72,15 +75,18 @@ export default function AccountScreen() {
         <PrefRow
           icon={KeyRound}
           label={sendingReset ? 'Enviando…' : 'Alterar senha'}
+          last={!showPaywall}
           onPress={() => void handlePassword()}
         />
-        <PrefRow
-          icon={CreditCard}
-          label="Assinatura"
-          value={planLabel}
-          last
-          onPress={() => navigation.navigate('Paywall')}
-        />
+        {showPaywall ? (
+          <PrefRow
+            icon={CreditCard}
+            label="Assinatura"
+            value={planLabel}
+            last
+            onPress={() => navigation.navigate('Paywall')}
+          />
+        ) : null}
       </PrefGroup>
 
       <SectionLabel label="Privacidade e pesquisa" style={{ marginTop: 22 }} />

@@ -8,11 +8,13 @@ import {
   Leaf,
   Lock,
   Mic,
+  RotateCcw,
   Sun,
   User,
   Volume2,
 } from 'lucide-react-native';
 
+import { useAppLock } from '@/contexts/AppLockContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useV3Preferences } from '@/hooks/useV3Preferences';
 import { formatPrefValue } from '@/pages/menu/menuCatalog';
@@ -33,9 +35,10 @@ export default function PreferencesScreen() {
   const navigation = useNavigation<MainTabNavigationProp>();
   const { mode, setMode } = useTheme();
   const { values, profileIncomplete, persist } = useV3Preferences();
+  const { enabled: appLockEnabled, busy: appLockBusy, setEnabled: setAppLockEnabled } = useAppLock();
   const [micLabel, setMicLabel] = useState('Permitido');
   const voiceLabel = voiceOptions.find((option) => option.id === values.voice)?.label ?? 'Amanda';
-  const interestsLabel = formatPrefValue(values.interests);
+  const interestsLabel = formatPrefValue(values.interests, values.gender);
   const motivesLabel = profileIncomplete ? 'Não respondido' : 'Suas respostas do começo';
 
   useEffect(() => {
@@ -47,6 +50,16 @@ export default function PreferencesScreen() {
   const openMic = useCallback(() => {
     void Linking.openSettings();
   }, []);
+
+  const toggleAppLock = useCallback(
+    (next: boolean) => {
+      void (async () => {
+        const ok = await setAppLockEnabled(next);
+        if (ok) await persist({ appLock: next });
+      })();
+    },
+    [persist, setAppLockEnabled],
+  );
 
   return (
     <ScreenScaffold>
@@ -116,8 +129,14 @@ export default function PreferencesScreen() {
           icon={Leaf}
           label="O que te trouxe aqui"
           hint={motivesLabel}
-          last
           onPress={() => navigation.navigate('Motives')}
+        />
+        <PrefRow
+          icon={RotateCcw}
+          label="Refazer onboarding"
+          hint="As respostas novas substituem as atuais"
+          last
+          onPress={() => navigation.navigate('OnboardingReplay')}
         />
       </PrefGroup>
 
@@ -163,8 +182,9 @@ export default function PreferencesScreen() {
           last
           trailing={
             <BudToggle
-              value={values.appLock}
-              onValueChange={(next) => void persist({ appLock: next })}
+              value={appLockEnabled}
+              disabled={appLockBusy}
+              onValueChange={toggleAppLock}
               accessibilityLabel="Bloqueio do app"
             />
           }

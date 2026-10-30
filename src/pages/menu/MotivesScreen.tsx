@@ -10,7 +10,7 @@ import type { MainTabNavigationProp } from '@/types/navigation';
 export default function MotivesScreen() {
   const colors = useV3Colors();
   const navigation = useNavigation<MainTabNavigationProp>();
-  const { fieldValue } = useV3Preferences();
+  const { fieldValue, values } = useV3Preferences();
 
   return (
     <ScreenScaffold>
@@ -33,7 +33,7 @@ export default function MotivesScreen() {
           <PrefRow
             key={row.field}
             label={row.label}
-            hint={formatPrefValue(fieldValue(row.field))}
+            hint={formatPrefValue(fieldValue(row.field), values.gender)}
             tall
             last={index === MOTIVE_ROWS.length - 1}
             onPress={() => navigation.navigate('PrefEdit', { field: row.field })}

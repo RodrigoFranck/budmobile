@@ -2,40 +2,43 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { useTabScreenContext } from '@/contexts/TabScreenContext';
+import { useAppAudience } from '@/hooks/useAppAudience';
 import { supabase } from '@/integrations/supabase/client';
+import { HEALTH_SURVEY_INSTRUMENT } from '@/pages/institution/healthSurvey';
 import type { MainTabNavigationProp } from '@/types/navigation';
 
-const CORE_INSTRUMENTS = ['gad7', 'phq9', 'prescribed_checkin'] as const;
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 
 let promptedThisSession = false;
 
 export function useScreeningCadence(options?: { autoNavigate?: boolean }) {
   const { user } = useAuth();
-  const { profile } = useTabScreenContext();
+  const { can } = useAppAudience();
   const navigation = useNavigation<MainTabNavigationProp>();
   const [due, setDue] = useState(false);
   const checking = useRef(false);
   const autoNavigate = options?.autoNavigate ?? false;
-
-  const isInstitution = profile?.app_mode === 'institution' || Boolean(profile?.organization_id);
+  const enabled = can('health_survey');
 
   const refresh = useCallback(async () => {
-    if (!user?.id || !isInstitution || checking.current) return;
+    if (!enabled) {
+      setDue(false);
+      return;
+    }
+    if (!user?.id || checking.current) return;
     checking.current = true;
     try {
       const { data } = await supabase
         .from('clinical_screenings' as never)
         .select('instrument, completed_at')
         .eq('user_id', user.id)
-        .in('instrument', [...CORE_INSTRUMENTS])
+        .eq('instrument', HEALTH_SURVEY_INSTRUMENT)
         .order('completed_at', { ascending: false })
-        .limit(12);
+        .limit(1);
 
       const rows = (data as { instrument: string; completed_at: string }[] | null) ?? [];
-      const latestCore = rows[0]?.completed_at ? new Date(rows[0].completed_at).getTime() : 0;
-      const isDue = !latestCore || Date.now() - latestCore > NINETY_DAYS_MS;
+      const latest = rows[0]?.completed_at ? new Date(rows[0].completed_at).getTime() : 0;
+      const isDue = !latest || Date.now() - latest > NINETY_DAYS_MS;
       setDue(isDue);
 
       if (autoNavigate && isDue && !promptedThisSession) {
@@ -45,7 +48,7 @@ export function useScreeningCadence(options?: { autoNavigate?: boolean }) {
     } finally {
       checking.current = false;
     }
-  }, [autoNavigate, isInstitution, navigation, user?.id]);
+  }, [autoNavigate, enabled, navigation, user?.id]);
 
   useEffect(() => {
     void refresh();
@@ -53,8 +56,7 @@ export function useScreeningCadence(options?: { autoNavigate?: boolean }) {
 
   const snooze = useCallback(() => {
     promptedThisSession = true;
-    setDue(true);
   }, []);
 
-  return { due: isInstitution && due, snooze, refresh };
+  return { due, snooze, refresh };
 }

@@ -9,9 +9,8 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Image,
 } from "react-native";
-import { ChevronLeft, Eye, EyeOff } from "lucide-react-native";
+import { Eye, EyeOff } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppAlert } from "@/contexts/AppAlertContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,8 +33,8 @@ import {
 } from "@/utils/auth/authMessages";
 import { AppleLogo } from "@/components/icons/AppleLogo";
 import { GoogleLogo } from "@/components/icons/GoogleLogo";
-import { BudButton, BudIconButton } from "@/components/v3";
-import { useV3Asset, useV3Colors } from "@/theme";
+import { BudButton } from "@/components/v3";
+import { useV3Colors } from "@/theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Auth">;
 type EmailTab = "login" | "signup";
@@ -43,7 +42,6 @@ type EmailTab = "login" | "signup";
 export default function AuthScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const colors = useV3Colors();
-  const assets = useV3Asset();
   const styles = useMemo(() => createAuthStyles(colors), [colors]);
   const { showAlert } = useAppAlert();
   const {
@@ -55,7 +53,6 @@ export default function AuthScreen({ navigation }: Props) {
     user,
     loading: authLoading,
   } = useAuth();
-  const [step, setStep] = useState<"welcome" | "auth">("welcome");
   const [isLoadingLogin, setIsLoadingLogin] = useState(false);
   const [isLoadingSignup, setIsLoadingSignup] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
@@ -63,7 +60,6 @@ export default function AuthScreen({ navigation }: Props) {
   const [activeTab, setActiveTab] = useState<EmailTab>("login");
   const [awaitingVerification, setAwaitingVerification] = useState(false);
 
-  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -235,28 +231,15 @@ export default function AuthScreen({ navigation }: Props) {
         autoCapitalize="none"
         editable={!isLoadingLogin}
       />
-      <View style={styles.passwordInputContainer}>
-        <TextInput
-          style={styles.passwordInput}
-          placeholder="Senha"
-          placeholderTextColor={colors.text3}
-          value={loginPassword}
-          onChangeText={setLoginPassword}
-          secureTextEntry={!showLoginPassword}
-          editable={!isLoadingLogin}
-        />
-        <TouchableOpacity
-          onPress={() => setShowLoginPassword(!showLoginPassword)}
-          style={styles.eyeIcon}
-          activeOpacity={0.7}
-        >
-          {showLoginPassword ? (
-            <EyeOff size={20} color={colors.text2} />
-          ) : (
-            <Eye size={20} color={colors.text2} />
-          )}
-        </TouchableOpacity>
-      </View>
+      <TextInput
+        style={styles.input}
+        placeholder="Senha"
+        placeholderTextColor={colors.text3}
+        value={loginPassword}
+        onChangeText={setLoginPassword}
+        secureTextEntry
+        editable={!isLoadingLogin}
+      />
       <TouchableOpacity onPress={handleForgotPassword} activeOpacity={0.7} style={styles.labelRow}>
         <Text style={styles.forgotPassword}>Esqueci a senha</Text>
       </TouchableOpacity>
@@ -364,76 +347,25 @@ export default function AuthScreen({ navigation }: Props) {
     </View>
   );
 
-  const renderWelcome = () => (
+  const renderAuth = () => (
     <View
       style={[
         styles.content,
         {
-          minHeight:
-            SCREEN.height - insets.top - 24 - insets.bottom - 24,
+          minHeight: SCREEN.height - insets.top - 24 - insets.bottom - 16,
         },
       ]}
     >
-      <View style={styles.header}>
-        <Text style={styles.title}>
-          Diga oi para o <Text style={styles.titleAccent}>Bud</Text>
-        </Text>
-        <Text style={styles.subtitle}>
-          Uma inteligência artificial feita para cuidar da sua saúde mental, todos os dias.
-        </Text>
-      </View>
-      <View style={styles.welcomeArt}>
-        <Image source={assets.welcomeGiz} style={styles.welcomeGiz} resizeMode="contain" />
-      </View>
-      <View>
-        <BudButton
-          label="Começar"
-          onPress={() => {
-            setStep("auth");
-            setActiveTab("signup");
-          }}
-          style={{ borderRadius: 29 }}
-        />
-        <TouchableOpacity
-          style={styles.secondaryLink}
-          onPress={() => {
-            setStep("auth");
-            setActiveTab("login");
-          }}
-          accessibilityRole="button"
-          accessibilityLabel="Já tenho conta"
-        >
-          <Text style={styles.secondaryLinkText}>Já tenho conta</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  const renderLogin = () => (
-    <View
-      style={[
-        styles.content,
-        {
-          minHeight:
-            SCREEN.height - insets.top - 16 - insets.bottom - 16,
-        },
-      ]}
-    >
-      <View>
-        <View style={styles.backRow}>
-          <BudIconButton
-            icon={ChevronLeft}
-            accessibilityLabel="Voltar"
-            onPress={() => setStep("welcome")}
-          />
+      <View style={styles.loginBody}>
+        <View style={styles.loginTitleBlock}>
+          <Text style={styles.title}>
+            Que bom ter você <Text style={styles.titleAccent}>aqui</Text>
+          </Text>
+          <Text style={styles.subtitle}>
+            Entre para continuar de onde parou. Suas conversas são só suas.
+          </Text>
         </View>
-        <Text style={styles.title}>
-          Que bom ter você <Text style={styles.titleAccent}>aqui</Text>
-        </Text>
-        <Text style={styles.subtitle}>
-          Entre para continuar de onde parou. Suas conversas são só suas.
-        </Text>
-        <View style={{ marginTop: 36 }}>
+        <View style={styles.authFormStack}>
           {renderSocialButtons()}
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
@@ -450,12 +382,15 @@ export default function AuthScreen({ navigation }: Props) {
             loading={isLoadingLogin}
             disabled={isLoadingLogin}
             onPress={() => void handleLogin()}
-            style={{ borderRadius: 29 }}
           />
         ) : null}
         <TouchableOpacity
           style={styles.secondaryLink}
           onPress={() => setActiveTab(activeTab === "login" ? "signup" : "login")}
+          accessibilityRole="button"
+          accessibilityLabel={
+            activeTab === "login" ? "Criar conta com e-mail" : "Já tenho conta"
+          }
         >
           <Text style={styles.secondaryLinkText}>
             {activeTab === "login" ? "Criar conta com e-mail" : "Já tenho conta"}
@@ -482,8 +417,6 @@ export default function AuthScreen({ navigation }: Props) {
     </View>
   );
 
-  const topInset = step === "welcome" ? 24 : 8;
-
   if (authLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -504,14 +437,14 @@ export default function AuthScreen({ navigation }: Props) {
             styles.scrollContent,
             {
               minHeight: SCREEN.height,
-              paddingTop: insets.top + topInset,
+              paddingTop: insets.top + 24,
               paddingBottom: insets.bottom + 16,
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {step === "welcome" ? renderWelcome() : renderLogin()}
+          {renderAuth()}
         </ScrollView>
       </KeyboardAvoidingView>
     </View>

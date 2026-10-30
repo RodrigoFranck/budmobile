@@ -4,8 +4,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAppProfileQuery, useSetAppProfileCache } from '@/hooks/useAppProfileQuery';
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
-import type { AppProfile } from '@/services/profileQuery';
-import { voiceOptions, type VoiceId } from '@/theme';
+import { updateAppProfile, type AppProfile } from '@/services/profileQuery';
+import { isVoiceId, storedVoiceId, type VoiceId } from '@/theme';
 import {
   formatPrefValue,
   MOTIVE_ROWS,
@@ -37,6 +37,8 @@ export type V3Preferences = {
   appLock?: boolean;
   shareConversations?: boolean;
   shareResearch?: boolean;
+  voice?: VoiceId;
+  origin?: string;
 };
 
 const DEFAULT_NOTIFICATIONS: NotificationPrefs = {
@@ -97,6 +99,8 @@ export function parseV3Preferences(raw: unknown): V3Preferences {
     appLock: asBoolean(data.appLock, false),
     shareConversations: asBoolean(data.shareConversations, true),
     shareResearch: asBoolean(data.shareResearch, false),
+    voice: isVoiceId(data.voice) ? data.voice : undefined,
+    origin: asString(data.origin),
   };
 }
 
@@ -121,14 +125,38 @@ export function preferencesFromOnboardingAnswers(
     appLock: false,
     shareConversations,
     shareResearch: false,
+    voice: isVoiceId(answers.voice) ? answers.voice : undefined,
+    origin: asString(answers.origin),
   };
 }
 
-function voiceFromValue(value: unknown): VoiceId {
-  if (typeof value === 'string' && voiceOptions.some((option) => option.id === value)) {
-    return value as VoiceId;
-  }
-  return 'amanda';
+export function mergeOnboardingPreferences(
+  existing: V3Preferences,
+  answers: Record<string, string>,
+  shareConversations: boolean,
+): V3Preferences {
+  const fromAnswers = preferencesFromOnboardingAnswers(answers, shareConversations);
+  return {
+    ...existing,
+    therapy: fromAnswers.therapy ?? existing.therapy,
+    mood: fromAnswers.mood ?? existing.mood,
+    weight: fromAnswers.weight ?? existing.weight,
+    relationships: fromAnswers.relationships ?? existing.relationships,
+    focus: fromAnswers.focus ?? existing.focus,
+    sixWeeks: fromAnswers.sixWeeks ?? existing.sixWeeks,
+    helpStyle: fromAnswers.helpStyle ?? existing.helpStyle,
+    strengths: fromAnswers.strengths ?? existing.strengths,
+    blockers: fromAnswers.blockers ?? existing.blockers,
+    faith: fromAnswers.faith ?? existing.faith,
+    neurodivergence: fromAnswers.neurodivergence ?? existing.neurodivergence,
+    interests: fromAnswers.interests ?? existing.interests,
+    notifications: existing.notifications ?? DEFAULT_NOTIFICATIONS,
+    appLock: existing.appLock ?? false,
+    shareResearch: existing.shareResearch ?? false,
+    shareConversations,
+    voice: fromAnswers.voice ?? existing.voice,
+    origin: fromAnswers.origin ?? existing.origin,
+  };
 }
 
 export function useV3Preferences() {
@@ -155,16 +183,17 @@ export function useV3Preferences() {
       faith: prefs.faith ?? '',
       neurodivergence: prefs.neurodivergence ?? '',
       interests,
-      voice: voiceFromValue(profile?.selected_voice),
+      voice: storedVoiceId(profile?.selected_voice, prefs),
       notifications: prefs.notifications ?? DEFAULT_NOTIFICATIONS,
       appLock: Boolean(prefs.appLock),
       shareConversations: prefs.shareConversations !== false,
       shareResearch: Boolean(prefs.shareResearch),
+      origin: prefs.origin ?? '',
     };
   }, [prefs, profile]);
 
   const profileIncomplete = useMemo(
-    () => MOTIVE_ROWS.every((row) => formatPrefValue(values[row.field]) === 'Não respondido'),
+    () => MOTIVE_ROWS.every((row) => formatPrefValue(values[row.field], values.gender) === 'Não respondido'),
     [values],
   );
 
@@ -178,6 +207,7 @@ export function useV3Preferences() {
         notifications: prefPatch.notifications
           ? { ...(prefs.notifications ?? DEFAULT_NOTIFICATIONS), ...prefPatch.notifications }
           : prefs.notifications,
+        ...(selectedVoice ? { voice: selectedVoice } : {}),
       };
       const profilePatch: Partial<AppProfile> & { v3_preferences: Json } = {
         v3_preferences: nextPrefs as Json,
@@ -186,13 +216,15 @@ export function useV3Preferences() {
       if (age !== undefined) profilePatch.age = age;
       if (gender !== undefined) profilePatch.gender = gender;
       if (prefPatch.interests !== undefined) profilePatch.hobbies = prefPatch.interests;
+      if (prefPatch.focus !== undefined) {
+        profilePatch.conversation_goal = splitPrefList(prefPatch.focus).join(' · ') || null;
+      }
+      if (prefPatch.relationships !== undefined) {
+        profilePatch.relationship = splitPrefList(prefPatch.relationships).join(' · ') || null;
+      }
       if (selectedVoice) profilePatch.selected_voice = selectedVoice;
 
-      const { error } = await supabase
-        .from('profiles')
-        .update(profilePatch as never)
-        .eq('user_id', user.id);
-      if (error) throw error;
+      await updateAppProfile(user.id, profilePatch);
 
       if (selectedVoice || prefPatch.shareConversations !== undefined) {
         await supabase.auth.updateUser({

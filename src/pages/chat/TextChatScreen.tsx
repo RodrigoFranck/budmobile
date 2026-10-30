@@ -15,9 +15,10 @@ import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
 import { Spacing } from '@/constants/styles';
 import { PlatformConstants } from '@/constants/layout';
 import { useTabScreenContext, useTabScreenLoading } from '@/contexts/TabScreenContext';
-import { BudButton, BudIconButton } from '@/components/v3';
+import { BudIconButton } from '@/components/v3';
 import { useChatSession } from '@/features/chat/ChatSessionProvider';
 import { useUserPlan } from '@/hooks/useUserPlan';
+import { LastFreeConversationBanner } from '@/pages/paywall/LastFreeConversationBanner';
 import { fonts, useV3Colors } from '@/theme';
 import type {
   ChatStackNavigationProp,
@@ -32,7 +33,8 @@ export default function TextChatScreen() {
   const tabLoading = useTabScreenLoading('Chat');
   const navigation = useNavigation<ChatStackNavigationProp>();
   const tabNavigation = useNavigation<MainTabNavigationProp>();
-  const { canSendMessage } = useUserPlan();
+  const { canSendMessage, isLastFreeConversation } = useUserPlan();
+  const showLastFreeBanner = isLastFreeConversation || !canSendMessage;
   const { deepInsight, deepInsightProgress } = useTabScreenContext();
   const route = useRoute<RouteProp<ChatStackParamList, 'TextChat'>>();
   const {
@@ -161,9 +163,13 @@ export default function TextChatScreen() {
             scrollResetToken={chatHomeResetToken}
             onAssistantRevealComplete={handleAssistantRevealComplete}
           />
+          {showLastFreeBanner ? (
+            <LastFreeConversationBanner onPressPlans={() => tabNavigation.navigate('Paywall')} />
+          ) : null}
           <MessageInputBar
             onSendMessage={handleSendMessage}
             disabled={isStreaming || !canSendMessage}
+            paddingTop={showLastFreeBanner ? 14 : 12}
             voiceAppearance="prominent"
             voiceInterfaceRef={canSendMessage ? voiceInterfaceRef : undefined}
             onVoiceModeChange={setIsVoiceModeActive}
@@ -181,31 +187,6 @@ export default function TextChatScreen() {
             internalProfile={memoryLoading ? undefined : internalProfileText}
           />
         </KeyboardAvoidingView>
-        {!canSendMessage ? (
-          <View
-            style={{
-              position: 'absolute',
-              left: 16,
-              right: 16,
-              bottom: 108,
-              borderRadius: 20,
-              backgroundColor: colors.surface,
-              padding: 20,
-            }}
-          >
-            <Text style={{ fontFamily: fonts.display, fontSize: 22, color: colors.text }}>
-              Sua conversa continua aqui
-            </Text>
-            <Text style={{ fontFamily: fonts.sans, fontSize: 15, color: colors.text2, marginTop: 8 }}>
-              Para enviar novas mensagens, escolha um plano.
-            </Text>
-            <BudButton
-              label="Ver planos"
-              onPress={() => tabNavigation.navigate('Paywall')}
-              style={{ marginTop: 16 }}
-            />
-          </View>
-        ) : null}
         <VoiceMode
           visible={isVoiceModeActive}
           onClose={() => setIsVoiceModeActive(false)}

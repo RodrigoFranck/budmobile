@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { invalidateDeclaredUserContext } from '@/lib/invalidateDeclaredUserContext';
 import {
   formatDateBrasilia,
   getMsUntilNextMidnightBrasilia,
@@ -156,6 +157,7 @@ export function useCheckIns() {
       }
 
       const checkin = data as unknown as DailyCheckin;
+      invalidateDeclaredUserContext(user.id);
       await fetchCheckins();
       return checkin;
     },
@@ -169,9 +171,10 @@ export function useCheckIns() {
         .update({ ai_report: report as never })
         .eq('id', checkinId);
       if (error) console.error('Erro ao atualizar relatório:', error);
+      if (user?.id) invalidateDeclaredUserContext(user.id);
       await fetchCheckins();
     },
-    [fetchCheckins],
+    [fetchCheckins, user?.id],
   );
 
   const todayMorning = todayCheckins.find((c) => c.checkin_type === 'morning') ?? null;

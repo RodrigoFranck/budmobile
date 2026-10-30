@@ -5,6 +5,8 @@ import { formatDateBrasilia, getWeekStartBrasilia } from "@/utils/dateUtils";
 export interface DeepInsight {
   headline: string;
   intro: string;
+  themes?: string[];
+  quote?: string;
   what_i_noticed: {
     title: string;
     content: string;

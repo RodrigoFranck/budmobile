@@ -4,7 +4,11 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 
 import { BudButton } from '@/components/v3';
 import { useV3Preferences } from '@/hooks/useV3Preferences';
-import { PREF_EDIT_SPECS, type PrefEditField } from '@/pages/menu/menuCatalog';
+import {
+  PREF_EDIT_SPECS,
+  genderPrefSpec,
+  type PrefEditField,
+} from '@/pages/menu/menuCatalog';
 import {
   AccentTitle,
   MenuHeader,
@@ -12,6 +16,7 @@ import {
   ScreenScaffold,
   SelectOption,
 } from '@/pages/menu/menuUi';
+import { displayedOptionsFrom, optionsMatch } from '@/pages/onboardingV3/onboardingGender';
 import { fonts, useV3Colors } from '@/theme';
 import type { MainTabParamList } from '@/types/navigation';
 import { Text } from 'react-native';
@@ -23,13 +28,17 @@ export default function PrefEditScreen() {
   const navigation = useNavigation();
   const route = useRoute<PrefEditRoute>();
   const field = route.params.field as PrefEditField;
-  const spec = PREF_EDIT_SPECS[field];
-  const { fieldValue, saveField } = useV3Preferences();
+  const { fieldValue, saveField, values } = useV3Preferences();
+  const spec = useMemo(
+    () => genderPrefSpec(PREF_EDIT_SPECS[field], values.gender),
+    [field, values.gender],
+  );
   const current = fieldValue(field);
   const [text, setText] = useState(typeof current === 'string' ? current : '');
-  const [selected, setSelected] = useState<string[]>(
-    Array.isArray(current) ? current : current ? [current] : [],
-  );
+  const [selected, setSelected] = useState<string[]>(() => {
+    const stored = Array.isArray(current) ? current : current ? [current] : [];
+    return displayedOptionsFrom(stored, spec.options);
+  });
   const [saving, setSaving] = useState(false);
 
   const canSave = useMemo(() => {
@@ -44,8 +53,8 @@ export default function PrefEditScreen() {
       return;
     }
     setSelected((currentSelected) => {
-      if (currentSelected.includes(option)) {
-        return currentSelected.filter((item) => item !== option);
+      if (currentSelected.some((item) => optionsMatch(item, option))) {
+        return currentSelected.filter((item) => !optionsMatch(item, option));
       }
       if (spec.maxSelect && currentSelected.length >= spec.maxSelect) {
         return currentSelected;
@@ -110,7 +119,7 @@ export default function PrefEditScreen() {
             <SelectOption
               key={option}
               label={option}
-              selected={selected.includes(option)}
+              selected={selected.some((item) => optionsMatch(item, option))}
               onPress={() => toggle(option)}
               multi={spec.kind === 'multi'}
             />

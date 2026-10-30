@@ -2,12 +2,16 @@ import { useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { useAppProfileQuery } from '@/hooks/useAppProfileQuery';
 import { useConversationsQuery } from '@/hooks/useConversationsQuery';
+import { useDeclaredUserContextQuery } from '@/hooks/useDeclaredUserContextQuery';
 import { useInternalProfile } from '@/hooks/useInternalProfile';
 import { useUserInsightsQuery } from '@/hooks/useUserInsightsQuery';
+import { parseV3Preferences } from '@/hooks/useV3Preferences';
 import { supabase } from '@/integrations/supabase/client';
 import { queryKeys } from '@/lib/queryKeys';
 import { getTodayInBrasilia } from '@/utils/dateUtils';
+import { formatDeclaredUserContext } from '@/utils/formatDeclaredUserContext';
 import {
   buildChatMemoryContext,
   type ChatMemoryContext,
@@ -57,6 +61,8 @@ async function fetchSessionMemoryExtras(userId: string): Promise<{
 export function useChatMemoryContext() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { data: appProfile } = useAppProfileQuery();
+  const { data: declaredRecords } = useDeclaredUserContextQuery();
   const { profile, loading: profileLoading } = useInternalProfile();
   const { conversations, isLoading: conversationsLoading, isFetching } =
     useConversationsQuery();
@@ -110,6 +116,23 @@ export function useChatMemoryContext() {
       }));
   }, [insights]);
 
+  const declaredUserContext = useMemo(
+    () =>
+      formatDeclaredUserContext({
+        name: appProfile?.name,
+        age: appProfile?.age,
+        gender: appProfile?.gender,
+        occupation: appProfile?.occupation,
+        relationship: appProfile?.relationship,
+        hobbies: appProfile?.hobbies,
+        conversationGoal: appProfile?.conversation_goal,
+        initialThoughts: appProfile?.initial_thoughts,
+        preferences: parseV3Preferences(appProfile?.v3_preferences),
+        records: declaredRecords,
+      }),
+    [appProfile, declaredRecords],
+  );
+
   const memoryContext: ChatMemoryContext = buildChatMemoryContext(
     profile,
     previousConversations,
@@ -117,6 +140,7 @@ export function useChatMemoryContext() {
     {
       sessionSummaries: sessionExtras?.sessionSummaries,
       biographicalNotes: sessionExtras?.biographicalNotes,
+      declaredUserContext,
     },
   );
 
@@ -137,6 +161,7 @@ export function useChatMemoryContext() {
       queryClient.invalidateQueries({ queryKey: queryKeys.userInsights(user.id) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.sessionMemoryExtras(user.id) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.internalProfile(user.id) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.declaredUserContext(user.id) }),
     ]);
   }, [queryClient, user?.id]);
 

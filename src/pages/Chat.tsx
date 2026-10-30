@@ -11,6 +11,7 @@ import {
 } from '@/contexts/TabScreenContext';
 import { countUserTurns, matchApproach } from '@/utils/approachMatcher';
 import { streamChat, type InsightContext, type UserContext } from '@/utils/chatStream';
+import { userContextFieldsFromProfile } from '@/utils/userContextFromProfile';
 import type { ChatInsightParam } from '@/types/chatInsight';
 import { takePendingChatInsight, clearPendingChatInsight } from '@/utils/navigateToChat';
 import type { StreamingMessage } from '@/types/messages';
@@ -184,14 +185,7 @@ export default function ChatScreen() {
     const isFirstInteractionOfDay = todayMessages.length === 0;
 
     return {
-      name: profile?.name || null,
-      initialThoughts: profile?.initial_thoughts || null,
-      conversationGoal: profile?.conversation_goal || null,
-      occupation: profile?.occupation || null,
-      age: profile?.age || null,
-      gender: profile?.gender || null,
-      relationship: profile?.relationship || null,
-      hobbies: profile?.hobbies || null,
+      ...userContextFieldsFromProfile(profile),
       isFirstInteractionOfDay,
     };
   }, [profile, dbMessages, currentConversationId]);

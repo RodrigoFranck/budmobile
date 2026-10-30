@@ -8,6 +8,7 @@ import HistoryScreen from '@/pages/History';
 import MenuScreen from '@/pages/menu/MenuScreen';
 import VoiceSelectScreen from '@/pages/menu/VoiceSelectScreen';
 import PreferencesScreen from '@/pages/menu/PreferencesScreen';
+import OnboardingReplayScreen from '@/pages/onboardingV3/OnboardingReplayScreen';
 import AboutMeScreen from '@/pages/menu/AboutMeScreen';
 import MotivesScreen from '@/pages/menu/MotivesScreen';
 import PrefEditScreen from '@/pages/menu/PrefEditScreen';
@@ -22,7 +23,7 @@ import LetterOpenScreen from '@/pages/letter/LetterOpenScreen';
 import PaywallScreen from '@/pages/paywall/PaywallScreen';
 import ActivitiesHomeV3 from '@/pages/activitiesV3/ActivitiesHomeV3';
 import ActivityFlowScreen from '@/pages/activitiesV3/ActivityFlowScreen';
-import InstitutionHomeScreen from '@/pages/institution/InstitutionHomeScreen';
+import HealthSurveyScreen from '@/pages/institution/HealthSurveyScreen';
 import InstitutionOptionalScreen from '@/pages/institution/InstitutionOptionalScreen';
 import SleepCheckInScreen from '@/pages/institution/SleepCheckInScreen';
 import ScreeningFlowScreen from '@/pages/institution/ScreeningFlowScreen';
@@ -45,18 +46,28 @@ function MainShellNavigator() {
       <Stack.Screen name="Home" component={HomeScreen} />
       <Stack.Screen name="Chat" component={ChatNavigator} />
       <Stack.Screen name="History" component={HistoryScreen} />
-      <Stack.Screen name="Activities" component={ActivitiesHomeV3} />
+      <Stack.Screen
+        name="Activities"
+        component={ActivitiesHomeV3}
+        options={{ presentation: 'card', animation: 'slide_from_right' }}
+      />
       <Stack.Screen
         name="Menu"
         component={MenuScreen}
         options={{
-          presentation: 'transparentModal',
-          animation: 'slide_from_left',
+          presentation: 'containedTransparentModal',
+          animation: 'none',
+          gestureEnabled: false,
           contentStyle: { backgroundColor: 'transparent' },
         }}
       />
       <Stack.Screen name="VoiceSelect" component={VoiceSelectScreen} />
       <Stack.Screen name="Preferences" component={PreferencesScreen} />
+      <Stack.Screen
+        name="OnboardingReplay"
+        component={OnboardingReplayScreen}
+        options={{ gestureEnabled: false, animation: 'slide_from_right' }}
+      />
       <Stack.Screen name="AboutMe" component={AboutMeScreen} />
       <Stack.Screen name="Motives" component={MotivesScreen} />
       <Stack.Screen name="PrefEdit" component={PrefEditScreen} />
@@ -66,11 +77,19 @@ function MainShellNavigator() {
       <Stack.Screen name="AboutBud" component={AboutBudScreen} />
       <Stack.Screen name="Support" component={SupportScreen} />
       <Stack.Screen name="SupportSent" component={SupportSentScreen} />
-      <Stack.Screen name="Letter" component={LetterScreen} />
-      <Stack.Screen name="LetterOpen" component={LetterOpenScreen} />
+      <Stack.Screen
+        name="Letter"
+        component={LetterScreen}
+        options={{ animation: 'fade', animationDuration: 420 }}
+      />
+      <Stack.Screen
+        name="LetterOpen"
+        component={LetterOpenScreen}
+        options={{ animation: 'fade', animationDuration: 500 }}
+      />
       <Stack.Screen name="Paywall" component={PaywallScreen} />
       <Stack.Screen name="ActivityFlow" component={ActivityFlowScreen} />
-      <Stack.Screen name="Institution" component={InstitutionHomeScreen} />
+      <Stack.Screen name="Institution" component={HealthSurveyScreen} />
       <Stack.Screen name="InstitutionOptional" component={InstitutionOptionalScreen} />
       <Stack.Screen name="SleepCheckIn" component={SleepCheckInScreen} />
       <Stack.Screen name="Screening" component={ScreeningFlowScreen} />

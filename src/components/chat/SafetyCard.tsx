@@ -1,8 +1,10 @@
 import { View, Text, Linking, TouchableOpacity } from 'react-native';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { useGenderedCopy } from '@/hooks/useGenderedCopy';
 
 export function SafetyCard() {
+  const { g } = useGenderedCopy();
   const handleCallCVV = () => {
     Linking.openURL('tel:188');
   };
@@ -14,7 +16,7 @@ export function SafetyCard() {
   return (
     <Card className="mx-4 my-2 border-destructive bg-destructive/10">
       <CardHeader>
-        <CardTitle className="text-destructive">Você não está sozinho</CardTitle>
+        <CardTitle className="text-destructive">{g('Você não está sozinho')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <Text className="text-foreground text-sm">

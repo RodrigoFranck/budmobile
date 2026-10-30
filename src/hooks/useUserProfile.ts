@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppProfileQuery } from "@/hooks/useAppProfileQuery";
+import type { Json } from "@/integrations/supabase/types";
 
 /**
  * Dados do perfil do usuário
@@ -22,6 +23,7 @@ export interface UserProfile {
   app_mode: string | null;
   organization_id: string | null;
   selected_voice: string | null;
+  v3_preferences: Json | null;
 }
 
 export function useUserProfile() {
@@ -52,6 +54,7 @@ export function useUserProfile() {
       app_mode: data.app_mode ?? 'b2c',
       organization_id: data.organization_id ?? null,
       selected_voice: data.selected_voice ?? null,
+      v3_preferences: data.v3_preferences ?? null,
     });
   }, [data, user?.id]);
 

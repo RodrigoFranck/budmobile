@@ -29,6 +29,8 @@
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Bud precisa acessar o microfone para conversas de voz.",
         "NSCameraUsageDescription": "Bud precisa acessar a câmera para tirar fotos e anexar imagens em conversas e solicitações.",
+        "NSPhotoLibraryUsageDescription": "Bud precisa acessar suas fotos para anexar um print no suporte.",
+        "NSFaceIDUsageDescription": "Bud usa o Face ID para desbloquear o app.",
         "ITSAppUsesNonExemptEncryption": false,
         "UIUserInterfaceStyle": "Automatic"
       },
@@ -43,7 +45,13 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.falecombud.bud",
-      "permissions": ["RECORD_AUDIO", "POST_NOTIFICATIONS"],
+      "permissions": [
+        "RECORD_AUDIO",
+        "POST_NOTIFICATIONS",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "READ_MEDIA_IMAGES"
+      ],
       "intentFilters": [
         {
           "action": "VIEW",
@@ -65,6 +73,18 @@
       }
     },
     "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Bud precisa acessar suas fotos para anexar um print no suporte."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Bud usa o Face ID para desbloquear o app."
+        }
+      ],
       "expo-apple-authentication",
       "@react-native-firebase/app",
       "@react-native-firebase/messaging",

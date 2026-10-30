@@ -32,6 +32,7 @@ interface MessageInputBarProps {
   }>;
   internalProfile?: string | null;
   voiceAppearance?: 'default' | 'companion' | 'prominent';
+  paddingTop?: number;
 }
 
 export function MessageInputBar({
@@ -53,6 +54,7 @@ export function MessageInputBar({
   recentInsights,
   internalProfile,
   voiceAppearance,
+  paddingTop = 12,
 }: MessageInputBarProps) {
   const isFocused = useIsFocused();
   const [message, setMessage] = useState('');
@@ -106,7 +108,7 @@ export function MessageInputBar({
   return (
     <View
       style={{
-        paddingTop: 12,
+        paddingTop,
         paddingHorizontal: 16,
         paddingBottom: Math.max(insets.bottom, 16),
       }}

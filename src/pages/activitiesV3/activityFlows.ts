@@ -122,7 +122,7 @@ export const FIEE_DIMENSIONS: FieeDimension[] = [
     title: 'Físico',
     prompt: 'Como você está se sentindo fisicamente?',
     color: activityColors.folha,
-    options: ['Lenta', 'Forte', 'Com energia', 'Pesada', 'Cansada', 'Tensa'],
+    options: ['Lenta', 'Forte', 'Com energia', 'Pesada', 'Cansada', 'Tensa', 'Dolorida', 'Inquieta'],
   },
   {
     key: 'intelectual',
@@ -137,7 +137,7 @@ export const FIEE_DIMENSIONS: FieeDimension[] = [
     letter: 'E',
     title: 'Emocional',
     prompt: 'Como você está se sentindo por dentro?',
-    color: activityColors.argila,
+    color: activityColors.ardosia,
     options: ['Satisfeita', 'Anestesiada', 'Ansiosa', 'Pesada', 'Apática', 'Preocupada'],
   },
   {
@@ -145,7 +145,7 @@ export const FIEE_DIMENSIONS: FieeDimension[] = [
     letter: 'S',
     title: 'Social',
     prompt: 'Como você está com as pessoas ao seu redor?',
-    color: activityColors.ardosia,
+    color: activityColors.argila,
     options: ['Conectada', 'Esgotada', 'Sozinha', 'Isolada', 'Retraída', 'Distante'],
   },
 ];
@@ -176,12 +176,12 @@ export const RELATION_FREQUENCY = [
   'Outra coisa',
 ] as const;
 
-export function relationRankingItems(name: string) {
+export function relationRankingItems(name: string, bond: 'amizade' | 'relação' = 'amizade') {
   return [
     `Poder ser eu mesma perto de ${name}`,
     `Saber que ${name} está por perto quando eu preciso`,
     'Ter momentos leves e divertidos juntas',
-    'Sentir que a amizade vai e volta, nos dois sentidos',
+    `Sentir que a ${bond} vai e volta, nos dois sentidos`,
   ];
 }
 

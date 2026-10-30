@@ -5,137 +5,99 @@ import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTabScreenContext } from '@/contexts/TabScreenContext';
 import { queryKeys } from '@/lib/queryKeys';
-import { getTodayInBrasilia } from '@/utils/dateUtils';
+import {
+  fetchStoredDailyLetter,
+  markStoredDailyLetterOpened,
+} from '@/services/dailyLetterQuery';
+import { conversationDayKey } from '@/utils/homeRecaps';
+import { resolveDailyLetter, type StoredDailyLetter } from '@/utils/dailyLetter';
+import { getTodayInBrasilia, getYesterdayInBrasilia } from '@/utils/dateUtils';
 
-export type DailyLetter = {
-  id: string;
-  letter_date: string;
-  title: string;
-  body: string;
-  opened_at: string | null;
-};
-
-const composedCache = new Map<string, { title: string; body: string }>();
-
-function composeLetter(params: {
-  name: string | null;
-  yesterdayTitle?: string | null;
-  yesterdayBody?: string | null;
-}): { title: string; body: string } {
-  const firstName = params.name?.split(' ')[0] ?? 'você';
-  if (params.yesterdayBody) {
-    return {
-      title: 'Você não precisa resolver tudo hoje',
-      body: params.yesterdayBody,
-    };
-  }
-  if (params.yesterdayTitle) {
-    return {
-      title: 'O que ficou de ontem',
-      body: `${firstName}, ontem você esteve em “${params.yesterdayTitle}”. Hoje pode ser um dia mais leve — sem a obrigação de encerrar a lista.`,
-    };
-  }
-  return {
-    title: 'Você não precisa resolver tudo hoje',
-    body: `${firstName}, a carta de hoje é um convite para respirar. O que importa agora cabe em um passo pequeno.`,
-  };
-}
+export type DailyLetter = StoredDailyLetter;
 
 function openedStorageKey(userId: string, date: string) {
   return `daily_letter_opened_${userId}_${date}`;
 }
 
-function compositionKey(userId: string, date: string) {
-  return `${userId}:${date}`;
-}
-
-async function loadDailyLetter(params: {
-  userId: string;
-  today: string;
-  name: string | null;
-  yesterdayTitle?: string | null;
-  yesterdayBody?: string | null;
-}): Promise<DailyLetter> {
-  const cacheKey = compositionKey(params.userId, params.today);
-  let composed = composedCache.get(cacheKey);
-  if (!composed) {
-    composed = composeLetter({
-      name: params.name,
-      yesterdayTitle: params.yesterdayTitle,
-      yesterdayBody: params.yesterdayBody,
-    });
-    composedCache.set(cacheKey, composed);
-  }
-
-  let openedAt: string | null = null;
-  try {
-    openedAt = (await SecureStore.getItemAsync(openedStorageKey(params.userId, params.today))) ?? null;
-  } catch {
-    openedAt = null;
-  }
-
-  return {
-    id: `local-${params.today}`,
-    letter_date: params.today,
-    title: composed.title,
-    body: composed.body,
-    opened_at: openedAt,
-  };
+function hadConversationOn(conversations: { conversation_date: string | null; created_at: string }[], day: string) {
+  return conversations.some((conversation) => {
+    return conversationDayKey(conversation.conversation_date || conversation.created_at) === day;
+  });
 }
 
 export function useDailyLetter() {
   const { user } = useAuth();
-  const { yesterdayInsight, profile, insightsLoading, profileLoading } = useTabScreenContext();
+  const { yesterdayInsight, conversations, insightsLoading, profileLoading, conversationsLoading } =
+    useTabScreenContext();
   const queryClient = useQueryClient();
   const today = getTodayInBrasilia();
+  const yesterday = getYesterdayInBrasilia();
   const userId = user?.id;
+  const hadYesterdayConversation = hadConversationOn(conversations, yesterday);
   const queryKey = useMemo(
     () => queryKeys.dailyLetter(userId ?? '', today),
     [today, userId],
   );
 
-  const { data: letter, isLoading } = useQuery({
+  const storedQuery = useQuery({
     queryKey,
-    queryFn: () =>
-      loadDailyLetter({
-        userId: userId!,
-        today,
-        name: profile?.name ?? null,
-        yesterdayTitle: yesterdayInsight?.title,
-        yesterdayBody: yesterdayInsight?.description,
-      }),
-    enabled: Boolean(userId) && !profileLoading && !insightsLoading,
+    queryFn: () => fetchStoredDailyLetter(userId!, today),
+    enabled: Boolean(userId) && !profileLoading && !insightsLoading && !conversationsLoading,
   });
 
+  const openedQuery = useQuery({
+    queryKey: [...queryKey, 'opened'],
+    queryFn: async () => {
+      try {
+        return (await SecureStore.getItemAsync(openedStorageKey(userId!, today))) ?? null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: Boolean(userId),
+  });
+
+  const resolved = useMemo(
+    () =>
+      resolveDailyLetter({
+        today,
+        hadYesterdayConversation,
+        stored: storedQuery.data ?? null,
+        insight: yesterdayInsight,
+        openedAt: storedQuery.data?.opened_at ?? openedQuery.data ?? null,
+      }),
+    [hadYesterdayConversation, openedQuery.data, storedQuery.data, today, yesterdayInsight],
+  );
+
   const markOpened = useCallback(async () => {
-    if (!userId) {
-      return;
-    }
-    const current = queryClient.getQueryData<DailyLetter>(queryKey);
-    if (current?.opened_at) {
+    if (!userId || !resolved.letter || resolved.letter.opened_at) {
       return;
     }
     const openedAt = new Date().toISOString();
-    if (current) {
-      queryClient.setQueryData<DailyLetter>(queryKey, {
-        ...current,
-        opened_at: openedAt,
-      });
-    }
+    const next: DailyLetter = { ...resolved.letter, opened_at: openedAt };
+    queryClient.setQueryData<StoredDailyLetter | null>(queryKey, (current) =>
+      current ? { ...current, opened_at: openedAt } : current,
+    );
+    queryClient.setQueryData([...queryKey, 'opened'], openedAt);
     try {
       await SecureStore.setItemAsync(openedStorageKey(userId, today), openedAt);
     } catch {
       // Keep the in-memory opened state even if persistence fails.
     }
-  }, [queryClient, queryKey, today, userId]);
+    if (!next.id.startsWith('insight-') && !next.id.startsWith('local-')) {
+      await markStoredDailyLetterOpened(next.id, openedAt);
+    }
+  }, [queryClient, queryKey, resolved.letter, today, userId]);
 
   const refetch = useCallback(() => {
     return queryClient.invalidateQueries({ queryKey });
   }, [queryClient, queryKey]);
 
   return {
-    letter: letter ?? null,
-    loading: Boolean(userId) && (isLoading || profileLoading || insightsLoading),
+    letter: resolved.letter,
+    available: resolved.available,
+    hadYesterdayConversation,
+    loading: Boolean(userId) && (storedQuery.isLoading || profileLoading || insightsLoading || conversationsLoading),
     markOpened,
     refetch,
   };

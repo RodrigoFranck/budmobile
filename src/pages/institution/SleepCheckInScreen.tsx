@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { Image, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft } from 'lucide-react-native';
 
-import { BudButton, BudChip, BudIconButton } from '@/components/v3';
+import { BudButton } from '@/components/v3';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { invalidateDeclaredUserContext } from '@/lib/invalidateDeclaredUserContext';
 import { scoreInternal } from '@/pages/institution/screeningCatalog';
-import { fonts, useV3Colors } from '@/theme';
+import { SurveyChoice, SurveyHeader } from '@/pages/institution/surveyChrome';
+import { fonts, useV3Asset, useV3Colors } from '@/theme';
 
 const STEPS = [
   {
@@ -36,6 +37,7 @@ const STEPS = [
 
 export default function SleepCheckInScreen() {
   const colors = useV3Colors();
+  const assets = useV3Asset();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { user } = useAuth();
@@ -45,76 +47,111 @@ export default function SleepCheckInScreen() {
   const [saving, setSaving] = useState(false);
   const step = STEPS[index];
 
-  const finish = async () => {
+  const finish = async (nextAnswers: Record<string, string>) => {
     if (!user?.id) return;
     setSaving(true);
     await supabase.from('clinical_screenings' as never).insert({
       user_id: user.id,
       instrument: 'sleep',
-      responses: answers,
-      score_internal: scoreInternal(answers),
+      responses: nextAnswers,
+      score_internal: scoreInternal(nextAnswers),
     } as never);
+    invalidateDeclaredUserContext(user.id);
     setSaving(false);
     setDone(true);
   };
 
-  return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: colors.bg,
-        paddingTop: insets.top,
-        paddingHorizontal: 20,
-        paddingBottom: insets.bottom + 16,
-      }}
-    >
-      <BudIconButton icon={ChevronLeft} accessibilityLabel="Voltar" onPress={() => navigation.goBack()} />
-      {done ? (
-        <View style={{ marginTop: 24 }}>
-          <Text style={{ fontFamily: fonts.display, fontSize: 34, color: colors.text }}>Obrigado</Text>
-          <Text style={{ fontFamily: fonts.sans, fontSize: 16, color: colors.text2, marginTop: 12 }}>
+  const choose = (option: string) => {
+    const nextAnswers = { ...answers, [step.key]: option };
+    setAnswers(nextAnswers);
+    if (index >= STEPS.length - 1) {
+      void finish(nextAnswers);
+      return;
+    }
+    setIndex((current) => current + 1);
+  };
+
+  if (done) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30 }}>
+          <Image source={assets.healthSprout} style={{ width: 200, height: 200 }} resizeMode="contain" />
+          <Text
+            style={{
+              fontFamily: fonts.display,
+              fontSize: 34,
+              lineHeight: 40,
+              letterSpacing: -0.4,
+              color: colors.text,
+              textAlign: 'center',
+              marginTop: 40,
+            }}
+          >
+            Obrigado
+          </Text>
+          <Text
+            style={{
+              fontFamily: fonts.sans,
+              fontSize: 16,
+              lineHeight: 25,
+              color: colors.text2,
+              textAlign: 'center',
+              marginTop: 16,
+            }}
+          >
             O sono ficou registrado. Nada de pontuação aparece aqui.
           </Text>
-          <BudButton label="Voltar" onPress={() => navigation.goBack()} style={{ marginTop: 32 }} />
         </View>
-      ) : (
-        <View style={{ marginTop: 24, flex: 1 }}>
-          <Text style={{ fontFamily: fonts.sans, fontSize: 13, color: colors.text3 }}>
-            Check-in de sono · {index + 1} de {STEPS.length}
-          </Text>
-          <Text style={{ fontFamily: fonts.display, fontSize: 32, lineHeight: 38, color: colors.text, marginTop: 12 }}>
-            {step.title}
-          </Text>
-          {step.subtitle ? (
-            <Text style={{ fontFamily: fonts.sans, fontSize: 16, color: colors.text2, marginTop: 10 }}>
-              {step.subtitle}
-            </Text>
-          ) : null}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 28 }}>
-            {step.options.map((option) => (
-              <BudChip
-                key={option}
-                label={option}
-                selected={answers[step.key] === option}
-                onPress={() => setAnswers((current) => ({ ...current, [step.key]: option }))}
-              />
-            ))}
-          </View>
-          <View style={{ flex: 1 }} />
-          <BudButton
-            label={index === STEPS.length - 1 ? 'Enviar' : 'Continuar'}
-            disabled={!answers[step.key]}
-            loading={saving}
-            onPress={() => {
-              if (index === STEPS.length - 1) {
-                void finish();
-                return;
-              }
-              setIndex((current) => current + 1);
-            }}
-          />
+        <View style={{ paddingHorizontal: 24, paddingBottom: Math.max(insets.bottom, 16) + 16 }}>
+          <BudButton label="Voltar" onPress={() => navigation.goBack()} />
         </View>
-      )}
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <SurveyHeader
+        title="Check-in de sono"
+        onBack={() => {
+          if (index === 0) {
+            navigation.goBack();
+            return;
+          }
+          setIndex((current) => current - 1);
+        }}
+        progress={(index + 1) / STEPS.length}
+      />
+      <View style={{ flex: 1, paddingHorizontal: 24, paddingTop: 32, paddingBottom: 24 }}>
+        {step.subtitle ? (
+          <Text style={{ fontFamily: fonts.sans, fontSize: 15, lineHeight: 22, color: colors.text2 }}>
+            {step.subtitle}
+          </Text>
+        ) : null}
+        <Text
+          style={{
+            fontFamily: fonts.display,
+            fontSize: 26,
+            lineHeight: 32,
+            letterSpacing: -0.4,
+            color: colors.text,
+            marginTop: step.subtitle ? 14 : 0,
+          }}
+        >
+          {step.title}
+        </Text>
+        <View style={{ flex: 1 }} />
+        <View style={{ gap: 8 }}>
+          {step.options.map((option) => (
+            <SurveyChoice
+              key={option}
+              label={option}
+              selected={answers[step.key] === option}
+              onPress={() => choose(option)}
+            />
+          ))}
+        </View>
+      </View>
     </View>
   );
 }

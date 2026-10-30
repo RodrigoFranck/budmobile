@@ -32,6 +32,7 @@ function buildVoiceSessionClientData(params: {
   userId?: string | null;
   userContext?: UserContext;
   firstMessage?: string;
+  elevenLabsVoiceId?: string;
 }): VoiceSessionClientData {
   const firstMessage = params.firstMessage?.trim();
 
@@ -43,6 +44,9 @@ function buildVoiceSessionClientData(params: {
         },
         ...(firstMessage ? { firstMessage } : {}),
       },
+      ...(params.elevenLabsVoiceId
+        ? { tts: { voiceId: params.elevenLabsVoiceId } }
+        : {}),
     },
     dynamicVariables: buildVoiceDynamicVariables(params.userContext),
     ...(params.userId ? { userId: params.userId } : {}),
@@ -75,6 +79,7 @@ export function buildVoiceSessionStartOptions(params: {
   conversationToken?: string;
   signedUrl?: string;
   firstMessage?: string;
+  elevenLabsVoiceId?: string;
 }): VoiceSessionStartOptions {
   const clientData = buildVoiceSessionClientData(params);
 

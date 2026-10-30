@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { PsychologicalAssessmentRecord } from '@/features/psychologicalAssessment/psychologicalAssessment.types';
 import { supabase } from '@/integrations/supabase/client';
+import { invalidateDeclaredUserContext } from '@/lib/invalidateDeclaredUserContext';
 
 export function usePsychologicalAssessment() {
   const { user } = useAuth();
@@ -26,6 +27,7 @@ export function usePsychologicalAssessment() {
         return null;
       }
 
+      invalidateDeclaredUserContext(user.id);
       return data as unknown as PsychologicalAssessmentRecord;
     },
     [user],
