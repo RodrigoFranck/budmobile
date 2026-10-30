@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Image,
   Pressable,
@@ -15,14 +15,14 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Menu } from 'lucide-react-native';
 
-import { SplashScreen } from '@/components/SplashScreen';
 import { BudIconButton } from '@/components/v3';
 import { firstGivenName } from '@/copy/nameGender';
+import { useBootSplash } from '@/contexts/BootSplashContext';
 import { useTabScreenContext, useTabScreenLoading } from '@/contexts/TabScreenContext';
 import { useDailyLetter } from '@/hooks/useDailyLetter';
 import { useGenderedCopy } from '@/hooks/useGenderedCopy';
 import { useHomeRecaps, type HomeRecapItem } from '@/hooks/useHomeRecaps';
-import { fonts, useV3Asset, useV3Colors, type V3Colors } from '@/theme';
+import { fonts, useV3Asset, useV3Colors, v3DarkColors, type V3Colors } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
 import LetterCeremony, { LETTER_HOME, type LetterOrigin } from '@/pages/letter/LetterCeremony';
 import { HomeArrowIcon, HomeChatFillIcon } from '@/pages/home/homeIcons';
@@ -218,6 +218,7 @@ export default function HomeScreen() {
   const [letterOrigin, setLetterOrigin] = useState<LetterOrigin | null>(null);
   const [recapStuck, setRecapStuck] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const { setMainTabsReady } = useBootSplash();
   const envelopeRef = useRef<View>(null);
   const homeRootRef = useRef<View>(null);
   const scrollRef = useRef<ScrollView>(null);
@@ -267,6 +268,11 @@ export default function HomeScreen() {
   if (contentReady && !revealed) {
     setRevealed(true);
   }
+
+  useEffect(() => {
+    if (!revealed) return;
+    setMainTabsReady(true);
+  }, [revealed, setMainTabsReady]);
 
   const openRecap = useCallback(
     async (item: RecapItem) => {
@@ -325,12 +331,10 @@ export default function HomeScreen() {
   if (!revealed) {
     return (
       <View
-        style={{ flex: 1, backgroundColor: colors.bg }}
+        style={{ flex: 1, backgroundColor: v3DarkColors.bg }}
         accessibilityRole="progressbar"
         accessibilityLabel="Carregando conteúdo"
-      >
-        <SplashScreen visible />
-      </View>
+      />
     );
   }
 

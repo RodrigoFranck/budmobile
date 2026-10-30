@@ -14,14 +14,14 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
-import { InteractionManager, View } from 'react-native';
+import { View } from 'react-native';
+import { v3DarkColors, v3LightColors } from '@/theme';
 import AccountDeletedScreen from '@/pages/menu/AccountDeletedScreen';
 import {
   clearAccountDeletedName,
   peekAccountDeletedName,
 } from '@/pages/menu/accountDeletedGate';
 
-import { SplashScreen } from '@/components/SplashScreen';
 import AuthScreen from '@/pages/Auth/Auth';
 import ForgotPasswordScreen from '@/pages/ForgotPassword';
 import ResetPasswordScreen from '@/pages/ResetPassword';
@@ -42,13 +42,22 @@ function BootstrapScreen() {
 export default function AppNavigator() {
   const {
     user,
-    loading,
     onboardingCompleted,
     onboardingStatusLoaded,
     passwordRecoveryPending,
   } = useAuth();
   const { mode } = useTheme();
   const navigationRef = useNavigationContainerRef<RootStackParamList>();
+  const navTheme = useMemo(() => {
+    const base = mode === 'dark' ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        background: mode === 'dark' ? v3DarkColors.bg : v3LightColors.bg,
+      },
+    };
+  }, [mode]);
   const routePathRef = useRef<string | undefined>(undefined);
   usePushNotifications(navigationRef);
 
@@ -67,8 +76,6 @@ export default function AppNavigator() {
     const screen = resolveScreenAnalytics(routePath);
     await logScreenView(screen);
   }, [navigationRef]);
-  const isLoading = Boolean(loading);
-  const waitOnboarding = Boolean(user && !onboardingStatusLoaded && !passwordRecoveryPending);
   const [accountDeletedName, setDeletedAccountName] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
@@ -81,36 +88,11 @@ export default function AppNavigator() {
       setDeletedAccountName(pending.name);
     }
   }, [user]);
-  const [minSplashElapsed, setMinSplashElapsed] = useState(false);
-  const [interactionsDone, setInteractionsDone] = useState(false);
-  const splashStartMsRef = useRef<number>(Date.now());
-
-  useEffect(() => {
-    const minDurationMs = 700;
-    const elapsed = Date.now() - splashStartMsRef.current;
-    const remaining = Math.max(0, minDurationMs - elapsed);
-    const timer = setTimeout(() => setMinSplashElapsed(true), remaining);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
-      setInteractionsDone(true);
-    });
-    return () => task.cancel();
-  }, []);
-
-  const appBootstrapDone = !isLoading && !waitOnboarding;
-  const showSplash = useMemo(
-    () => !(appBootstrapDone && minSplashElapsed && interactionsDone),
-    [appBootstrapDone, minSplashElapsed, interactionsDone],
-  );
-
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: v3DarkColors.bg }}>
       <NavigationContainer
         ref={navigationRef}
-        theme={mode === 'dark' ? DarkTheme : DefaultTheme}
+        theme={navTheme}
         onReady={() => {
           void trackNavigationScreen();
         }}
@@ -164,8 +146,6 @@ export default function AppNavigator() {
           )}
         </Stack.Navigator>
       </NavigationContainer>
-
-      <SplashScreen visible={showSplash} />
     </View>
   );
 }

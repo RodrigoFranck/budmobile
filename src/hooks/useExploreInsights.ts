@@ -27,7 +27,7 @@ import {
   syncExploreInsights,
   type StoredExploreInsight,
 } from '@/utils/syncExploreInsights';
-import type { DeepInsight } from '@/hooks/useDeepInsight';
+import { areDeepInsightsEquivalent, type DeepInsight } from '@/hooks/useDeepInsight';
 
 export interface Insight {
   title: string;
@@ -256,10 +256,13 @@ export function useExploreInsights(refreshToken = 0) {
           !!row.title,
       ) ?? null;
 
-    if (deepStored && isDeepInsightContent(deepStored.content_json)) {
-      setDeepInsightContent(deepStored.content_json);
+    const deepContent = deepStored?.content_json;
+    if (deepStored && isDeepInsightContent(deepContent)) {
+      setDeepInsightContent((prev) =>
+        prev && areDeepInsightsEquivalent(prev, deepContent) ? prev : deepContent,
+      );
     } else {
-      setDeepInsightContent(null);
+      setDeepInsightContent((prev) => (prev == null ? prev : null));
     }
 
     if (effectiveDeepProgress.locked) {

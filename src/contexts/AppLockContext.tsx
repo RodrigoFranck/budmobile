@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SplashScreen } from '@/components/SplashScreen';
 import { BudButton } from '@/components/v3';
 import { appAlert } from '@/contexts/AppAlertContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAppProfileQuery } from '@/hooks/useAppProfileQuery';
 import { parseV3Preferences } from '@/hooks/useV3Preferences';
 import {
@@ -44,6 +45,7 @@ function wait(ms: number) {
 
 export function AppLockProvider({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
+  const { loaded: themeLoaded } = useTheme();
   const { data: profile } = useAppProfileQuery();
   const [ready, setReady] = useState(Platform.OS === 'web');
   const [enabled, setEnabledState] = useState(false);
@@ -187,7 +189,11 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
           accessibilityViewIsModal
           importantForAccessibility="yes"
         >
-          <SplashScreen visible />
+          {ready && themeLoaded ? (
+            <SplashScreen visible />
+          ) : (
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#171310' }]} />
+          )}
           {ready ? (
             <View style={[styles.unlockButton, { bottom: insets.bottom + 16 }]}>
               <BudButton

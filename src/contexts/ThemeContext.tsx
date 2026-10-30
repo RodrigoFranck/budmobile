@@ -22,9 +22,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAppProfileQuery } from '@/hooks/useAppProfileQuery';
 import { queryKeys } from '@/lib/queryKeys';
 import type { AppProfile } from '@/services/profileQuery';
+import {
+  peekCachedThemePreference,
+  readCachedThemePreference,
+  writeCachedThemePreference,
+  type ThemePreference,
+} from '@/services/themePreference';
 
 type ThemeMode = 'light' | 'dark';
-type ThemePreference = ThemeMode | 'system';
 
 function resolveSystemMode(scheme: ColorSchemeName): ThemeMode {
   return scheme === 'dark' ? 'dark' : 'light';
@@ -63,9 +68,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: profile, isPending, isFetched } = useAppProfileQuery();
-  const [preference, setPreferenceState] = useState<ThemePreference>('system');
-  const [loaded, setLoaded] = useState(false);
+  const cachedPreference = peekCachedThemePreference();
+  const [preference, setPreferenceState] = useState<ThemePreference>(
+    cachedPreference ?? 'system',
+  );
+  const [loaded, setLoaded] = useState(cachedPreference != null);
   const [systemMode, setSystemMode] = useState<ThemeMode>(readSystemMode);
+
+  useEffect(() => {
+    let cancelled = false;
+    void readCachedThemePreference().then((cached) => {
+      if (cancelled || cached == null) return;
+      setPreferenceState(cached);
+      setLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const syncSystemMode = () => {
@@ -99,17 +119,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (isPending && !isFetched) {
-      setLoaded(false);
+      if (peekCachedThemePreference() == null) {
+        setLoaded(false);
+      }
       return;
     }
 
-    setPreferenceState(preferenceFromProfile(profile?.dark_mode));
+    const nextPreference = preferenceFromProfile(profile?.dark_mode);
+    setPreferenceState(nextPreference);
     setLoaded(true);
+    void writeCachedThemePreference(nextPreference);
   }, [user?.id, profile?.dark_mode, isPending, isFetched]);
 
   const setPreference = useCallback(
     async (nextPreference: ThemePreference) => {
       setPreferenceState(nextPreference);
+      void writeCachedThemePreference(nextPreference);
       if (!user?.id) return;
       try {
         const nextDark = darkModeFromPreference(nextPreference);
@@ -118,7 +143,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           .update({ dark_mode: nextDark })
           .eq('user_id', user.id);
         if (error) {
-          setPreferenceState(preferenceFromProfile(profile?.dark_mode));
+          const revert = preferenceFromProfile(profile?.dark_mode);
+          setPreferenceState(revert);
+          void writeCachedThemePreference(revert);
           appAlert({ title: 'Erro', message: 'Não foi possível salvar sua preferência de tema.' });
           return;
         }
@@ -132,7 +159,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           theme_preference_label: THEME_PREFERENCE_LABELS[nextPreference],
         });
       } catch {
-        setPreferenceState(preferenceFromProfile(profile?.dark_mode));
+        const revert = preferenceFromProfile(profile?.dark_mode);
+        setPreferenceState(revert);
+        void writeCachedThemePreference(revert);
         appAlert({ title: 'Erro', message: 'Não foi possível salvar sua preferência de tema.' });
       }
     },

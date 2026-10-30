@@ -45,6 +45,29 @@ export interface DeepInsightState {
 
 const DEFAULT_REQUIRED_CONVERSATIONS = 2;
 
+const LOADED_STATE = {
+  status: 'loaded' as const,
+  weeklyConversationCount: DEFAULT_REQUIRED_CONVERSATIONS,
+  requiredConversations: DEFAULT_REQUIRED_CONVERSATIONS,
+  message: null,
+  error: null,
+};
+
+export function areDeepInsightsEquivalent(left: DeepInsight | null, right: DeepInsight): boolean {
+  if (left === right) return true;
+  if (!left) return false;
+
+  return (
+    left.headline === right.headline &&
+    left.intro === right.intro &&
+    left.quote === right.quote &&
+    left.what_i_noticed?.content === right.what_i_noticed?.content &&
+    left.reflection?.content === right.reflection?.content &&
+    left.key_takeaway?.content === right.key_takeaway?.content &&
+    left.next_steps?.content === right.next_steps?.content
+  );
+}
+
 function resolveWeekStartStr(weekStart?: Date | string): string {
   if (typeof weekStart === 'string' && weekStart) {
     return weekStart;
@@ -108,44 +131,51 @@ export function useDeepInsight() {
     error: null,
   });
 
-  const [cachedInsights, setCachedInsights] = useState<Map<string, DeepInsight>>(new Map());
+  const cachedInsightsRef = useRef<Map<string, DeepInsight>>(new Map());
   const inFlightWeekRef = useRef<string | null>(null);
 
-  const hydrateInsight = useCallback((insight: DeepInsight, weekStart?: Date | string) => {
-    const weekStartStr = resolveWeekStartStr(weekStart);
-    setCachedInsights((prev) => new Map(prev).set(weekStartStr, insight));
-    setState({
-      status: 'loaded',
-      insight,
-      weeklyConversationCount: DEFAULT_REQUIRED_CONVERSATIONS,
-      requiredConversations: DEFAULT_REQUIRED_CONVERSATIONS,
-      message: null,
-      error: null,
+  const applyLoadedInsight = useCallback((insight: DeepInsight) => {
+    setState((prev) => {
+      if (prev.status === 'loaded' && areDeepInsightsEquivalent(prev.insight, insight)) {
+        return prev;
+      }
+
+      return {
+        ...LOADED_STATE,
+        insight,
+      };
     });
   }, []);
 
-  const generateDeepInsight = useCallback(async (weekStart?: Date | string): Promise<DeepInsight | null> => {
+  const hydrateInsight = useCallback((insight: DeepInsight, weekStart?: Date | string) => {
     const weekStartStr = resolveWeekStartStr(weekStart);
+    cachedInsightsRef.current.set(weekStartStr, insight);
+    applyLoadedInsight(insight);
+  }, [applyLoadedInsight]);
 
-    if (cachedInsights.has(weekStartStr)) {
-      const cached = cachedInsights.get(weekStartStr)!;
-      setState({
-        status: 'loaded',
-        insight: cached,
-        weeklyConversationCount: DEFAULT_REQUIRED_CONVERSATIONS,
-        requiredConversations: DEFAULT_REQUIRED_CONVERSATIONS,
-        message: null,
-        error: null,
-      });
+  const generateDeepInsight = useCallback(async (
+    weekStart?: Date | string,
+    options?: { force?: boolean },
+  ): Promise<DeepInsight | null> => {
+    const weekStartStr = resolveWeekStartStr(weekStart);
+    const cached = cachedInsightsRef.current.get(weekStartStr);
+
+    if (cached && !options?.force) {
+      applyLoadedInsight(cached);
       return cached;
     }
 
     if (inFlightWeekRef.current === weekStartStr) {
-      return null;
+      return cached ?? null;
     }
 
     inFlightWeekRef.current = weekStartStr;
-    setState(prev => ({ ...prev, status: 'loading', error: null }));
+    setState((prev) => {
+      if (prev.status === 'loaded' && prev.insight) {
+        return { ...prev, error: null };
+      }
+      return { ...prev, status: 'loading', error: null };
+    });
 
     try {
       const { data: functionData, error: functionError, response } = await supabase.functions.invoke(
@@ -222,16 +252,8 @@ export function useDeepInsight() {
         return null;
       }
 
-      setCachedInsights(prev => new Map(prev).set(weekStartStr, insight));
-
-      setState({
-        status: 'loaded',
-        insight,
-        weeklyConversationCount: DEFAULT_REQUIRED_CONVERSATIONS,
-        requiredConversations: DEFAULT_REQUIRED_CONVERSATIONS,
-        message: null,
-        error: null,
-      });
+      cachedInsightsRef.current.set(weekStartStr, insight);
+      applyLoadedInsight(insight);
 
       return insight;
 
@@ -250,10 +272,10 @@ export function useDeepInsight() {
         inFlightWeekRef.current = null;
       }
     }
-  }, [cachedInsights]);
+  }, [applyLoadedInsight]);
 
   const clearCache = useCallback(() => {
-    setCachedInsights(new Map());
+    cachedInsightsRef.current = new Map();
     setState({
       status: 'idle',
       insight: null,

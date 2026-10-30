@@ -11,16 +11,18 @@ import {
 } from '@expo-google-fonts/dm-sans';
 import { Audio } from 'expo-av';
 import { useEffect } from 'react';
-import { ActivityIndicator, Platform, View } from 'react-native';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConversationProvider } from '@elevenlabs/react-native';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AppAlertProvider } from '@/contexts/AppAlertContext';
 import { AppLockProvider } from '@/contexts/AppLockContext';
+import { BootSplashLayer, BootSplashProvider } from '@/contexts/BootSplashContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { AnalyticsUserSync, initAnalytics } from '@/analytics';
 import AppNavigator from '@/navigation/AppNavigator';
 import { AppQueryProvider } from '@/providers/AppQueryProvider';
+import { v3DarkColors } from '@/theme';
 
 function ThemedStatusBar() {
   const { isDarkMode } = useTheme();
@@ -54,28 +56,12 @@ export default function App() {
     }).catch(() => {});
   }, []);
 
-  if (!fontsLoaded) {
-    // Match native / Figma splash (#171310) — do not flash light theme while fonts load.
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: '#171310',
-        }}
-      >
-        <ActivityIndicator size="large" color="#77716C" />
-      </View>
-    );
-  }
-
-  const content = (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <AppQueryProvider>
-          <AuthProvider>
-            <ThemeProvider>
+  const tree = (
+    <SafeAreaProvider style={{ flex: 1, backgroundColor: v3DarkColors.bg }}>
+      <AppQueryProvider>
+        <AuthProvider>
+          <ThemeProvider>
+            <BootSplashProvider>
               <AnalyticsUserSync />
               <AppAlertProvider>
                 <AppLockProvider>
@@ -83,20 +69,17 @@ export default function App() {
                   <ThemedStatusBar />
                 </AppLockProvider>
               </AppAlertProvider>
-            </ThemeProvider>
-          </AuthProvider>
-        </AppQueryProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+              <BootSplashLayer fontsLoaded={fontsLoaded} />
+            </BootSplashProvider>
+          </ThemeProvider>
+        </AuthProvider>
+      </AppQueryProvider>
+    </SafeAreaProvider>
   );
 
-  if (Platform.OS !== 'web') {
-    return (
-      <ConversationProvider>
-        {content}
-      </ConversationProvider>
-    );
-  }
-
-  return content;
+  return (
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: v3DarkColors.bg }}>
+      {Platform.OS !== 'web' ? <ConversationProvider>{tree}</ConversationProvider> : tree}
+    </GestureHandlerRootView>
+  );
 }

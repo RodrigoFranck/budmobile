@@ -9,6 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
@@ -49,6 +50,19 @@ function quoted(text: string) {
   return `“${trimmed}”`;
 }
 
+function colorWithAlpha(hex: string, alpha: number): string {
+  const normalized = hex.replace('#', '');
+  const full = normalized.length === 3
+    ? normalized.split('').map((char) => char + char).join('')
+    : normalized;
+  const value = Number.parseInt(full, 16);
+  if (Number.isNaN(value)) return hex;
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 export default function WeekRecapView({
   weekStart,
   firstName,
@@ -70,24 +84,21 @@ export default function WeekRecapView({
   const rangeLabel = formatWeekRangeLong(weekStartDate, weekEndDate);
 
   useEffect(() => {
-    if (deepInsightContent) {
-      hydrateInsight(deepInsightContent, weekStart);
-      return;
-    }
-    if (status !== 'idle') return;
-    void generateDeepInsight(weekStart).then((generated) => {
-      if (generated) {
-        void refreshExploreInsights({ cacheOnly: true });
-      }
+    if (!deepInsightContent) return;
+    hydrateInsight(deepInsightContent, weekStart);
+  }, [deepInsightContent, hydrateInsight, weekStart]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void generateDeepInsight(weekStart, { force: true }).then((generated) => {
+      if (cancelled || !generated) return;
+      void refreshExploreInsights({ cacheOnly: true });
     });
-  }, [
-    deepInsightContent,
-    generateDeepInsight,
-    hydrateInsight,
-    refreshExploreInsights,
-    status,
-    weekStart,
-  ]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [generateDeepInsight, refreshExploreInsights, weekStart]);
 
   const themes = useMemo(() => {
     const fromInsight = insight?.themes?.map((theme) => theme.trim()).filter(Boolean) ?? [];
@@ -153,16 +164,13 @@ export default function WeekRecapView({
           </Text>
         </View>
       ) : (
-        <>
+        <View style={styles.bodyColumn}>
           <ScrollView
+            style={styles.body}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{
-              paddingHorizontal: 28,
-              paddingTop: 12,
-              paddingBottom: insets.bottom + 90,
-            }}
+            contentContainerStyle={styles.bodyContent}
           >
-            <Text style={[styles.kicker, { color: colors.text3 }]}>{rangeLabel}</Text>
+            <Text style={[styles.kicker, { color: colors.text2 }]}>{rangeLabel}</Text>
             <View style={{ paddingTop: 10 }}>
               <AccentTitle
                 before="Sua semana, "
@@ -171,7 +179,7 @@ export default function WeekRecapView({
                 lineHeight={40}
               />
             </View>
-            <Text style={[styles.lead, { color: colors.text2 }]}>
+            <Text style={[styles.lead, { color: colors.text }]}>
               Você conversou com o Bud em {conversationDays} dos 7 dias.
             </Text>
 
@@ -187,14 +195,14 @@ export default function WeekRecapView({
                       },
                     ]}
                   />
-                  <Text style={[styles.dotLabel, { color: colors.text3 }]}>{dot.label}</Text>
+                  <Text style={[styles.dotLabel, { color: colors.text2 }]}>{dot.label}</Text>
                 </View>
               ))}
             </View>
 
             {themes.length > 0 ? (
               <View style={styles.section}>
-                <Text style={[styles.kicker, { color: colors.text3 }]}>O que mais apareceu</Text>
+                <Text style={[styles.kicker, { color: colors.text2 }]}>O que mais apareceu</Text>
                 <View style={styles.themeRow}>
                   {themes.map((theme) => (
                     <View
@@ -210,10 +218,16 @@ export default function WeekRecapView({
 
             {patternParts ? (
               <View style={styles.section}>
-                <Text style={[styles.kicker, { color: colors.text3 }]}>Um padrão que eu notei</Text>
+                <Text style={[styles.kicker, { color: colors.text2 }]}>Um padrão que eu notei</Text>
                 <Text style={[styles.pattern, { color: colors.text }]}>
                   {patternParts.before}
-                  <Text style={{ fontFamily: fonts.displayItalic, color: colors.accent }}>
+                  <Text
+                    style={{
+                      fontFamily: fonts.displayItalic,
+                      fontStyle: 'italic',
+                      color: colors.accent,
+                    }}
+                  >
                     {patternParts.accent}
                   </Text>
                   {patternParts.after}
@@ -223,16 +237,16 @@ export default function WeekRecapView({
 
             {quote ? (
               <View style={styles.section}>
-                <Text style={[styles.kicker, { color: colors.text3 }]}>Uma frase sua</Text>
+                <Text style={[styles.kicker, { color: colors.text2 }]}>Uma frase sua</Text>
                 <View style={[styles.quoteBar, { borderLeftColor: colors.accent }]}>
-                  <Text style={[styles.quote, { color: colors.text2 }]}>{quote}</Text>
+                  <Text style={[styles.quote, { color: colors.text }]}>{quote}</Text>
                 </View>
               </View>
             ) : null}
 
             {nextStep ? (
               <View style={styles.section}>
-                <Text style={[styles.kicker, { color: colors.text3 }]}>
+                <Text style={[styles.kicker, { color: colors.text2 }]}>
                   Pra levar pra próxima semana
                 </Text>
                 <Text style={[styles.next, { color: colors.text }]}>{nextStep}</Text>
@@ -240,11 +254,10 @@ export default function WeekRecapView({
             ) : null}
           </ScrollView>
 
-          <View
-            style={[
-              styles.ctaWrap,
-              { paddingBottom: insets.bottom + 16, backgroundColor: 'transparent' },
-            ]}
+          <LinearGradient
+            colors={[colorWithAlpha(colors.bg, 0), colorWithAlpha(colors.bg, 0.92), colors.bg]}
+            locations={[0, 0.45, 1]}
+            style={[styles.ctaWrap, { paddingBottom: insets.bottom + 16 }]}
           >
             <Pressable
               accessibilityRole="button"
@@ -257,8 +270,8 @@ export default function WeekRecapView({
                 Conversar sobre a semana
               </Text>
             </Pressable>
-          </View>
-        </>
+          </LinearGradient>
+        </View>
       )}
       </View>
     </View>
@@ -284,6 +297,18 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansSemi,
     fontSize: 18,
     lineHeight: 18,
+  },
+  bodyColumn: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  body: {
+    flex: 1,
+  },
+  bodyContent: {
+    paddingHorizontal: 28,
+    paddingTop: 12,
+    paddingBottom: 24,
   },
   iconBtn: {
     width: 48,
@@ -328,7 +353,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginTop: 28,
+    marginTop: 46,
   },
   dotColLarge: {
     width: 34,
@@ -341,14 +366,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   dotLabel: {
-    fontFamily: fonts.sansSemi,
+    fontFamily: fonts.sansMedium,
     fontSize: 11,
     lineHeight: 11,
     marginTop: 6,
     textAlign: 'center',
   },
   section: {
-    marginTop: 40,
+    marginTop: 32,
   },
   themeRow: {
     flexDirection: 'row',
@@ -363,7 +388,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   themeChipLabel: {
-    fontFamily: fonts.sansSemi,
+    fontFamily: fonts.sansMedium,
     fontSize: 14,
     lineHeight: 14,
   },
@@ -380,8 +405,7 @@ const styles = StyleSheet.create({
     paddingLeft: 14,
   },
   quote: {
-    fontFamily: fonts.sans,
-    fontStyle: 'italic',
+    fontFamily: fonts.sansItalic,
     fontSize: 16,
     lineHeight: 24,
   },
@@ -392,11 +416,8 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   ctaWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
     paddingHorizontal: 24,
+    paddingTop: 40,
   },
   cta: {
     height: 58,
