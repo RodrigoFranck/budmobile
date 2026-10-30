@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import {
   ActivityIndicator,
-  Image,
+  ImageBackground,
   Pressable,
   ScrollView,
   Share,
@@ -9,7 +9,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
@@ -48,19 +47,6 @@ function quoted(text: string) {
   if (!trimmed) return '';
   if (/^[“"']/.test(trimmed)) return trimmed;
   return `“${trimmed}”`;
-}
-
-function colorWithAlpha(hex: string, alpha: number): string {
-  const normalized = hex.replace('#', '');
-  const full = normalized.length === 3
-    ? normalized.split('').map((char) => char + char).join('')
-    : normalized;
-  const value = Number.parseInt(full, 16);
-  if (Number.isNaN(value)) return hex;
-  const r = (value >> 16) & 255;
-  const g = (value >> 8) & 255;
-  const b = value & 255;
-  return `rgba(${r},${g},${b},${alpha})`;
 }
 
 export default function WeekRecapView({
@@ -126,155 +112,151 @@ export default function WeekRecapView({
   }, [insight, navigation, onBack]);
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
-      <Image
-        source={assets.historyRecapMist}
-        pointerEvents="none"
-        style={styles.mist}
-        resizeMode="cover"
-      />
-
-      <View style={{ flex: 1, paddingTop: insets.top }}>
-      <View style={[styles.header, { paddingHorizontal: 20 }]}>
-        <BudIconButton icon={ChevronLeft} accessibilityLabel="Voltar" onPress={onBack} />
-        <Text accessibilityRole="header" style={[styles.headerTitle, { color: colors.text }]}>
-          Resumo da semana
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Compartilhar resumo da semana"
-          onPress={() => void shareRecap()}
-          style={[styles.iconBtn, { backgroundColor: colors.surface2 }]}
-        >
-          <HistoryShareIcon color={colors.text} />
-        </Pressable>
-      </View>
-
-      {loading || (!insight && status === 'idle') ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.accent} />
-        </View>
-      ) : !insight ? (
-        <View style={styles.center}>
-          <Text style={[styles.errorTitle, { color: colors.text }]}>
-            {error || 'Ainda não geramos esse resumo.'}
+    <ImageBackground
+      source={assets.historyRecapMist}
+      style={[styles.screen, { backgroundColor: colors.bg }]}
+      imageStyle={styles.mist}
+      resizeMode="cover"
+    >
+      <View style={[styles.column, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <BudIconButton icon={ChevronLeft} accessibilityLabel="Voltar" onPress={onBack} />
+          <Text accessibilityRole="header" style={[styles.headerTitle, { color: colors.text }]}>
+            Resumo da semana
           </Text>
-          <Text style={[styles.errorBody, { color: colors.text2 }]}>
-            Continue conversando com o Bud nesta semana.
-          </Text>
-        </View>
-      ) : (
-        <View style={styles.bodyColumn}>
-          <ScrollView
-            style={styles.body}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.bodyContent}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Compartilhar resumo da semana"
+            onPress={() => void shareRecap()}
+            style={[styles.iconBtn, { backgroundColor: colors.surface2 }]}
           >
-            <Text style={[styles.kicker, { color: colors.text2 }]}>{rangeLabel}</Text>
-            <View style={{ paddingTop: 10 }}>
-              <AccentTitle
-                before="Sua semana, "
-                accent={firstName}
-                size={34}
-                lineHeight={40}
-              />
-            </View>
-            <Text style={[styles.lead, { color: colors.text }]}>
-              Você conversou com o Bud em {conversationDays} dos 7 dias.
+            <HistoryShareIcon color={colors.text} />
+          </Pressable>
+        </View>
+
+        {loading || (!insight && status === 'idle') ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={colors.accent} />
+          </View>
+        ) : !insight ? (
+          <View style={styles.center}>
+            <Text style={[styles.errorTitle, { color: colors.text }]}>
+              {error || 'Ainda não geramos esse resumo.'}
             </Text>
-
-            <View style={styles.dotsRow}>
-              {weekDots.map((dot, index) => (
-                <View key={`${dot.label}-${index}`} style={styles.dotColLarge}>
-                  <View
-                    style={[
-                      styles.dotLarge,
-                      {
-                        backgroundColor: dot.active ? colors.accent : 'transparent',
-                        borderColor: dot.active ? colors.accent : colors.line,
-                      },
-                    ]}
-                  />
-                  <Text style={[styles.dotLabel, { color: colors.text2 }]}>{dot.label}</Text>
-                </View>
-              ))}
-            </View>
-
-            {themes.length > 0 ? (
-              <View style={styles.section}>
-                <Text style={[styles.kicker, { color: colors.text2 }]}>O que mais apareceu</Text>
-                <View style={styles.themeRow}>
-                  {themes.map((theme) => (
-                    <View
-                      key={theme}
-                      style={[styles.themeChip, { backgroundColor: colors.surface2 }]}
-                    >
-                      <Text style={[styles.themeChipLabel, { color: colors.text }]}>{theme}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            ) : null}
-
-            {patternParts ? (
-              <View style={styles.section}>
-                <Text style={[styles.kicker, { color: colors.text2 }]}>Um padrão que eu notei</Text>
-                <Text style={[styles.pattern, { color: colors.text }]}>
-                  {patternParts.before}
-                  <Text
-                    style={{
-                      fontFamily: fonts.displayItalic,
-                      fontStyle: 'italic',
-                      color: colors.accent,
-                    }}
-                  >
-                    {patternParts.accent}
-                  </Text>
-                  {patternParts.after}
-                </Text>
-              </View>
-            ) : null}
-
-            {quote ? (
-              <View style={styles.section}>
-                <Text style={[styles.kicker, { color: colors.text2 }]}>Uma frase sua</Text>
-                <View style={[styles.quoteBar, { borderLeftColor: colors.accent }]}>
-                  <Text style={[styles.quote, { color: colors.text }]}>{quote}</Text>
-                </View>
-              </View>
-            ) : null}
-
-            {nextStep ? (
-              <View style={styles.section}>
-                <Text style={[styles.kicker, { color: colors.text2 }]}>
-                  Pra levar pra próxima semana
-                </Text>
-                <Text style={[styles.next, { color: colors.text }]}>{nextStep}</Text>
-              </View>
-            ) : null}
-          </ScrollView>
-
-          <LinearGradient
-            colors={[colorWithAlpha(colors.bg, 0), colorWithAlpha(colors.bg, 0.92), colors.bg]}
-            locations={[0, 0.45, 1]}
-            style={[styles.ctaWrap, { paddingBottom: insets.bottom + 16 }]}
-          >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Conversar sobre a semana"
-              onPress={talkAboutWeek}
-              style={[styles.cta, { backgroundColor: colors.btn }]}
+            <Text style={[styles.errorBody, { color: colors.text2 }]}>
+              Continue conversando com o Bud nesta semana.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.recap}>
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={styles.bodyContent}
+              showsVerticalScrollIndicator={false}
+              contentInsetAdjustmentBehavior="never"
+              overScrollMode="never"
             >
-              <HistoryMessageIcon color={colors.onBtn} />
-              <Text style={[styles.ctaLabel, { color: colors.onBtn }]}>
-                Conversar sobre a semana
+              <Text style={[styles.kicker, { color: colors.text2 }]}>{rangeLabel}</Text>
+              <View style={styles.titleBlock}>
+                <AccentTitle
+                  before="Sua semana, "
+                  accent={firstName}
+                  size={34}
+                  lineHeight={40}
+                />
+              </View>
+              <Text style={[styles.lead, { color: colors.text2 }]}>
+                Você conversou com o Bud em {conversationDays} dos 7 dias.
               </Text>
-            </Pressable>
-          </LinearGradient>
-        </View>
-      )}
+
+              <View style={styles.dotsRow}>
+                {weekDots.map((dot, index) => (
+                  <View key={`${dot.label}-${index}`} style={styles.dotColLarge}>
+                    <View
+                      style={[
+                        styles.dotLarge,
+                        {
+                          backgroundColor: dot.active ? colors.accent : 'transparent',
+                          borderColor: dot.active ? colors.accent : colors.line,
+                        },
+                      ]}
+                    />
+                    <Text style={[styles.dotLabel, { color: colors.text2 }]}>{dot.label}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {themes.length > 0 ? (
+                <View style={styles.section}>
+                  <Text style={[styles.kicker, { color: colors.text2 }]}>O que mais apareceu</Text>
+                  <View style={styles.themeRow}>
+                    {themes.map((theme) => (
+                      <View
+                        key={theme}
+                        style={[styles.themeChip, { backgroundColor: colors.surface2 }]}
+                      >
+                        <Text style={[styles.themeChipLabel, { color: colors.text }]}>{theme}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+
+              {patternParts ? (
+                <View style={styles.section}>
+                  <Text style={[styles.kicker, { color: colors.text2 }]}>Um padrão que eu notei</Text>
+                  <Text style={[styles.pattern, { color: colors.text }]}>
+                    {patternParts.before}
+                    <Text
+                      style={{
+                        fontFamily: fonts.displayItalic,
+                        fontStyle: 'italic',
+                        color: colors.accent,
+                      }}
+                    >
+                      {patternParts.accent}
+                    </Text>
+                    {patternParts.after}
+                  </Text>
+                </View>
+              ) : null}
+
+              {quote ? (
+                <View style={styles.section}>
+                  <Text style={[styles.kicker, { color: colors.text2 }]}>Uma frase sua</Text>
+                  <View style={[styles.quoteBar, { borderLeftColor: colors.accent }]}>
+                    <Text style={[styles.quote, { color: colors.text2 }]}>{quote}</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {nextStep ? (
+                <View style={styles.section}>
+                  <Text style={[styles.kicker, { color: colors.text2 }]}>
+                    Pra levar pra próxima semana
+                  </Text>
+                  <Text style={[styles.next, { color: colors.text }]}>{nextStep}</Text>
+                </View>
+              ) : null}
+            </ScrollView>
+
+            <View style={[styles.ctaWrap, { paddingBottom: insets.bottom + 16 }]}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Conversar sobre a semana"
+                onPress={talkAboutWeek}
+                style={[styles.cta, { backgroundColor: colors.btn }]}
+              >
+                <HistoryMessageIcon color={colors.onBtn} />
+                <Text style={[styles.ctaLabel, { color: colors.onBtn }]}>
+                  Conversar sobre a semana
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
       </View>
-    </View>
+    </ImageBackground>
   );
 }
 
@@ -283,12 +265,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mist: {
-    ...StyleSheet.absoluteFillObject,
     opacity: 0.35,
+  },
+  column: {
+    flex: 1,
+    backgroundColor: 'transparent',
   },
   header: {
     height: 56,
     marginTop: 4,
+    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -298,17 +284,21 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 18,
   },
-  bodyColumn: {
+  recap: {
     flex: 1,
-    overflow: 'hidden',
+    backgroundColor: 'transparent',
   },
-  body: {
+  scroll: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
   bodyContent: {
     paddingHorizontal: 28,
     paddingTop: 12,
-    paddingBottom: 24,
+    paddingBottom: 12,
+  },
+  titleBlock: {
+    paddingTop: 10,
   },
   iconBtn: {
     width: 48,
@@ -416,8 +406,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   ctaWrap: {
+    backgroundColor: 'transparent',
     paddingHorizontal: 24,
-    paddingTop: 40,
+    paddingTop: 8,
   },
   cta: {
     height: 58,

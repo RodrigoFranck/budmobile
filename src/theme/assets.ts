@@ -111,7 +111,8 @@ export const v3Assets = {
   paywallMistLight: require('@/assets/v3/paywall/mist-light.png'),
   historyCalendarGiz: require('@/assets/v3/history/calendar-giz.png'),
   historyCalendarMarks: require('@/assets/v3/history/calendar-marks.png'),
-  historyRecapMist: require('@/assets/v3/history/recap-mist.png'),
+  historyRecapMistDark: require('@/assets/v3/history/recap-mist-dark.png'),
+  historyRecapMistLight: require('@/assets/v3/history/recap-mist-light.png'),
   letterUnderlineDark: require('@/assets/v3/letter/underline-dark.png'),
   letterUnderlineLight: require('@/assets/v3/letter/underline-light.png'),
 } as const;
@@ -306,7 +307,9 @@ export function useV3Asset(): V3ThemedAssets {
       paywallMist: isDarkMode ? v3Assets.paywallMistDark : v3Assets.paywallMistLight,
       historyCalendarGiz: v3Assets.historyCalendarGiz,
       historyCalendarMarks: v3Assets.historyCalendarMarks,
-      historyRecapMist: v3Assets.historyRecapMist,
+      historyRecapMist: isDarkMode
+        ? v3Assets.historyRecapMistDark
+        : v3Assets.historyRecapMistLight,
       letterUnderline: isDarkMode ? v3Assets.letterUnderlineDark : v3Assets.letterUnderlineLight,
       fieeLeaf: v3Assets.fieeLeaf,
       fieeCompassLeaf: v3Assets.fieeCompassLeaf,
