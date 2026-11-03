@@ -8,9 +8,11 @@ import { queryKeys } from '@/lib/queryKeys';
 import type { Conversation } from '@/services/conversationsQuery';
 import { fetchFirstUserSnippets } from '@/services/dailyLetterQuery';
 import { isUsableLetterInsight, YESTERDAY_CARD_QUOTE } from '@/utils/dailyLetter';
+import { looksLikeCrisisSpeech } from '@/utils/approachMatcher';
 import {
   clipCardText,
   conversationDayKey,
+  isUsableRecapFragment,
   nextRecapPile,
   parseRecapPile,
   recapCandidateIds,
@@ -102,34 +104,42 @@ export function useHomeRecaps(params: {
 
     if (params.hasLetter) {
       const insight = params.yesterdayInsight;
-      const quote = recapQuote(
-        isUsableLetterInsight(insight) ? insight?.title : null,
-        YESTERDAY_CARD_QUOTE,
-      );
-      const body = clipCardText(
-        (isUsableLetterInsight(insight) ? insight?.contextSummary || insight?.description : '') ||
-          recapInvite('Ontem'),
-      );
-      items.push({
-        kind: 'yesterday',
-        id: 'yesterday',
-        label: 'Ontem',
-        quote: quote || YESTERDAY_CARD_QUOTE,
-        body,
-      });
+      const rawQuote = isUsableLetterInsight(insight) ? insight?.title : null;
+      const rawBody = isUsableLetterInsight(insight)
+        ? insight?.contextSummary || insight?.description
+        : '';
+      // TF-09: never surface crisis speech on Home “Para começar”
+      if (!looksLikeCrisisSpeech(rawQuote ?? '') && !looksLikeCrisisSpeech(rawBody ?? '')) {
+        const quote = recapQuote(rawQuote, YESTERDAY_CARD_QUOTE);
+        const body = clipCardText(rawBody || recapInvite('Ontem'));
+        if (quote && !looksLikeCrisisSpeech(body)) {
+          items.push({
+            kind: 'yesterday',
+            id: 'yesterday',
+            label: 'Ontem',
+            quote,
+            body,
+          });
+        }
+      }
     }
 
-    const remaining = RECAP_LIMIT - items.length;
-    for (const item of nextPile.slice(0, remaining)) {
+    for (const item of nextPile) {
+      if (items.length >= RECAP_LIMIT) break;
       const conversation = byId.get(item.id);
       if (!conversation?.title) continue;
+      if (looksLikeCrisisSpeech(conversation.title)) continue;
+      const snippet = snippets[conversation.id];
+      if (snippet && looksLikeCrisisSpeech(snippet)) continue;
+      const quote = recapQuote(snippet, conversation.title);
+      if (!quote || !isUsableRecapFragment(quote)) continue;
       const dateSource = conversation.conversation_date || conversation.created_at;
       const label = params.dateLabel(dateSource);
       items.push({
         kind: 'conversation',
         id: conversation.id,
         label,
-        quote: recapQuote(snippets[conversation.id], conversation.title),
+        quote,
         body: recapInvite(label),
       });
     }

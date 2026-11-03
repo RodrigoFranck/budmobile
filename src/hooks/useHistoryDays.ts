@@ -39,6 +39,7 @@ export type HistoryActivityChip = {
   id: ActivityId;
   label: string;
   color: string;
+  resultText?: string | null;
 };
 
 export type HistoryDay = {
@@ -53,6 +54,10 @@ export type HistoryDay = {
   hasLetter: boolean;
   activities: HistoryActivityChip[];
 };
+
+export function historyDayIsOpenable(day: HistoryDay) {
+  return Boolean(day.conversationId) || day.activities.length > 0 || day.hasLetter;
+}
 
 export type HistoryWeekDot = {
   label: string;
@@ -101,12 +106,86 @@ export function daysUntilSunday(from = getNowInBrasilia()) {
   return day === 0 ? 0 : 7 - day;
 }
 
+export type HistoryWeekTitle =
+  | { kind: 'this_week' }
+  | { kind: 'last_week' }
+  | { kind: 'range'; label: string };
+
+export type HistoryWeekSection = {
+  key: string;
+  weekStart: Date;
+  weekEnd: Date;
+  title: HistoryWeekTitle;
+  days: HistoryDay[];
+};
+
+function addDays(date: Date, amount: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+/** Groups history days into Mon–Sun weeks (Brasília). Empty weeks are omitted. */
+export function groupHistoryDaysByWeek(
+  days: HistoryDay[],
+  reference = getNowInBrasilia(),
+): HistoryWeekSection[] {
+  const thisWeekStart = getWeekStartBrasilia(reference);
+  const thisWeekKey = formatDateBrasilia(thisWeekStart);
+  const lastWeekStart = addDays(thisWeekStart, -7);
+  const lastWeekKey = formatDateBrasilia(lastWeekStart);
+
+  const byWeek = new Map<string, HistoryDay[]>();
+  for (const day of days) {
+    const weekStart = getWeekStartBrasilia(day.date);
+    const key = formatDateBrasilia(weekStart);
+    const list = byWeek.get(key);
+    if (list) {
+      list.push(day);
+    } else {
+      byWeek.set(key, [day]);
+    }
+  }
+
+  const keys = Array.from(byWeek.keys()).sort((a, b) => b.localeCompare(a));
+  return keys.map((key) => {
+    const weekStart = parseDateString(key);
+    const weekEnd = getWeekEndBrasilia(weekStart);
+    const title: HistoryWeekTitle =
+      key === thisWeekKey
+        ? { kind: 'this_week' }
+        : key === lastWeekKey
+          ? { kind: 'last_week' }
+          : { kind: 'range', label: formatWeekRangeLong(weekStart, weekEnd) };
+
+    return {
+      key,
+      weekStart,
+      weekEnd,
+      title,
+      days: (byWeek.get(key) ?? []).sort((a, b) => b.dateKey.localeCompare(a.dateKey)),
+    };
+  });
+}
+
 type HistoryExtras = {
   messageCounts: Record<string, number>;
-  activityByDay: Record<string, ActivityId[]>;
+  activityByDay: Record<string, HistoryActivityChip[]>;
   letterDays: string[];
   checkInDays: string[];
 };
+
+function toActivityChip(
+  id: ActivityId,
+  resultText?: string | null,
+): HistoryActivityChip {
+  return {
+    id,
+    label: ACTIVITY_CHIP_META[id].label,
+    color: ACTIVITY_CHIP_META[id].color,
+    resultText: resultText ?? null,
+  };
+}
 
 async function fetchHistoryExtras(
   userId: string,
@@ -115,7 +194,7 @@ async function fetchHistoryExtras(
   const [activitiesRes, lettersRes, checkInsRes, messagesRes] = await Promise.all([
     supabase
       .from('activity_sessions')
-      .select('activity_type, completed_at, created_at')
+      .select('activity_type, completed_at, created_at, result_text')
       .eq('user_id', userId)
       .eq('status', 'completed'),
     relationAvailable('daily_letters')
@@ -135,16 +214,22 @@ async function fetchHistoryExtras(
     messageCounts[row.conversation_id] = (messageCounts[row.conversation_id] ?? 0) + 1;
   }
 
-  const activityByDay: Record<string, ActivityId[]> = {};
+  const activityByDay: Record<string, HistoryActivityChip[]> = {};
   for (const row of activitiesRes.data ?? []) {
     if (!isActivityId(row.activity_type)) continue;
     const key = brasiliaDayKey(row.completed_at ?? row.created_at);
     if (!key) continue;
     const list = activityByDay[key] ?? [];
-    if (!list.includes(row.activity_type)) {
-      list.push(row.activity_type);
+    if (!list.some((item) => item.id === row.activity_type)) {
+      list.push(toActivityChip(row.activity_type, row.result_text));
     }
     activityByDay[key] = list;
+  }
+
+  for (const key of Object.keys(activityByDay)) {
+    activityByDay[key] = ACTIVITY_IDS.filter((id) =>
+      (activityByDay[key] ?? []).some((item) => item.id === id),
+    ).map((id) => (activityByDay[key] ?? []).find((item) => item.id === id)!);
   }
 
   return {
@@ -213,13 +298,8 @@ export function useHistoryDays(conversations: Conversation[]) {
       day.messageCount += typeof count === 'number' ? count : 1;
     }
 
-    for (const [dateKey, ids] of Object.entries(extras?.activityByDay ?? {})) {
-      const day = ensureDay(dateKey);
-      day.activities = ACTIVITY_IDS.filter((id) => ids.includes(id)).map((id) => ({
-        id,
-        label: ACTIVITY_CHIP_META[id].label,
-        color: ACTIVITY_CHIP_META[id].color,
-      }));
+    for (const [dateKey, chips] of Object.entries(extras?.activityByDay ?? {})) {
+      ensureDay(dateKey).activities = chips;
     }
 
     for (const dateKey of extras?.letterDays ?? []) {

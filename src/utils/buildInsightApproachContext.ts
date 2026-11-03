@@ -17,6 +17,10 @@ function resolveInsightGuidance(insightType: string): string {
     return ' O contexto interno traz a conversa de ONTEM. Retome só esse recorte. Não trate temas de outros dias da memória como se fossem ontem.';
   }
 
+  if (insightType === 'daily_letter') {
+    return ' O contexto interno traz a carta do dia completa (conversa.origem = carta). Retome o tema da carta na primeira fala. Não peça o assunto e não cumprimente de novo.';
+  }
+
   if (insightType === 'conversation_recap') {
     return ' O contexto interno traz a conversa que a pessoa escolheu retomar no núcleo. Use esse recorte. Não peça o assunto.';
   }

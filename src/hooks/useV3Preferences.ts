@@ -39,6 +39,7 @@ export type V3Preferences = {
   shareResearch?: boolean;
   voice?: VoiceId;
   origin?: string;
+  onboardingProfundo?: 'pulado' | 'completo';
 };
 
 const DEFAULT_NOTIFICATIONS: NotificationPrefs = {
@@ -101,6 +102,10 @@ export function parseV3Preferences(raw: unknown): V3Preferences {
     shareResearch: asBoolean(data.shareResearch, false),
     voice: isVoiceId(data.voice) ? data.voice : undefined,
     origin: asString(data.origin),
+    onboardingProfundo:
+      data.onboardingProfundo === 'pulado' || data.onboardingProfundo === 'completo'
+        ? data.onboardingProfundo
+        : undefined,
   };
 }
 
@@ -127,6 +132,10 @@ export function preferencesFromOnboardingAnswers(
     shareResearch: false,
     voice: isVoiceId(answers.voice) ? answers.voice : undefined,
     origin: asString(answers.origin),
+    onboardingProfundo:
+      answers.onboardingProfundo === 'pulado' || answers.onboardingProfundo === 'completo'
+        ? answers.onboardingProfundo
+        : undefined,
   };
 }
 
@@ -156,6 +165,7 @@ export function mergeOnboardingPreferences(
     shareConversations,
     voice: fromAnswers.voice ?? existing.voice,
     origin: fromAnswers.origin ?? existing.origin,
+    onboardingProfundo: fromAnswers.onboardingProfundo ?? existing.onboardingProfundo,
   };
 }
 
@@ -183,6 +193,7 @@ export function useV3Preferences() {
       faith: prefs.faith ?? '',
       neurodivergence: prefs.neurodivergence ?? '',
       interests,
+      anythingElse: profile?.initial_thoughts ?? '',
       voice: storedVoiceId(profile?.selected_voice, prefs),
       notifications: prefs.notifications ?? DEFAULT_NOTIFICATIONS,
       appLock: Boolean(prefs.appLock),
@@ -198,9 +209,17 @@ export function useV3Preferences() {
   );
 
   const persist = useCallback(
-    async (patch: Partial<V3Preferences> & { name?: string; age?: string; gender?: string; selectedVoice?: VoiceId }) => {
+    async (
+      patch: Partial<V3Preferences> & {
+        name?: string;
+        age?: string;
+        gender?: string;
+        selectedVoice?: VoiceId;
+        initialThoughts?: string;
+      },
+    ) => {
       if (!user?.id) return;
-      const { name, age, gender, selectedVoice, ...prefPatch } = patch;
+      const { name, age, gender, selectedVoice, initialThoughts, ...prefPatch } = patch;
       const nextPrefs: V3Preferences = {
         ...prefs,
         ...prefPatch,
@@ -215,6 +234,7 @@ export function useV3Preferences() {
       if (name !== undefined) profilePatch.name = name;
       if (age !== undefined) profilePatch.age = age;
       if (gender !== undefined) profilePatch.gender = gender;
+      if (initialThoughts !== undefined) profilePatch.initial_thoughts = initialThoughts;
       if (prefPatch.interests !== undefined) profilePatch.hobbies = prefPatch.interests;
       if (prefPatch.focus !== undefined) {
         profilePatch.conversation_goal = splitPrefList(prefPatch.focus).join(' · ') || null;
@@ -268,10 +288,22 @@ export function useV3Preferences() {
         await persist({ interests });
         return;
       }
+      if (field === 'anythingElse') {
+        await persist({ initialThoughts: Array.isArray(value) ? value[0] ?? '' : value });
+        return;
+      }
+      if (field === 'origin') {
+        const origin = Array.isArray(value) ? value[0] ?? '' : value;
+        await persist({ origin });
+        if (user?.id) {
+          await supabase.auth.updateUser({ data: { origin } });
+        }
+        return;
+      }
       const next = Array.isArray(value) ? value : value;
       await persist({ [field]: next } as Partial<V3Preferences>);
     },
-    [persist],
+    [persist, user?.id],
   );
 
   const fieldValue = useCallback(

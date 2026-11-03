@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { KeyboardAvoidingView, Share, Text, View } from 'react-native';
+import { KeyboardAvoidingView, View } from 'react-native';
 import {
   useFocusEffect,
   useNavigation,
@@ -7,19 +7,19 @@ import {
   type RouteProp,
 } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Menu, Share2 } from 'lucide-react-native';
+import { ChevronLeft } from 'lucide-react-native';
 
 import { ChatContainer } from '@/components/chat/ChatContainer';
 import { MessageInputBar } from '@/components/chat/MessageInputBar';
 import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
 import { Spacing } from '@/constants/styles';
 import { PlatformConstants } from '@/constants/layout';
-import { useTabScreenContext, useTabScreenLoading } from '@/contexts/TabScreenContext';
+import { useTabScreenLoading } from '@/contexts/TabScreenContext';
 import { BudIconButton } from '@/components/v3';
 import { useChatSession } from '@/features/chat/ChatSessionProvider';
 import { useUserPlan } from '@/hooks/useUserPlan';
 import { LastFreeConversationBanner } from '@/pages/paywall/LastFreeConversationBanner';
-import { fonts, useV3Colors } from '@/theme';
+import { useV3Colors } from '@/theme';
 import type {
   ChatStackNavigationProp,
   ChatStackParamList,
@@ -35,7 +35,6 @@ export default function TextChatScreen() {
   const tabNavigation = useNavigation<MainTabNavigationProp>();
   const { canSendMessage, isLastFreeConversation } = useUserPlan();
   const showLastFreeBanner = isLastFreeConversation || !canSendMessage;
-  const { deepInsight, deepInsightProgress } = useTabScreenContext();
   const route = useRoute<RouteProp<ChatStackParamList, 'TextChat'>>();
   const {
     allMessages,
@@ -101,14 +100,6 @@ export default function TextChatScreen() {
     }, [setIsVoiceModeActive, voiceInterfaceRef]),
   );
 
-  const canShareWeek = Boolean(deepInsight.title || deepInsight.description) && !deepInsightProgress.locked;
-
-  const shareWeek = useCallback(async () => {
-    const title = deepInsight.title || 'Resumo da semana com o Bud';
-    const body = deepInsight.description || 'Uma semana de conversas com o Bud.';
-    await Share.share({ message: `${title}\n\n${body}` });
-  }, [deepInsight.description, deepInsight.title]);
-
   const styles = useMemo(
     () => ({
       root: { flex: 1, backgroundColor: colors.bg },
@@ -132,7 +123,7 @@ export default function TextChatScreen() {
               paddingBottom: 8,
               flexDirection: 'row',
               alignItems: 'center',
-              justifyContent: 'space-between',
+              justifyContent: 'flex-start',
             }}
           >
             <BudIconButton
@@ -140,21 +131,6 @@ export default function TextChatScreen() {
               accessibilityLabel="Início"
               onPress={() => tabNavigation.navigate('Home')}
             />
-            <Text style={{ fontFamily: fonts.display, fontSize: 20, color: colors.text }}>Chat</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {canShareWeek ? (
-                <BudIconButton
-                  icon={Share2}
-                  accessibilityLabel="Compartilhar resumo da semana"
-                  onPress={() => void shareWeek()}
-                />
-              ) : null}
-              <BudIconButton
-                icon={Menu}
-                accessibilityLabel="Menu"
-                onPress={() => tabNavigation.navigate('Menu')}
-              />
-            </View>
           </View>
           <ChatContainer
             messages={allMessages}

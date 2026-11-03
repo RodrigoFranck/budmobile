@@ -22,18 +22,26 @@ export type CincoPorquesStep = {
   placeholder: string;
 };
 
+export type FieeValence = -1 | 0 | 1;
+
+export type FieeWord = {
+  label: string;
+  valence: FieeValence;
+};
+
 export type FieeDimension = {
   key: string;
   letter: string;
   title: string;
   prompt: string;
   color: string;
-  options: string[];
+  words: FieeWord[];
 };
 
 export type ValueCard = {
   title: string;
   body: string;
+  origem?: 'fixa' | 'ia';
 };
 
 export const ACTIVITY_INTROS: Record<ActivityId, ActivityIntroCopy> = {
@@ -122,7 +130,24 @@ export const FIEE_DIMENSIONS: FieeDimension[] = [
     title: 'Físico',
     prompt: 'Como você está se sentindo fisicamente?',
     color: activityColors.folha,
-    options: ['Cansada', 'Esgotada', 'Energizada', 'Relaxada', 'Inquieta', 'Descansada', 'Calma', 'Leve'],
+    words: [
+      { label: 'Lenta', valence: -1 },
+      { label: 'Pesada', valence: -1 },
+      { label: 'Cansada', valence: -1 },
+      { label: 'Tensa', valence: -1 },
+      { label: 'Dolorida', valence: -1 },
+      { label: 'Inquieta', valence: -1 },
+      { label: 'Desconfortável', valence: -1 },
+      { label: 'Esgotada', valence: -1 },
+      { label: 'Forte', valence: 1 },
+      { label: 'Com energia', valence: 1 },
+      { label: 'Alerta', valence: 1 },
+      { label: 'Leve', valence: 1 },
+      { label: 'Descansada', valence: 1 },
+      { label: 'Calma', valence: 1 },
+      { label: 'Relaxada', valence: 1 },
+      { label: 'Confortável', valence: 1 },
+    ],
   },
   {
     key: 'intelectual',
@@ -130,7 +155,24 @@ export const FIEE_DIMENSIONS: FieeDimension[] = [
     title: 'Intelectual',
     prompt: 'Como está a sua cabeça hoje?',
     color: activityColors.menta,
-    options: ['Distraída', 'Afiada', 'Curiosa', 'Bloqueada', 'Focada', 'Inspirada', 'Criativa', 'Sobrecarregada'],
+    words: [
+      { label: 'Acelerada', valence: -1 },
+      { label: 'Em branco', valence: -1 },
+      { label: 'Nublada', valence: -1 },
+      { label: 'Sobrecarregada', valence: -1 },
+      { label: 'Dispersa', valence: -1 },
+      { label: 'Travada', valence: -1 },
+      { label: 'Confusa', valence: -1 },
+      { label: 'Distraída', valence: -1 },
+      { label: 'Clara', valence: 1 },
+      { label: 'Afiada', valence: 1 },
+      { label: 'Envolvida', valence: 1 },
+      { label: 'Criativa', valence: 1 },
+      { label: 'Focada', valence: 1 },
+      { label: 'Inspirada', valence: 1 },
+      { label: 'Curiosa', valence: 1 },
+      { label: 'Confiante', valence: 1 },
+    ],
   },
   {
     key: 'emocional',
@@ -138,7 +180,24 @@ export const FIEE_DIMENSIONS: FieeDimension[] = [
     title: 'Emocional',
     prompt: 'Como você está se sentindo por dentro?',
     color: activityColors.ardosia,
-    options: ['Ansiosa', 'Frustrada', 'Satisfeita', 'Leve', 'Preocupada', 'Esperançosa', 'Grata', 'Alegre'],
+    words: [
+      { label: 'Triste', valence: -1 },
+      { label: 'Anestesiada', valence: -1 },
+      { label: 'Ansiosa', valence: -1 },
+      { label: 'Pesada', valence: -1 },
+      { label: 'Apática', valence: -1 },
+      { label: 'Preocupada', valence: -1 },
+      { label: 'Irritada', valence: -1 },
+      { label: 'Frustrada', valence: -1 },
+      { label: 'Animada', valence: 1 },
+      { label: 'Satisfeita', valence: 1 },
+      { label: 'Em paz', valence: 1 },
+      { label: 'Grata', valence: 1 },
+      { label: 'Esperançosa', valence: 1 },
+      { label: 'Estável', valence: 1 },
+      { label: 'Leve', valence: 1 },
+      { label: 'Alegre', valence: 1 },
+    ],
   },
   {
     key: 'social',
@@ -146,9 +205,46 @@ export const FIEE_DIMENSIONS: FieeDimension[] = [
     title: 'Social',
     prompt: 'Como você está com as pessoas ao seu redor?',
     color: activityColors.argila,
-    options: ['Solitária', 'Conectada', 'Presente', 'Distante', 'Valorizada', 'Isolada', 'Apoiada', 'Retraída'],
+    words: [
+      { label: 'Sem jeito', valence: -1 },
+      { label: 'Esgotada', valence: -1 },
+      { label: 'Sozinha', valence: -1 },
+      { label: 'Isolada', valence: -1 },
+      { label: 'Retraída', valence: -1 },
+      { label: 'Distante', valence: -1 },
+      { label: 'À parte', valence: -1 },
+      { label: 'Incompreendida', valence: -1 },
+      { label: 'Apoiada', valence: 1 },
+      { label: 'Conectada', valence: 1 },
+      { label: 'À vontade', valence: 1 },
+      { label: 'Valorizada', valence: 1 },
+      { label: 'Envolvida', valence: 1 },
+      { label: 'Vista', valence: 1 },
+      { label: 'Presente', valence: 1 },
+      { label: 'Pertencendo', valence: 1 },
+    ],
   },
 ];
+
+export function shuffleFieeChipSet(words: FieeWord[], size = 6): FieeWord[] {
+  const negative = words.filter((word) => word.valence < 0);
+  const positive = words.filter((word) => word.valence > 0);
+  const neutral = words.filter((word) => word.valence === 0);
+  const pool = [...negative, ...positive, ...neutral];
+  for (let i = pool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const half = Math.ceil(size / 2);
+  const pickedNeg = negative.sort(() => Math.random() - 0.5).slice(0, half);
+  const pickedPos = positive.sort(() => Math.random() - 0.5).slice(0, size - pickedNeg.length);
+  const mixed = [...pickedNeg, ...pickedPos];
+  for (let i = mixed.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [mixed[i], mixed[j]] = [mixed[j], mixed[i]];
+  }
+  return mixed.slice(0, size);
+}
 
 export const RELATION_TYPES = [
   'Parceria amorosa',

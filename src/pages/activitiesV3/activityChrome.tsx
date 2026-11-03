@@ -14,7 +14,7 @@ import {
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
-import { ArrowUp, ChevronLeft, MessageSquare, Mic, ThumbsDown, ThumbsUp, X } from 'lucide-react-native';
+import { ArrowUp, ChevronLeft, MessageSquare, Mic, X } from 'lucide-react-native';
 
 import { BudButton, BudIconButton } from '@/components/v3';
 import { useGenderedCopy } from '@/hooks/useGenderedCopy';
@@ -387,24 +387,63 @@ export function PreviousAnswerCard({
   question,
   answer,
   compact,
+  age = 0,
 }: {
   question: string;
   answer: string;
   compact?: boolean;
+  /** 0 = most recent previous answer; higher = older */
+  age?: number;
 }) {
   const colors = useV3Colors();
+  const opacity = Math.max(0.42, 1 - age * 0.14);
+  const scale = Math.max(0.92, 1 - age * 0.02);
   return (
     <View
       style={[
         styles.answerCard,
-        { backgroundColor: colors.surface, paddingVertical: compact ? 14 : 16 },
+        {
+          backgroundColor: colors.surface,
+          paddingVertical: compact ? 10 : 14,
+          opacity,
+          transform: [{ scale }],
+        },
       ]}
     >
-      <Text style={[styles.answerCardQuestion, { color: colors.text3 }]}>{question}</Text>
-      <Text style={[styles.answerCardAnswer, { color: colors.text }]}>{answer}</Text>
+      <Text
+        style={[
+          styles.answerCardQuestion,
+          { color: colors.text3, fontSize: compact ? 12 : 13, lineHeight: compact ? 16 : 18 },
+        ]}
+        numberOfLines={compact ? 1 : 2}
+      >
+        {question}
+      </Text>
+      <Text
+        style={[
+          styles.answerCardAnswer,
+          {
+            color: colors.text,
+            fontSize: compact ? 14 : 16,
+            lineHeight: compact ? 20 : 23,
+            paddingTop: compact ? 4 : 6,
+          },
+        ]}
+        numberOfLines={compact ? 2 : undefined}
+      >
+        {answer}
+      </Text>
     </View>
   );
 }
+
+export const ACTIVITY_FEEDBACK_OPTIONS = [
+  { label: 'Não muito', value: -1 },
+  { label: 'Faz sentido', value: 1 },
+  { label: 'Muito', value: 2 },
+] as const;
+
+export type ActivityFeedbackValue = (typeof ACTIVITY_FEEDBACK_OPTIONS)[number]['value'];
 
 export function ActivityResult({
   mist,
@@ -417,6 +456,8 @@ export function ActivityResult({
   onBack,
   onTalk,
   talking,
+  feedback,
+  onFeedback,
 }: {
   mist: ImageSourcePropType;
   giz: ImageSourcePropType;
@@ -428,6 +469,8 @@ export function ActivityResult({
   onBack: () => void | Promise<void>;
   onTalk: (prompt: string) => void;
   talking?: boolean;
+  feedback?: ActivityFeedbackValue | null;
+  onFeedback?: (value: ActivityFeedbackValue) => void;
 }) {
   const colors = useV3Colors();
   const insets = useSafeAreaInsets();
@@ -435,7 +478,10 @@ export function ActivityResult({
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 28) + 24 }}
+      >
         <View style={styles.hero}>
           <Image source={mist} style={StyleSheet.absoluteFill} resizeMode="cover" />
           <View style={styles.heroGizWrap} pointerEvents="none">
@@ -453,6 +499,43 @@ export function ActivityResult({
             {sectionLabel}
           </Text>
           {children}
+          <View style={{ paddingTop: 40 }}>
+            <Text style={[styles.kicker, { color: colors.text3, textAlign: 'left' }]}>
+              Isso faz sentido pra você?
+            </Text>
+            <View style={styles.feedbackRow}>
+              {ACTIVITY_FEEDBACK_OPTIONS.map((option) => {
+                const selected = feedback === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => onFeedback?.(option.value)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={option.label}
+                    style={[
+                      styles.feedbackChip,
+                      {
+                        borderColor: selected ? colors.accent : colors.line,
+                        backgroundColor: selected ? colors.surface : 'transparent',
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: fonts.sansMedium,
+                        fontSize: 15,
+                        lineHeight: 20,
+                        color: selected ? colors.accent : colors.text,
+                      }}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
           <View style={{ paddingTop: 40 }}>
             <AccentTitle
               before="Quer ir mais "
@@ -484,19 +567,6 @@ export function ActivityResult({
               loading={talking}
               onPress={() => onTalk(g(followUps[0]))}
             />
-          </View>
-        </View>
-        <View
-          style={[
-            styles.rateFooter,
-            { backgroundColor: colors.surface, paddingBottom: Math.max(insets.bottom, 28) },
-          ]}
-        >
-          <Text style={[styles.kicker, { color: colors.text3 }]}>O que achou desta atividade?</Text>
-          <View style={styles.rateRow}>
-            <BudIconButton icon={ThumbsDown} accessibilityLabel="Não gostei" onPress={onBack} />
-            <BudIconButton icon={X} accessibilityLabel="Mais ou menos" onPress={onBack} />
-            <BudIconButton icon={ThumbsUp} accessibilityLabel="Gostei" onPress={onBack} />
           </View>
         </View>
       </ScrollView>
@@ -682,16 +752,17 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 25,
   },
-  rateFooter: {
-    marginTop: 34,
-    paddingTop: 28,
-    paddingHorizontal: 28,
-  },
-  rateRow: {
+  feedbackRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 18,
-    paddingTop: 18,
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingTop: 16,
+  },
+  feedbackChip: {
+    borderWidth: 1,
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   entryLabel: {
     fontFamily: fonts.sans,

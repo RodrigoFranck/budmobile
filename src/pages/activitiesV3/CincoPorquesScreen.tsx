@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   KeyboardAvoidingView,
@@ -13,7 +13,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Reanimated, {
   Easing,
   cancelAnimation,
-  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -21,6 +20,7 @@ import Reanimated, {
 } from 'react-native-reanimated';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserProfile } from '@/hooks/useUserProfile';
 import {
   ACTIVITY_FOLLOWUPS,
   ACTIVITY_INTROS,
@@ -31,14 +31,22 @@ import {
   ActivityFlowHeader,
   ActivityIntro,
   ActivityKicker,
+  ActivityOptionRow,
   ActivityPrompt,
   ActivityResult,
   LayerGlow,
   PreviousAnswerCard,
   ResultEntry,
+  type ActivityFeedbackValue,
 } from '@/pages/activitiesV3/activityChrome';
 import { activityEasing } from '@/pages/activitiesV3/activityMotion';
 import { createActivityPersister } from '@/pages/activitiesV3/persistActivity';
+import {
+  generateActivitySynthesis,
+  generatePorquesQuestion,
+  type ActivitySynthesis,
+  type PorquesPair,
+} from '@/services/activityGeneration';
 import { activityColors, fonts, motion, useV3Asset, useV3Colors } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
 import { navigateToChatTab } from '@/utils/navigateToChat';
@@ -51,37 +59,37 @@ const LAYER_GLOW_COLORS = [
   activityColors.agua,
   activityColors.pinho,
 ];
-const LOADING_MS = 2200;
-const ORB_SIZE = 140;
-const ORB_SPIN_MS = 4800;
-const ORB_PULSE_MS = 1600;
+const GIZ_SIZE = 140;
+const GIZ_SPIN_MS = 4800;
+const FIXED_FIRST = CINCO_PORQUES[0];
 
-function CincoPorquesLoadingOrb({ source }: { source: ImageSourcePropType }) {
+function contentWordCount(text: string) {
+  return text
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word.replace(/[^\p{L}\p{N}]/gu, '').length > 0).length;
+}
+
+function isVagueAnswer(text: string) {
+  const trimmed = text.trim().toLowerCase();
+  if (contentWordCount(trimmed) < 4) return true;
+  return /^(n[aã]o sei|n sei|sei l[aá]|como assim|nada|sei l[aá]\.?)$/i.test(trimmed);
+}
+
+function LoadingGiz({ source }: { source: ImageSourcePropType }) {
   const spin = useSharedValue(0);
-  const pulse = useSharedValue(0);
 
   useEffect(() => {
     spin.value = withRepeat(
-      withTiming(360, { duration: ORB_SPIN_MS, easing: Easing.linear }),
+      withTiming(360, { duration: GIZ_SPIN_MS, easing: Easing.linear }),
       -1,
       false,
     );
-    pulse.value = withRepeat(
-      withTiming(1, { duration: ORB_PULSE_MS, easing: activityEasing.gentle }),
-      -1,
-      true,
-    );
-    return () => {
-      cancelAnimation(spin);
-      cancelAnimation(pulse);
-    };
-  }, [pulse, spin]);
+    return () => cancelAnimation(spin);
+  }, [spin]);
 
   const style = useAnimatedStyle(() => ({
-    transform: [
-      { rotate: `${spin.value}deg` },
-      { scale: interpolate(pulse.value, [0, 1], [1, 1.06]) },
-    ],
+    transform: [{ rotate: `${spin.value}deg` }],
   }));
 
   return (
@@ -89,8 +97,8 @@ function CincoPorquesLoadingOrb({ source }: { source: ImageSourcePropType }) {
       source={source}
       accessibilityElementsHidden
       importantForAccessibility="no"
-      style={[{ width: ORB_SIZE, height: ORB_SIZE }, style]}
-      resizeMode="cover"
+      style={[{ width: GIZ_SIZE, height: GIZ_SIZE }, style]}
+      resizeMode="contain"
     />
   );
 }
@@ -101,18 +109,28 @@ export default function CincoPorquesScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainTabNavigationProp>();
   const { user } = useAuth();
+  const { profile } = useUserProfile();
   const [index, setIndex] = useState(-1);
   const [draft, setDraft] = useState('');
-  const [answers, setAnswers] = useState<string[]>([]);
+  const [pairs, setPairs] = useState<PorquesPair[]>([]);
+  const [currentQuestion, setCurrentQuestion] = useState(FIXED_FIRST.title);
+  const [helpOptions, setHelpOptions] = useState<[string, string] | null>(null);
+  const [generatingQuestion, setGeneratingQuestion] = useState(false);
+  const [helpUsed, setHelpUsed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showResult, setShowResult] = useState(false);
+  const [synthesis, setSynthesis] = useState<ActivitySynthesis | null>(null);
+  const [synthesisFailed, setSynthesisFailed] = useState(false);
+  const [feedback, setFeedback] = useState<ActivityFeedbackValue | null>(null);
   const fade = useRef(new Animated.Value(1)).current;
+  const stackRef = useRef<ScrollView>(null);
   const saveActivity = useRef(createActivityPersister()).current;
   const intro = ACTIVITY_INTROS.cinco_porques;
-  const step = index >= 0 && index < CINCO_PORQUES.length ? CINCO_PORQUES[index] : null;
   const done = index >= CINCO_PORQUES.length;
   const loading = done && !showResult;
-  const glowCount = Math.min((loading ? CINCO_PORQUES.length : answers.length) + 1, LAYER_GLOW_TOPS.length);
+  const glowCount = Math.min((loading ? CINCO_PORQUES.length : pairs.length) + 1, LAYER_GLOW_TOPS.length);
+  const layerLabel =
+    index <= 0 ? FIXED_FIRST.kicker : `Camada ${Math.min(index + 1, 5)} de 5`;
 
   useEffect(() => {
     fade.setValue(0);
@@ -121,55 +139,172 @@ export default function CincoPorquesScreen() {
       duration: motion.questionStepMs,
       useNativeDriver: true,
     }).start();
-  }, [fade, index]);
+  }, [fade, index, currentQuestion]);
+
+  const buildAnswersPayload = useCallback(
+    (nextPairs = pairs) => ({
+      tema_inicial: nextPairs[0]?.resposta ?? '',
+      pares: nextPairs,
+      feedback: feedback ?? undefined,
+    }),
+    [feedback, pairs],
+  );
+
+  const persistOnce = useCallback(
+    async (nextPairs = pairs, nextSynthesis = synthesis) => {
+      if (!user?.id) return;
+      const resultText =
+        nextSynthesis?.titulo ??
+        nextPairs.map((pair) => pair.resposta).filter(Boolean).join(' · ');
+      await saveActivity({
+        userId: user.id,
+        activityId: 'cinco_porques',
+        answers: buildAnswersPayload(nextPairs),
+        resultText,
+        feedback,
+      });
+    },
+    [buildAnswersPayload, pairs, saveActivity, synthesis, user?.id],
+  );
+
+  const loadSynthesis = useCallback(
+    async (nextPairs: PorquesPair[]) => {
+      setSynthesisFailed(false);
+      const generated = await generateActivitySynthesis({
+        activityId: 'cinco_porques',
+        answers: {
+          tema_inicial: nextPairs[0]?.resposta ?? '',
+          pares: nextPairs,
+        },
+        userName: profile?.name,
+      });
+      if (!generated) {
+        setSynthesisFailed(true);
+        setShowResult(true);
+        return;
+      }
+      setSynthesis(generated);
+      setShowResult(true);
+      if (user?.id) {
+        void persistOnce(nextPairs, generated);
+      }
+    },
+    [persistOnce, profile?.name, user?.id],
+  );
 
   useEffect(() => {
     if (!done) {
       setShowResult(false);
       return;
     }
-    const timer = setTimeout(() => setShowResult(true), LOADING_MS);
-    return () => clearTimeout(timer);
-  }, [done]);
+    void loadSynthesis(pairs);
+  }, [done]); // eslint-disable-line react-hooks/exhaustive-deps -- run once when layers complete
 
-  const submit = () => {
-    const trimmed = draft.trim();
-    if (!trimmed || !step) return;
-    const next = [...answers, trimmed];
-    setAnswers(next);
-    setDraft('');
-    setIndex((current) => current + 1);
-    if (next.length >= CINCO_PORQUES.length && user?.id) {
-      void saveActivity({
-        userId: user.id,
-        activityId: 'cinco_porques',
-        answers: Object.fromEntries(next.map((value, i) => [`p${i + 1}`, value])),
-        resultText: next.join(' · '),
-      });
+  const requestNextQuestion = async (
+    nextPairs: PorquesPair[],
+    camada: number,
+    help?: { respostaAtual: string },
+  ) => {
+    setGeneratingQuestion(true);
+    setCurrentQuestion('…');
+    setHelpOptions(null);
+    const result = await generatePorquesQuestion({
+      tema_inicial: nextPairs[0]?.resposta ?? '',
+      pares: nextPairs,
+      camada,
+      resposta_atual: help?.respostaAtual,
+      pedir_ajuda: Boolean(help),
+    });
+    setGeneratingQuestion(false);
+    if (result?.risco) {
+      navigation.goBack();
+      return;
+    }
+    if (result?.pergunta) {
+      setCurrentQuestion(result.pergunta);
+      if (help || result.mesma_camada) {
+        setHelpUsed(true);
+        setHelpOptions(result.opcoes ?? null);
+      } else {
+        setHelpUsed(false);
+        setHelpOptions(null);
+      }
+      return;
+    }
+    const fallback = help
+      ? 'O que pesa mais nisso no seu dia a dia agora?'
+      : CINCO_PORQUES[Math.min(camada, CINCO_PORQUES.length - 1)]?.title;
+    setCurrentQuestion(fallback || 'O que isso muda no seu cotidiano?');
+    if (help) {
+      setHelpUsed(true);
+      setHelpOptions(null);
+    } else {
+      setHelpUsed(false);
+      setHelpOptions(null);
     }
   };
 
+  const advanceWithAnswer = (answer: string) => {
+    const trimmed = answer.trim();
+    if (!trimmed || generatingQuestion || !currentQuestion || currentQuestion === '…') {
+      return;
+    }
+
+    if (index > 0 && isVagueAnswer(trimmed) && !helpUsed) {
+      setHelpUsed(true);
+      setDraft('');
+      setHelpOptions(null);
+      void requestNextQuestion(pairs, index + 1, { respostaAtual: trimmed });
+      return;
+    }
+
+    const nextPairs = [...pairs, { pergunta: currentQuestion, resposta: trimmed }];
+    setPairs(nextPairs);
+    setDraft('');
+    setHelpOptions(null);
+    const nextIndex = index + 1;
+    setIndex(nextIndex);
+    setHelpUsed(false);
+
+    if (nextIndex >= CINCO_PORQUES.length) {
+      return;
+    }
+    void requestNextQuestion(nextPairs, nextIndex + 1);
+  };
+
+  const submit = () => {
+    const trimmed = draft.trim();
+    if (trimmed.length < 3) return;
+    advanceWithAnswer(trimmed);
+  };
+
+  const chooseHelpOption = (option: string) => {
+    advanceWithAnswer(option);
+  };
+
   const goToPrevious = () => {
-    if (index <= 0) return;
-    const previous = answers[answers.length - 1] ?? '';
-    setAnswers((current) => current.slice(0, -1));
-    setDraft(previous);
+    if (index <= 0 || generatingQuestion) return;
+    const previous = pairs[pairs.length - 1];
+    const nextPairs = pairs.slice(0, -1);
+    setPairs(nextPairs);
+    setDraft(previous?.resposta ?? '');
+    setCurrentQuestion(previous?.pergunta ?? FIXED_FIRST.title);
+    setHelpOptions(null);
     setIndex((current) => current - 1);
+    setHelpUsed(false);
   };
 
-  const first = answers[0] ?? '';
-  const last = answers[answers.length - 1] ?? '';
-  const resultText = answers.join(' · ');
-
-  const persistOnce = async () => {
-    if (!user?.id) return;
-    await saveActivity({
-      userId: user.id,
-      activityId: 'cinco_porques',
-      answers: Object.fromEntries(answers.map((value, i) => [`p${i + 1}`, value])),
-      resultText,
-    });
-  };
+  const first = pairs[0]?.resposta ?? '';
+  const last = pairs[pairs.length - 1]?.resposta ?? '';
+  const followUps = synthesis?.perguntas_mais_fundo ?? ACTIVITY_FOLLOWUPS.cinco_porques;
+  const insight =
+    synthesis?.titulo ??
+    (last || 'Você chegou mais fundo do que a primeira resposta');
+  const body =
+    synthesis?.paragrafo ??
+    (first && last
+      ? `Você saiu de "${first}" e chegou em "${last}". Guarde isso — não precisa resolver agora.`
+      : 'Você chegou até o fim. Isso já é um movimento.');
 
   const talk = async (prompt: string) => {
     setSaving(true);
@@ -178,10 +313,14 @@ export default function CincoPorquesScreen() {
     navigateToChatTab(navigation, {
       chatInsight: {
         insightType: 'activity_cinco_porques',
-        title: last || 'Cinco Porquês',
-        contextSummary: resultText,
-        internalContext: resultText,
+        title: synthesis?.titulo || last || 'Cinco Porquês',
+        contextSummary: body,
+        internalContext: pairs.map((pair) => `${pair.pergunta}\n${pair.resposta}`).join('\n\n'),
         initialUserMessage: prompt,
+        contextVariant: 'activity',
+        activityType: 'cinco_porques',
+        badge: 'Cinco Porquês · Resultado',
+        cardDescription: body,
       },
     });
   };
@@ -193,7 +332,10 @@ export default function CincoPorquesScreen() {
         mist={assets.mistPorques}
         giz={assets.cincoPorquesGiz}
         onBack={() => navigation.goBack()}
-        onStart={() => setIndex(0)}
+        onStart={() => {
+          setIndex(0);
+          setCurrentQuestion(FIXED_FIRST.title);
+        }}
       />
     );
   }
@@ -203,14 +345,19 @@ export default function CincoPorquesScreen() {
       <ActivityResult
         mist={assets.mistPorques}
         giz={assets.cincoPorquesGiz}
-        insight={last || 'Você chegou mais fundo do que a primeira resposta'}
+        insight={insight}
         body={
-          first && last
-            ? `Você saiu de "${first}" e chegou em "${last}". Guarde isso — não precisa resolver agora.`
-            : 'Você chegou até o fim. Isso já é um movimento.'
+          synthesisFailed
+            ? 'Não consegui juntar agora. Suas respostas estão salvas — você pode tentar de novo.'
+            : body
         }
         sectionLabel="Seus cinco porquês"
-        followUps={ACTIVITY_FOLLOWUPS.cinco_porques}
+        followUps={[...followUps]}
+        feedback={feedback}
+        onFeedback={(value) => {
+          setFeedback(value);
+          void persistOnce(pairs, synthesis);
+        }}
         onBack={async () => {
           await persistOnce();
           navigation.goBack();
@@ -218,19 +365,32 @@ export default function CincoPorquesScreen() {
         onTalk={talk}
         talking={saving}
       >
-        {CINCO_PORQUES.map((item, i) =>
-          answers[i] ? (
-            <ResultEntry
-              key={item.key}
-              label={i === 0 ? 'Pensamento inicial' : item.title}
-              value={answers[i]}
-              colors={colors}
-            />
-          ) : null,
-        )}
+        {synthesisFailed ? (
+          <View style={{ paddingTop: 18 }}>
+            <Text
+              onPress={() => {
+                setShowResult(false);
+                void loadSynthesis(pairs);
+              }}
+              style={{ fontFamily: fonts.sansSemi, fontSize: 16, color: colors.accent }}
+            >
+              Tentar de novo
+            </Text>
+          </View>
+        ) : null}
+        {pairs.map((pair, i) => (
+          <ResultEntry
+            key={`${pair.pergunta}-${i}`}
+            label={i === 0 ? 'Pensamento inicial' : pair.pergunta}
+            value={pair.resposta}
+            colors={colors}
+          />
+        ))}
       </ActivityResult>
     );
   }
+
+  const stackCards = [...pairs].reverse();
 
   return (
     <KeyboardAvoidingView
@@ -242,7 +402,7 @@ export default function CincoPorquesScreen() {
       ))}
       <ActivityFlowHeader
         title="Cinco Porquês"
-        onBack={index > 0 && !loading ? goToPrevious : undefined}
+        onBack={index > 0 && !loading && !generatingQuestion ? goToPrevious : undefined}
         onClose={() => navigation.goBack()}
       />
       {loading ? (
@@ -252,11 +412,15 @@ export default function CincoPorquesScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, gap: 12, paddingBottom: 16 }}
           >
-            {CINCO_PORQUES.map((item, i) =>
-              answers[i] ? (
-                <PreviousAnswerCard key={item.key} question={item.title} answer={answers[i]} compact />
-              ) : null,
-            )}
+            {pairs.map((pair, i) => (
+              <PreviousAnswerCard
+                key={`${pair.pergunta}-load-${i}`}
+                question={i === 0 ? FIXED_FIRST.title : pair.pergunta}
+                answer={pair.resposta}
+                compact
+                age={pairs.length - 1 - i}
+              />
+            ))}
           </ScrollView>
           <View
             style={{
@@ -264,7 +428,7 @@ export default function CincoPorquesScreen() {
               paddingBottom: Math.max(insets.bottom, 24),
             }}
           >
-            <CincoPorquesLoadingOrb source={assets.cincoPorquesLoadingOrb} />
+            <LoadingGiz source={assets.cincoPorquesGiz} />
             <Text
               style={{
                 fontFamily: fonts.sansMedium,
@@ -282,27 +446,46 @@ export default function CincoPorquesScreen() {
         <>
           <Animated.View style={{ flex: 1, opacity: fade }}>
             <ScrollView
+              ref={stackRef}
               style={{ flex: 1 }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
+              onContentSizeChange={() => stackRef.current?.scrollToEnd({ animated: true })}
+              contentContainerStyle={{ flexGrow: 1, paddingBottom: 16 }}
             >
-              {answers.length ? (
-                <View style={{ paddingHorizontal: 20, paddingTop: 16, gap: 12 }}>
-                  {answers.map((answer, i) => (
-                    <PreviousAnswerCard
-                      key={`${CINCO_PORQUES[i].key}-prev`}
-                      question={CINCO_PORQUES[i].title}
-                      answer={answer}
-                    />
-                  ))}
+              {stackCards.length ? (
+                <View style={{ paddingHorizontal: 20, paddingTop: 16, gap: 10 }}>
+                  {stackCards.map((pair, reversedIndex) => {
+                    const age = reversedIndex;
+                    const originalIndex = pairs.length - 1 - reversedIndex;
+                    return (
+                      <PreviousAnswerCard
+                        key={`${pair.pergunta}-prev-${originalIndex}`}
+                        question={originalIndex === 0 ? FIXED_FIRST.title : pair.pergunta}
+                        answer={pair.resposta}
+                        compact={age > 0}
+                        age={age}
+                      />
+                    );
+                  })}
                 </View>
               ) : null}
-              <View style={{ paddingTop: answers.length ? 40 : 32 }}>
-                <ActivityKicker label={step?.kicker ?? ''} />
+              <View style={{ paddingTop: pairs.length ? 28 : 32, paddingBottom: 12 }}>
+                <ActivityKicker label={layerLabel} />
                 <View style={{ paddingHorizontal: 36, paddingTop: 28 }}>
-                  <ActivityPrompt>{step?.title ?? ''}</ActivityPrompt>
+                  <ActivityPrompt>{currentQuestion}</ActivityPrompt>
                 </View>
+                {helpOptions ? (
+                  <View style={{ gap: 10, paddingHorizontal: 20, paddingTop: 28 }}>
+                    {helpOptions.map((option) => (
+                      <ActivityOptionRow
+                        key={option}
+                        label={option}
+                        onPress={() => chooseHelpOption(option)}
+                      />
+                    ))}
+                  </View>
+                ) : null}
               </View>
             </ScrollView>
           </Animated.View>
@@ -310,7 +493,8 @@ export default function CincoPorquesScreen() {
             value={draft}
             onChangeText={setDraft}
             onSend={submit}
-            placeholder={step?.placeholder}
+            placeholder="Escreva aqui…"
+            disabled={generatingQuestion}
           />
         </>
       )}

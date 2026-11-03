@@ -10,7 +10,6 @@ export type Capability =
 const B2C_ONLY: ReadonlySet<Capability> = new Set(['paywall', 'referral']);
 
 const INSTITUTION_ONLY: ReadonlySet<Capability> = new Set([
-  'health_survey',
   'clinical_screenings',
   'unlimited_chat',
 ]);

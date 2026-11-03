@@ -95,6 +95,23 @@ const FORMS: GenderedForm[] = [
   form('Focada', 'Focado'),
   form('Quieta', 'Quieto'),
   form('Cheia', 'Cheio'),
+  form('Desconfortável', 'Desconfortável'),
+  form('Confortável', 'Confortável'),
+  form('Travada', 'Travado'),
+  form('Clara', 'Claro'),
+  form('Envolvida', 'Envolvido'),
+  form('Confiante', 'Confiante'),
+  form('Animada', 'Animado'),
+  form('Estável', 'Estável'),
+  form('Incompreendida', 'Incompreendido'),
+  form('Vista', 'Visto'),
+  form('Sobrecarregada', 'Sobrecarregado'),
+  form('Alegre', 'Alegre'),
+  form('Forte', 'Forte'),
+  form('Alerta', 'Alerta'),
+  form('Triste', 'Triste'),
+  form('Distante', 'Distante'),
+  form('Presente', 'Presente'),
 ].sort((a, b) => {
   const len = (item: GenderedForm) =>
     Math.max(item.feminine.length, item.masculine.length, item.neutral.length);

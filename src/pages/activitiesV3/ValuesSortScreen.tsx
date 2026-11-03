@@ -14,6 +14,8 @@ import { useNavigation } from '@react-navigation/native';
 import { BudChip } from '@/components/v3';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGenderedCopy } from '@/hooks/useGenderedCopy';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { useV3Preferences } from '@/hooks/useV3Preferences';
 import {
   ACTIVITY_FOLLOWUPS,
   ACTIVITY_INTROS,
@@ -26,12 +28,34 @@ import {
   ActivityFlowHeader,
   ActivityIntro,
   ActivityResult,
+  type ActivityFeedbackValue,
 } from '@/pages/activitiesV3/activityChrome';
 import { activityEasing, activityMotion } from '@/pages/activitiesV3/activityMotion';
 import { createActivityPersister } from '@/pages/activitiesV3/persistActivity';
+import {
+  generateActivitySynthesis,
+  generateValoresCards,
+  type ActivitySynthesis,
+} from '@/services/activityGeneration';
 import { activityColors, fonts, useV3Asset, useV3Colors, type V3Colors } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
 import { navigateToChatTab } from '@/utils/navigateToChat';
+
+function shuffleDeck(cards: ValueCard[]) {
+  const next = [...cards];
+  for (let i = next.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [next[i], next[j]] = [next[j], next[i]];
+  }
+  // Generated cards must not occupy the first two slots.
+  const fixedLead = next.filter((card) => card.origem !== 'ia').slice(0, 2);
+  const rest = next.filter((card) => !fixedLead.includes(card));
+  for (let i = rest.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [rest[i], rest[j]] = [rest[j], rest[i]];
+  }
+  return [...fixedLead, ...rest];
+}
 
 const CARD_W = 324;
 const CARD_H = 440;
@@ -46,18 +70,25 @@ export default function ValuesSortScreen() {
   const assets = useV3Asset();
   const navigation = useNavigation<MainTabNavigationProp>();
   const { user } = useAuth();
+  const { profile } = useUserProfile();
+  const { values: preferences } = useV3Preferences();
   const intro = ACTIVITY_INTROS.ordenacao_valores;
   const [started, setStarted] = useState(false);
   const [showHelp, setShowHelp] = useState(true);
   const [pendingPile, setPendingPile] = useState<LeavePile | null>(null);
-  const [deck, setDeck] = useState<ValueCard[]>(VALUE_CARDS);
+  const [deck, setDeck] = useState<ValueCard[]>(() => shuffleDeck(VALUE_CARDS.map((card) => ({ ...card, origem: 'fixa' as const }))));
   const [piles, setPiles] = useState<Record<ValuePileKey, string[]>>({
     muito: [],
     mais: [],
     menos: [],
   });
   const [saving, setSaving] = useState(false);
+  const [synthesis, setSynthesis] = useState<ActivitySynthesis | null>(null);
+  const [synthesisFailed, setSynthesisFailed] = useState(false);
+  const [feedback, setFeedback] = useState<ActivityFeedbackValue | null>(null);
+  const [loadingSynthesis, setLoadingSynthesis] = useState(false);
   const saveActivity = useRef(createActivityPersister()).current;
+  const deckPrepared = useRef(false);
   const flying = pendingPile !== null;
   const current = showHelp ? null : deck[0];
   const currentRef = useRef(current);
@@ -165,29 +196,68 @@ export default function ValuesSortScreen() {
     [beginFly, busy, endFly, flyX, flyY, followFly, showHelp, x, y],
   );
 
-  const remaining = showHelp ? VALUE_CARDS.length : deck.length;
+  const remaining = showHelp ? deck.length : deck.length;
   const done = started && !showHelp && !current && !flying;
   const result = VALUE_PILES.map((pile) => `${pile.label}: ${piles[pile.key].join(', ') || '—'}`).join(
     ' · ',
   );
+  const followUps = synthesis?.perguntas_mais_fundo ?? ACTIVITY_FOLLOWUPS.ordenacao_valores;
 
-  const persistOnce = async () => {
+  const persistOnce = async (nextSynthesis = synthesis) => {
     if (!user?.id) return;
     await saveActivity({
       userId: user.id,
       activityId: 'ordenacao_valores',
       answers: {
-        muito: piles.muito.join(','),
-        mais: piles.mais.join(','),
-        menos: piles.menos.join(','),
+        muito: piles.muito,
+        mais: piles.mais,
+        menos: piles.menos,
       },
-      resultText: result,
+      resultText: nextSynthesis?.titulo ?? result,
+      feedback,
     });
   };
 
   useEffect(() => {
-    if (done) void persistOnce();
-  }, [done]);
+    if (!started || deckPrepared.current) return;
+    deckPrepared.current = true;
+    void (async () => {
+      const generated = await generateValoresCards({
+        contexto: {
+          foco: preferences?.focus ?? profile?.conversation_goal ?? null,
+          o_que_pesa: preferences?.weight?.length
+            ? preferences.weight
+            : preferences?.mood ?? profile?.initial_thoughts ?? null,
+          memoria: null,
+        },
+      });
+      if (!generated.length) return;
+      setDeck((current) =>
+        shuffleDeck([
+          ...current.map((card) => ({ ...card, origem: card.origem ?? 'fixa' })),
+          ...generated.map((card) => ({ title: card.title, body: card.body, origem: 'ia' as const })),
+        ]),
+      );
+    })();
+  }, [preferences?.focus, preferences?.mood, profile?.conversation_goal, profile?.initial_thoughts, started]);
+
+  useEffect(() => {
+    if (!done || loadingSynthesis || synthesis || synthesisFailed) return;
+    setLoadingSynthesis(true);
+    void (async () => {
+      const generated = await generateActivitySynthesis({
+        activityId: 'ordenacao_valores',
+        answers: { muito: piles.muito, mais: piles.mais, menos: piles.menos },
+        userName: profile?.name,
+      });
+      if (!generated) setSynthesisFailed(true);
+      else {
+        setSynthesis(generated);
+        void persistOnce(generated);
+      }
+      setLoadingSynthesis(false);
+    })();
+  }, [done]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const talk = async (prompt: string) => {
     setSaving(true);
@@ -196,10 +266,14 @@ export default function ValuesSortScreen() {
     navigateToChatTab(navigation, {
       chatInsight: {
         insightType: 'activity_ordenacao_valores',
-        title: piles.muito.slice(0, 3).join(', ') || 'Valores',
-        contextSummary: result,
+        title: synthesis?.titulo || piles.muito.slice(0, 3).join(', ') || 'Valores',
+        contextSummary: synthesis?.paragrafo || result,
         internalContext: result,
         initialUserMessage: prompt,
+        contextVariant: 'activity',
+        activityType: 'valores',
+        badge: 'Valores · Resultado',
+        cardDescription: synthesis?.paragrafo || result,
       },
     });
   };
@@ -241,19 +315,38 @@ export default function ValuesSortScreen() {
     );
   }
 
+  if (done && !synthesis && !synthesisFailed) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <Image source={assets.valoresGiz} style={{ width: 140, height: 140 }} resizeMode="contain" />
+        <Text style={{ fontFamily: fonts.sansMedium, fontSize: 15, color: colors.text3, paddingTop: 12 }}>
+          Juntando as suas respostas…
+        </Text>
+      </View>
+    );
+  }
+
   if (done) {
     return (
       <ActivityResult
         mist={assets.valoresMist}
         giz={assets.valoresGiz}
-        insight="O que importa já está aí. Falta espaço"
+        insight={synthesis?.titulo || 'O que importa já está aí. Falta espaço'}
         body={
-          piles.muito.length
-            ? `${piles.muito.join(', ')} são o seu chão. E o que está no "mais" pede lugar na semana.`
-            : 'Você olhou para os valores. Guarde o que apareceu no muito e no mais.'
+          synthesisFailed
+            ? 'Não consegui juntar agora. Suas respostas estão salvas — você pode tentar de novo.'
+            : synthesis?.paragrafo ||
+              (piles.muito.length
+                ? `${piles.muito.join(', ')} são o seu chão. E o que está no "mais" pede lugar na semana.`
+                : 'Você olhou para os valores. Guarde o que apareceu no muito e no mais.')
         }
         sectionLabel="Seus valores agora"
-        followUps={ACTIVITY_FOLLOWUPS.ordenacao_valores}
+        followUps={[...followUps]}
+        feedback={feedback}
+        onFeedback={(value) => {
+          setFeedback(value);
+          void persistOnce();
+        }}
         onBack={async () => {
           await persistOnce();
           navigation.goBack();

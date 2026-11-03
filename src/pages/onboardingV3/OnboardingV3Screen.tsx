@@ -17,7 +17,8 @@ import {
 } from 'react-native';
 import { Audio } from 'expo-av';
 import { useNavigation } from '@react-navigation/native';
-import { ChevronLeft, List } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { ChevronLeft } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Extrapolation,
@@ -192,30 +193,143 @@ function SelectRow({
   );
 }
 
+const AGE_ROW_HEIGHT = 60;
+
+function AgeWheelPicker({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: string[] | readonly string[];
+  onChange: (next: string) => void;
+}) {
+  const colors = useV3Colors();
+  const listRef = useRef<ScrollView>(null);
+  const lastIndexRef = useRef(-1);
+  const selectedIndex = Math.max(0, options.indexOf(value));
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      listRef.current?.scrollTo({ y: selectedIndex * AGE_ROW_HEIGHT, animated: false });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  const selectIndex = (nextIndex: number, haptic: boolean) => {
+    const clamped = Math.min(options.length - 1, Math.max(0, nextIndex));
+    const next = options[clamped];
+    if (!next) return;
+    if (clamped !== lastIndexRef.current) {
+      lastIndexRef.current = clamped;
+      if (haptic) void Haptics.selectionAsync();
+    }
+    if (next !== value) onChange(next);
+  };
+
+  return (
+    <ScrollView
+      ref={listRef}
+      style={styles.ageList}
+      contentContainerStyle={[styles.ageContent, { paddingVertical: AGE_ROW_HEIGHT * 2 }]}
+      showsVerticalScrollIndicator={false}
+      snapToInterval={AGE_ROW_HEIGHT}
+      decelerationRate="fast"
+      disableIntervalMomentum
+      onScroll={(event) => {
+        const nextIndex = Math.round(event.nativeEvent.contentOffset.y / AGE_ROW_HEIGHT);
+        selectIndex(nextIndex, true);
+      }}
+      onMomentumScrollEnd={(event) => {
+        const nextIndex = Math.round(event.nativeEvent.contentOffset.y / AGE_ROW_HEIGHT);
+        selectIndex(nextIndex, true);
+      }}
+      scrollEventThrottle={16}
+    >
+      {options.map((option, optionIndex) => {
+        const distance = Math.abs(optionIndex - selectedIndex);
+        const isSelected = option === value;
+        return (
+          <Pressable
+            key={option}
+            onPress={() => {
+              listRef.current?.scrollTo({ y: optionIndex * AGE_ROW_HEIGHT, animated: true });
+              selectIndex(optionIndex, true);
+            }}
+            style={[
+              styles.ageRow,
+              isSelected ? { backgroundColor: colors.surface2 } : null,
+              distance >= 2 ? { opacity: 0.5 } : null,
+            ]}
+          >
+            <Text
+              style={{
+                fontFamily: fonts.sansSemi,
+                fontSize: isSelected ? 22 : 18,
+                lineHeight: isSelected ? 22 : 18,
+                color: isSelected ? colors.text : colors.text3,
+              }}
+            >
+              {option}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
 function BudToggle({ value, onValueChange }: { value: boolean; onValueChange: (next: boolean) => void }) {
   const colors = useV3Colors();
+  const progress = useSharedValue(value ? 1 : 0);
+
+  useEffect(() => {
+    progress.value = withTiming(value ? 1 : 0, {
+      duration: onboardingMotion.toggleMs,
+      easing: onboardingEasing.standard,
+    });
+  }, [progress, value]);
+
+  const trackStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(progress.value, [0, 1], [colors.line, colors.accent]),
+  }));
+  const thumbStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(progress.value, [0, 1], [colors.text2, colors.onAccent]),
+    transform: [{ translateX: interpolate(progress.value, [0, 1], [3, 23]) }],
+  }));
+
   return (
     <Pressable
-      onPress={() => onValueChange(!value)}
+      onPress={() => {
+        void Haptics.selectionAsync();
+        onValueChange(!value);
+      }}
       accessibilityRole="switch"
       accessibilityState={{ checked: value }}
-      style={{
-        width: 52,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: value ? colors.accent : colors.line,
-        justifyContent: 'center',
-      }}
     >
-      <View
-        style={{
-          width: 26,
-          height: 26,
-          borderRadius: 13,
-          backgroundColor: value ? colors.onAccent : colors.surface,
-          marginLeft: value ? 23 : 3,
-        }}
-      />
+      <Animated.View
+        style={[
+          {
+            width: 52,
+            height: 32,
+            borderRadius: 16,
+            justifyContent: 'center',
+          },
+          trackStyle,
+        ]}
+      >
+        <Animated.View
+          style={[
+            {
+              width: 26,
+              height: 26,
+              borderRadius: 13,
+              position: 'absolute',
+            },
+            thumbStyle,
+          ]}
+        />
+      </Animated.View>
     </Pressable>
   );
 }
@@ -467,7 +581,10 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
       setMoodIndex(found >= 0 ? found : 0);
     }
     if (step.layout === 'voice') {
-      const found = voiceOptions.findIndex((item) => item.id === currentValue);
+      const resolved = voiceOptions.some((item) => item.id === currentValue)
+        ? currentValue
+        : voiceOptions[0]?.id;
+      const found = voiceOptions.findIndex((item) => item.id === resolved);
       setVoiceIndex(found >= 0 ? found : 0);
     }
     if (step.layout === 'ageWheel' && !flow.ageRange) {
@@ -564,7 +681,7 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
   useLayoutEffect(() => {
     if (!exitTree) return;
     const duration = stepDir.value > 0 ? onboardingMotion.nextMs : onboardingMotion.backMs;
-    stepProgress.value = withTiming(1, { duration, easing: onboardingEasing.standard }, (finished) => {
+    stepProgress.value = withTiming(1, { duration, easing: onboardingEasing.enter }, (finished) => {
       if (finished) runOnJS(clearExitLayer)();
     });
   }, [clearExitLayer, exitTree, stepDir, stepProgress]);
@@ -576,15 +693,20 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
     animateToIndex(visibleIndexes[nextPos], direction);
   };
 
+  const skipDeepRef = useRef(false);
+
   const finishOnboarding = async () => {
     persistStep();
     if (!flow.conversationGoal && flow.answers.focus) {
       flow.setConversationGoal(flow.answers.focus);
     }
-    if (!flow.initialThoughts && (flow.answers.mood || flow.answers.anythingElse)) {
-      flow.setInitialThoughts(flow.answers.anythingElse || flow.answers.mood);
+    if (!flow.initialThoughts && flow.answers.anythingElse?.trim()) {
+      flow.setInitialThoughts(flow.answers.anythingElse.trim());
     }
-    const { error } = await completeOnboarding({ replay });
+    const { error } = await completeOnboarding({
+      replay,
+      onboardingProfundo: skipDeepRef.current ? 'pulado' : 'completo',
+    });
     if (replay && !error) {
       navigation.goBack();
     }
@@ -617,9 +739,10 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
 
   const skipAprofundar = () => {
     if (animatingRef.current) return;
-    const quase = ONBOARDING_V3_STEPS.findIndex((item) => item.key === 'quase');
     setSkipDeep(true);
-    animateToIndex(quase, 1);
+    skipDeepRef.current = true;
+    flow.setAnswer('onboardingProfundo', 'pulado');
+    fadeThenFinish();
   };
 
   const fadeThenFinish = () => {
@@ -795,12 +918,11 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
   }, [replay, sheetMode, visibleIndexes]);
 
   const showBack = (replay || visiblePos > 0) && step.layout !== 'loading' && step.layout !== 'ready';
-  const showMap =
-    !hubOpen && step.layout !== 'loading' && step.layout !== 'ready' && step.layout !== 'paywall';
   const showSkip = Boolean(step.skippable) && step.layout !== 'ready' && step.layout !== 'paywall';
   const ctaDisabled =
     (step.layout === 'multiSelect' && selectedMany.length === 0) ||
-    (step.layout === 'text' && !currentValue.trim());
+    (step.layout === 'text' && !currentValue.trim()) ||
+    (step.layout === 'anythingElse' && !currentValue.trim());
 
   const misted = step.layout === 'mistHero' || step.layout === 'deepen';
   const mistOpacity = step.layout === 'deepen' ? 0.4 : 0.55;
@@ -901,6 +1023,8 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
             placeholder={step.placeholder}
             placeholderTextColor={colors.text3}
             multiline
+            autoFocus
+            textAlignVertical="top"
             style={[styles.anythingInput, { color: colors.text }]}
           />
           <ScrollView
@@ -908,11 +1032,17 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
             showsHorizontalScrollIndicator={false}
             style={styles.promptRow}
             contentContainerStyle={styles.promptContent}
+            keyboardShouldPersistTaps="handled"
           >
             {(step.prompts ?? []).map((prompt) => (
               <Pressable
                 key={prompt}
-                onPress={() => setValue(currentValue ? `${currentValue} ${prompt}` : prompt)}
+                onPress={() => {
+                  const next = currentValue.trim()
+                    ? `${currentValue.trim()} ${prompt}`
+                    : `${prompt} `;
+                  setValue(next);
+                }}
                 style={[styles.promptChip, { backgroundColor: colors.surface2 }]}
               >
                 <Text style={[styles.promptChipText, { color: colors.text }]}>{prompt}</Text>
@@ -924,38 +1054,7 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
     }
 
     if (step.layout === 'ageWheel') {
-      const selected = currentValue;
-      const selectedIndex = Math.max(0, (step.options ?? []).indexOf(selected));
-      return (
-        <ScrollView style={styles.ageList} contentContainerStyle={styles.ageContent} showsVerticalScrollIndicator={false}>
-          {(step.options ?? []).map((option, optionIndex) => {
-            const isSelected = option === selected;
-            const faded = Math.abs(optionIndex - selectedIndex) >= 3;
-            return (
-              <Pressable
-                key={option}
-                onPress={() => setValue(option)}
-                style={[
-                  styles.ageRow,
-                  isSelected ? { backgroundColor: colors.surface } : null,
-                  faded ? { opacity: 0.5 } : null,
-                ]}
-              >
-                <Text
-                  style={{
-                    fontFamily: fonts.sansSemi,
-                    fontSize: isSelected ? 22 : 18,
-                    lineHeight: isSelected ? 22 : 18,
-                    color: isSelected ? colors.text : colors.text3,
-                  }}
-                >
-                  {option}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      );
+      return <AgeWheelPicker value={currentValue || '30 a 34'} options={step.options ?? []} onChange={setValue} />;
     }
 
     if (step.layout === 'choiceAdvance') {
@@ -1155,21 +1254,7 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
             ) : (
               <View style={styles.headerSpacer} />
             )}
-            {showMap ? (
-              <BudIconButton
-                icon={List}
-                accessibilityLabel="Ir para uma pergunta"
-                onPress={() => {
-                  if (replay) {
-                    returnToHub();
-                    return;
-                  }
-                  openSheet('index');
-                }}
-              />
-            ) : (
-              <View style={styles.headerSpacer} />
-            )}
+            <View style={styles.headerSpacer} />
           </View>
         )}
 
@@ -1451,12 +1536,14 @@ const styles = StyleSheet.create({
   anythingBlock: { flex: 1, paddingHorizontal: 28 },
   anythingInput: {
     marginTop: 70,
+    minHeight: 110,
+    maxHeight: 150,
     fontFamily: fonts.sans,
     fontSize: 18,
-    lineHeight: 18,
+    lineHeight: 26,
     paddingVertical: 4,
   },
-  promptRow: { marginTop: 122, marginHorizontal: -4 },
+  promptRow: { marginTop: 28, marginHorizontal: -4 },
   promptContent: { gap: 8, paddingRight: 28 },
   promptChip: {
     height: 40,
@@ -1465,10 +1552,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   promptChipText: { fontFamily: fonts.sans, fontSize: 15, lineHeight: 15 },
-  ageList: { marginTop: 108, paddingHorizontal: 24, flex: 1 },
-  ageContent: { gap: 2, paddingBottom: 12 },
+  ageList: { marginTop: 48, paddingHorizontal: 24, flexGrow: 0, height: AGE_ROW_HEIGHT * 5 },
+  ageContent: {},
   ageRow: {
-    height: 58,
+    height: AGE_ROW_HEIGHT,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',

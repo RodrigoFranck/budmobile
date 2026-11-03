@@ -212,7 +212,8 @@ export default function ChatScreen() {
   );
 
   const handleEndVoiceSession = useCallback(async () => {
-    await voiceInterfaceRef.current?.endConversation();
+    // force: always tear down audio + phase even if onDisconnect is late
+    await voiceInterfaceRef.current?.endConversation({ force: true });
   }, []);
 
   const handleToggleVoicePause = useCallback(() => {

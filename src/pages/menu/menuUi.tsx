@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
+  AccessibilityInfo,
   Modal,
   Pressable,
   ScrollView,
@@ -9,13 +10,27 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
+import Animated, {
+  Easing,
+  interpolate,
+  interpolateColor,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { BudButton, BudIconButton } from '@/components/v3';
 import { useGenderedCopy } from '@/hooks/useGenderedCopy';
-import { fonts, useV3Colors } from '@/theme';
+import { fonts, motion, useV3Colors } from '@/theme';
+
+const TOGGLE_EASING = Easing.bezier(0.42, 0, 0.58, 1);
+const TOGGLE_THUMB = 26;
+const TOGGLE_PAD = 3;
+const TOGGLE_TRAVEL = 20;
 
 export function MenuHeader({
   title,
@@ -155,7 +170,8 @@ export function PrefRow({
 }) {
   const colors = useV3Colors();
   const subtitle = hint;
-  const height = tall || subtitle ? 72 : 58;
+  // TF-39 · conta_00: 64 single-line / 80 with subtitle (was 58 / 72)
+  const height = tall || subtitle ? 80 : 64;
   const content = (
     <View
       style={{
@@ -236,33 +252,93 @@ export function BudToggle({
   disabled?: boolean;
 }) {
   const colors = useV3Colors();
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  const progress = useSharedValue(value ? 1 : 0);
+  const stretch = useSharedValue(0);
+  const movingTowardOn = useSharedValue(value ? 1 : 0);
+
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    movingTowardOn.value = value ? 1 : 0;
+    progress.value = withTiming(value ? 1 : 0, {
+      duration: reduceMotion ? 120 : motion.toggleMs,
+      easing: TOGGLE_EASING,
+    });
+  }, [movingTowardOn, progress, reduceMotion, value]);
+
+  useEffect(() => {
+    stretch.value = withTiming(pressed && !reduceMotion ? 1 : 0, {
+      duration: 120,
+      easing: TOGGLE_EASING,
+    });
+  }, [pressed, reduceMotion, stretch]);
+
+  const trackStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(progress.value, [0, 1], [colors.line, colors.accent]),
+  }));
+
+  const thumbStyle = useAnimatedStyle(() => {
+    const stretchPx = interpolate(stretch.value, [0, 1], [0, 2]);
+    const baseX = interpolate(progress.value, [0, 1], [TOGGLE_PAD, TOGGLE_PAD + TOGGLE_TRAVEL]);
+    const towardOn = movingTowardOn.value >= 0.5;
+    return {
+      backgroundColor: interpolateColor(progress.value, [0, 1], [colors.text2, colors.onAccent]),
+      width: TOGGLE_THUMB + stretchPx,
+      transform: [
+        {
+          translateX: towardOn ? baseX : baseX - stretchPx,
+        },
+      ],
+    };
+  });
+
   return (
     <Pressable
       onPress={() => {
         if (disabled) return;
+        const duration = reduceMotion ? 120 : motion.toggleMs;
         onValueChange(!value);
+        setTimeout(() => {
+          void Haptics.selectionAsync();
+        }, duration);
       }}
+      onPressIn={() => {
+        if (!disabled) setPressed(true);
+      }}
+      onPressOut={() => setPressed(false)}
       accessibilityRole="switch"
       accessibilityState={{ checked: value, disabled: Boolean(disabled) }}
       accessibilityLabel={accessibilityLabel}
-      style={{
-        width: 52,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: value ? colors.accent : colors.line,
-        justifyContent: 'center',
-        opacity: disabled ? 0.55 : 1,
-      }}
+      style={{ opacity: disabled ? 0.55 : 1 }}
     >
-      <View
-        style={{
-          width: 26,
-          height: 26,
-          borderRadius: 13,
-          backgroundColor: value ? colors.onAccent : colors.text2,
-          marginLeft: value ? 23 : 3,
-        }}
-      />
+      <Animated.View
+        style={[
+          {
+            width: 52,
+            height: 32,
+            borderRadius: 16,
+            justifyContent: 'center',
+          },
+          trackStyle,
+        ]}
+      >
+        <Animated.View
+          style={[
+            {
+              height: TOGGLE_THUMB,
+              borderRadius: TOGGLE_THUMB / 2,
+              position: 'absolute',
+            },
+            thumbStyle,
+          ]}
+        />
+      </Animated.View>
     </Pressable>
   );
 }

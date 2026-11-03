@@ -1,5 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, View, type ImageSourcePropType } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Pressable,
+  Text,
+  TextInput,
+  View,
+  type ImageSourcePropType,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -18,10 +24,13 @@ import Animated, {
 
 import { BudChip } from '@/components/v3';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserProfile } from '@/hooks/useUserProfile';
 import {
   ACTIVITY_FOLLOWUPS,
   ACTIVITY_INTROS,
   FIEE_DIMENSIONS,
+  shuffleFieeChipSet,
+  type FieeWord,
 } from '@/pages/activitiesV3/activityFlows';
 import {
   ActivityFlowHeader,
@@ -31,12 +40,25 @@ import {
   ActivityResult,
   LayerGlow,
   ResultEntry,
+  type ActivityFeedbackValue,
 } from '@/pages/activitiesV3/activityChrome';
 import { createActivityPersister } from '@/pages/activitiesV3/persistActivity';
 import { useGenderedCopy } from '@/hooks/useGenderedCopy';
+import {
+  classifyFieeWord,
+  generateActivitySynthesis,
+  type ActivitySynthesis,
+} from '@/services/activityGeneration';
 import { fonts, motion, useV3Asset, useV3Colors } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
 import { navigateToChatTab } from '@/utils/navigateToChat';
+
+type FieeAnswer = {
+  palavra: string;
+  livre: boolean;
+  valencia: -1 | 0 | 1;
+  valencia_origem: 'tabela' | 'ia';
+};
 
 const ASK_LEAF = 128;
 const LOAD_SCALE = 150 / ASK_LEAF;
@@ -74,13 +96,20 @@ export default function FieeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainTabNavigationProp>();
   const { user } = useAuth();
+  const { profile } = useUserProfile();
   const { g } = useGenderedCopy();
   const [index, setIndex] = useState(-1);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<Record<string, FieeAnswer>>({});
   const [saving, setSaving] = useState(false);
   const [phase, setPhase] = useState<Phase>('ask');
   const [showResult, setShowResult] = useState(false);
   const [centeredWord, setCenteredWord] = useState('');
+  const [chipSet, setChipSet] = useState<FieeWord[]>([]);
+  const [writingOwn, setWritingOwn] = useState(false);
+  const [customDraft, setCustomDraft] = useState('');
+  const [synthesis, setSynthesis] = useState<ActivitySynthesis | null>(null);
+  const [synthesisFailed, setSynthesisFailed] = useState(false);
+  const [feedback, setFeedback] = useState<ActivityFeedbackValue | null>(null);
   const saveActivity = useRef(createActivityPersister()).current;
   const busy = useRef(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -91,6 +120,7 @@ export default function FieeScreen() {
   const compass = ASK_LEAF * 2;
   const glowIndex = phase === 'spin' ? Math.max(0, index - 1) : Math.max(0, index);
   const glowColor = FIEE_DIMENSIONS[glowIndex]?.color ?? colors.accent;
+  const canAdvance = Boolean(selected) || customDraft.trim().length >= 2;
 
   const selectProgress = useSharedValue(0);
   const commitProgress = useSharedValue(0);
@@ -116,22 +146,52 @@ export default function FieeScreen() {
     if (!value) return '';
     return g(value);
   };
-  const result = FIEE_DIMENSIONS.map((dimension) => displayFiee(answers[dimension.key]))
+  const result = FIEE_DIMENSIONS.map((dimension) => displayFiee(answers[dimension.key]?.palavra))
     .filter(Boolean)
     .join(' · ');
-  const wordText = centeredWord || (step && selected ? displayFiee(selected) : '');
+  const wordText =
+    centeredWord ||
+    (step && selected ? displayFiee(selected.palavra) : '') ||
+    (customDraft.trim().length >= 2 ? customDraft.trim() : '');
 
-  const persistOnce = async (nextAnswers = answers) => {
+  useEffect(() => {
+    if (!step || phase !== 'ask') return;
+    setChipSet(shuffleFieeChipSet(step.words));
+    setWritingOwn(false);
+    setCustomDraft('');
+  }, [phase, step?.key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const persistOnce = async (nextAnswers = answers, nextSynthesis = synthesis) => {
     if (!user?.id) return;
-    const text = FIEE_DIMENSIONS.map((dimension) => nextAnswers[dimension.key])
-      .filter(Boolean)
-      .join(' · ');
+    const text =
+      nextSynthesis?.titulo ??
+      FIEE_DIMENSIONS.map((dimension) => nextAnswers[dimension.key]?.palavra)
+        .filter(Boolean)
+        .join(' · ');
     await saveActivity({
       userId: user.id,
       activityId: 'fiee',
-      answers: nextAnswers,
+      answers: nextAnswers as unknown as Record<string, unknown>,
       resultText: text,
+      feedback,
     });
+  };
+
+  const loadSynthesis = async (nextAnswers: Record<string, FieeAnswer>) => {
+    setSynthesisFailed(false);
+    const generated = await generateActivitySynthesis({
+      activityId: 'fiee',
+      answers: nextAnswers as unknown as Record<string, unknown>,
+      userName: profile?.name,
+    });
+    if (!generated) {
+      setSynthesisFailed(true);
+      setShowResult(true);
+      return;
+    }
+    setSynthesis(generated);
+    setShowResult(true);
+    void persistOnce(nextAnswers, generated);
   };
 
   const clearHold = () => {
@@ -174,7 +234,7 @@ export default function FieeScreen() {
     });
   };
 
-  const startLoading = () => {
+  const startLoading = (nextAnswers: Record<string, FieeAnswer>) => {
     setPhase('loading');
     animPhase.value = PHASE_LOAD;
     loadProgress.value = withTiming(1, { duration: M19_CENTER_MS, easing: STANDARD });
@@ -194,16 +254,32 @@ export default function FieeScreen() {
     holdTimer.current = setTimeout(() => {
       cancelAnimation(loadSpin);
       busy.current = false;
-      setShowResult(true);
+      void loadSynthesis(nextAnswers);
     }, LOADING_MS);
   };
 
-  const goNext = () => {
-    if (!selected || !step || !asking || busy.current) return;
+  const goNext = async () => {
+    if (!step || !asking || busy.current || !canAdvance) return;
     busy.current = true;
     const from = index;
-    const word = displayFiee(selected);
-    setCenteredWord(word);
+    let nextAnswers = answers;
+
+    if (!selected && customDraft.trim().length >= 2) {
+      const palavra = customDraft.trim();
+      const classified = await classifyFieeWord(palavra);
+      const entry: FieeAnswer = {
+        palavra,
+        livre: true,
+        valencia: classified?.valencia ?? 0,
+        valencia_origem: 'ia',
+      };
+      nextAnswers = { ...answers, [step.key]: entry };
+      setAnswers(nextAnswers);
+      setCenteredWord(palavra);
+    } else if (selected) {
+      setCenteredWord(displayFiee(selected.palavra));
+    }
+
     setPhase('commit');
     animPhase.value = PHASE_COMMIT;
     commitProgress.value = withTiming(1, { duration: M19_CENTER_MS, easing: STANDARD });
@@ -212,8 +288,7 @@ export default function FieeScreen() {
     outlines[from].value = withTiming(0, { duration: M19_CENTER_MS, easing: STANDARD });
 
     if (from >= FIEE_DIMENSIONS.length - 1) {
-      void persistOnce();
-      holdTimer.current = setTimeout(startLoading, M19_CENTER_MS + M19_HOLD_MS);
+      holdTimer.current = setTimeout(() => startLoading(nextAnswers), M19_CENTER_MS + M19_HOLD_MS);
       return;
     }
     holdTimer.current = setTimeout(() => startSpin(from), M19_CENTER_MS + M19_HOLD_MS);
@@ -246,6 +321,12 @@ export default function FieeScreen() {
     });
   };
 
+  const followUps = synthesis?.perguntas_mais_fundo ?? ACTIVITY_FOLLOWUPS.fiee;
+  const chipRows = useMemo(() => {
+    const rowSize = Math.ceil(chipSet.length / 2);
+    return [chipSet.slice(0, rowSize), chipSet.slice(rowSize)];
+  }, [chipSet]);
+
   const talk = async (prompt: string) => {
     setSaving(true);
     await persistOnce();
@@ -253,12 +334,31 @@ export default function FieeScreen() {
     navigateToChatTab(navigation, {
       chatInsight: {
         insightType: 'activity_fiee',
-        title: result || 'FIEE?',
-        contextSummary: result,
+        title: synthesis?.titulo || result || 'FIEE?',
+        contextSummary: synthesis?.paragrafo || result,
         internalContext: result,
         initialUserMessage: prompt,
+        contextVariant: 'activity',
+        activityType: 'fiee',
+        badge: 'FIEE? · Resultado',
+        cardDescription: synthesis?.paragrafo || result,
       },
     });
+  };
+
+  const selectWord = (word: FieeWord) => {
+    if (!asking || !step) return;
+    setWritingOwn(false);
+    setCustomDraft('');
+    setAnswers((current) => ({
+      ...current,
+      [step.key]: {
+        palavra: word.label,
+        livre: false,
+        valencia: word.valence,
+        valencia_origem: 'tabela',
+      },
+    }));
   };
 
   const spinStyle = useAnimatedStyle(() => ({
@@ -329,21 +429,31 @@ export default function FieeScreen() {
 
   if (showResult) {
     const insight =
-      FIEE_DIMENSIONS.map((item) => displayFiee(answers[item.key]))
+      synthesis?.titulo ||
+      FIEE_DIMENSIONS.map((item) => displayFiee(answers[item.key]?.palavra))
         .filter(Boolean)
-        .join(', ') || 'Seu check-in';
+        .join(', ') ||
+      'Seu check-in';
     return (
       <ActivityResult
         mist={assets.fieeMist}
         giz={assets.fieeGiz}
         insight={insight}
         body={
-          result
-            ? `${result} contam a história de como você está agora. Guarde o quadro inteiro, não só o que grita mais alto.`
-            : 'Você passou pelas quatro dimensões. Guarde o que apareceu.'
+          synthesisFailed
+            ? 'Não consegui juntar agora. Suas respostas estão salvas — você pode tentar de novo.'
+            : synthesis?.paragrafo ||
+              (result
+                ? `${result} contam a história de como você está agora. Guarde o quadro inteiro, não só o que grita mais alto.`
+                : 'Você passou pelas quatro dimensões. Guarde o que apareceu.')
         }
         sectionLabel="Seu check-in"
-        followUps={ACTIVITY_FOLLOWUPS.fiee}
+        followUps={[...followUps]}
+        feedback={feedback}
+        onFeedback={(value) => {
+          setFeedback(value);
+          void persistOnce(answers, synthesis);
+        }}
         onBack={async () => {
           await persistOnce();
           navigation.goBack();
@@ -351,12 +461,25 @@ export default function FieeScreen() {
         onTalk={talk}
         talking={saving}
       >
+        {synthesisFailed ? (
+          <View style={{ paddingTop: 18 }}>
+            <Text
+              onPress={() => {
+                setShowResult(false);
+                void loadSynthesis(answers);
+              }}
+              style={{ fontFamily: fonts.sansSemi, fontSize: 16, color: colors.accent }}
+            >
+              Tentar de novo
+            </Text>
+          </View>
+        ) : null}
         {FIEE_DIMENSIONS.map((dimension, i) =>
           answers[dimension.key] ? (
             <ResultEntry
               key={dimension.key}
               label={RESULT_LABELS[i]}
-              value={displayFiee(answers[dimension.key])}
+              value={displayFiee(answers[dimension.key]?.palavra)}
               colors={colors}
             />
           ) : null,
@@ -487,31 +610,92 @@ export default function FieeScreen() {
             }}
           />
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 24, gap: 8, paddingTop: CHIPS_PAD_TOP }}
+          <View style={{ paddingHorizontal: 24, gap: 10, paddingTop: CHIPS_PAD_TOP }}>
+            {chipRows.map((row, rowIndex) => (
+              <View
+                key={`fiee-row-${rowIndex}`}
+                style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}
+              >
+                {row.map((word) => (
+                  <FieeChip
+                    key={word.label}
+                    label={displayFiee(word.label)}
+                    selected={selected?.palavra === word.label && !selected?.livre}
+                    dimmed={Boolean(selected) && selected?.palavra !== word.label}
+                    color={step?.color ?? colors.accent}
+                    labelColor={CHIP_LABEL}
+                    onPress={() => selectWord(word)}
+                  />
+                ))}
+              </View>
+            ))}
+          </View>
+
+          <View
+            style={{
+              paddingHorizontal: 24,
+              paddingTop: 16,
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              gap: 12,
+              justifyContent: 'center',
+            }}
           >
-            {step?.options.map((option) => (
-              <FieeChip
-                key={option}
-                label={displayFiee(option)}
-                selected={selected === option}
-                dimmed={Boolean(selected) && selected !== option}
-                color={step.color}
-                labelColor={CHIP_LABEL}
-                onPress={() => {
-                  if (!asking) return;
-                  setAnswers((current) => ({ ...current, [step.key]: option }));
+            <Pressable
+              onPress={() => step && setChipSet(shuffleFieeChipSet(step.words))}
+              accessibilityRole="button"
+              accessibilityLabel="Outras palavras"
+            >
+              <Text style={{ fontFamily: fonts.sansMedium, fontSize: 15, color: colors.text2 }}>
+                Outras palavras
+              </Text>
+            </Pressable>
+            <Text style={{ color: colors.text3 }}>·</Text>
+            <Pressable
+              onPress={() => {
+                setWritingOwn(true);
+                setAnswers((current) => {
+                  if (!step) return current;
+                  const next = { ...current };
+                  delete next[step.key];
+                  return next;
+                });
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Escrever a minha"
+            >
+              <Text style={{ fontFamily: fonts.sansMedium, fontSize: 15, color: colors.text2 }}>
+                Escrever a minha
+              </Text>
+            </Pressable>
+          </View>
+
+          {writingOwn ? (
+            <View style={{ paddingHorizontal: 24, paddingTop: 14 }}>
+              <TextInput
+                value={customDraft}
+                onChangeText={setCustomDraft}
+                placeholder="Escreva uma palavra…"
+                placeholderTextColor={colors.text3}
+                autoFocus
+                style={{
+                  borderBottomWidth: 1.5,
+                  borderBottomColor: colors.line,
+                  fontFamily: fonts.display,
+                  fontSize: 26,
+                  lineHeight: 32,
+                  color: colors.text,
+                  textAlign: 'center',
+                  paddingVertical: 10,
                 }}
               />
-            ))}
-          </ScrollView>
+            </View>
+          ) : null}
 
           <View style={{ flex: 1 }} />
 
           <View style={{ paddingHorizontal: 24, paddingBottom: Math.max(insets.bottom, 16) + 12 }}>
-            <FieeNextButton enabled={Boolean(selected)} onPress={goNext} />
+            <FieeNextButton enabled={canAdvance} onPress={() => void goNext()} />
           </View>
         </Animated.View>
       </View>

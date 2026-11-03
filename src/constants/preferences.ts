@@ -9,8 +9,8 @@ export const BUDMIND_HELP_URL = 'https://falecombud.com.br';
  */
 export const BUD_NATIVE_LINK_URL = 'https://falecombud.com.br/nativelink';
 
-export const BUD_SHARE_URL = 'https://falecombud.com.br/app';
-export const BUD_SHARE_DISPLAY = 'falecombud.com.br/app';
+export const BUD_SHARE_URL = 'https://falecombud.com.br';
+export const BUD_SHARE_DISPLAY = 'falecombud.com.br';
 export const BUD_SUPPORT_EMAIL = 'suporte@falecombud.com.br';
 
 export const BUD_APP_STORE_URL =

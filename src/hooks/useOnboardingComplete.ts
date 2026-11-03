@@ -24,7 +24,10 @@ export function useOnboardingComplete() {
   const { showAlert } = useAppAlert();
   const [submitting, setSubmitting] = useState(false);
 
-  const completeOnboarding = useCallback(async (options?: { replay?: boolean }) => {
+  const completeOnboarding = useCallback(async (options?: {
+    replay?: boolean;
+    onboardingProfundo?: 'pulado' | 'completo';
+  }) => {
     if (!user?.id) {
       showAlert({ title: 'Erro', message: 'Sessão inválida. Faça login novamente.' });
       return { error: new Error('no user') };
@@ -38,7 +41,6 @@ export function useOnboardingComplete() {
       const nextThoughts =
         answers.anythingElse?.trim() ||
         initialThoughts.trim() ||
-        answers.mood ||
         profile?.initial_thoughts ||
         null;
       const nextGoal =
@@ -47,11 +49,19 @@ export function useOnboardingComplete() {
         ? answers.interests.split(' · ').filter(Boolean)
         : profile?.hobbies ?? null;
       const nextRelationship = answers.relationships || profile?.relationship || null;
-      const nextPrefs = mergeOnboardingPreferences(
-        parseV3Preferences(profile?.v3_preferences),
-        answers,
-        shareConversations,
-      );
+      const profundo =
+        options?.onboardingProfundo ??
+        (answers.onboardingProfundo === 'pulado' || answers.onboardingProfundo === 'completo'
+          ? answers.onboardingProfundo
+          : 'completo');
+      const nextPrefs = {
+        ...mergeOnboardingPreferences(
+          parseV3Preferences(profile?.v3_preferences),
+          answers,
+          shareConversations,
+        ),
+        onboardingProfundo: profundo,
+      };
       const nextVoice = answers.voice ?? profile?.selected_voice ?? nextPrefs.voice ?? null;
 
       try {

@@ -1,14 +1,17 @@
-import {
-  resolveInsightVisualCategory,
-  type InsightVisualCategory,
-} from '@/constants/insightCategoryTheme';
 import type { ChatInsightParam } from '@/types/chatInsight';
+import {
+  resolveInsightActivityType,
+  resolveInsightContextVariant,
+  type InsightActivityType,
+  type InsightContextVariant,
+} from '@/utils/insightContextVariant';
 
 export type InsightContextCardData = {
   badge: string;
   title: string;
   description?: string;
-  category: InsightVisualCategory;
+  variant: InsightContextVariant;
+  activityType?: InsightActivityType;
 };
 
 type InsightContextPayload = {
@@ -17,6 +20,8 @@ type InsightContextPayload = {
   description?: unknown;
   insightType?: unknown;
   backgroundType?: unknown;
+  variant?: unknown;
+  activityType?: unknown;
   category?: unknown;
 };
 
@@ -34,10 +39,13 @@ export function serializeInsightContextMessage(insight: ChatInsightParam): strin
     insight.cardDescription?.trim() ||
     insight.contextSummary?.trim() ||
     title;
-  const category = resolveInsightVisualCategory({
+  const variant = resolveInsightContextVariant({
+    variant: insight.contextVariant,
     insightType: insight.insightType,
     backgroundType: insight.backgroundType,
   });
+  const activityType =
+    insight.activityType ?? resolveInsightActivityType(insight.insightType);
 
   const payload = {
     badge: insight.badge?.trim() || 'INSIGHT',
@@ -45,7 +53,8 @@ export function serializeInsightContextMessage(insight: ChatInsightParam): strin
     description,
     insightType: insight.insightType,
     backgroundType: insight.backgroundType,
-    category,
+    variant,
+    activityType,
   };
 
   return JSON.stringify(payload);
@@ -60,15 +69,21 @@ export function parseInsightContextMessage(content: string): InsightContextCardD
       return null;
     }
 
+    const insightType = asNonEmptyString(parsed.insightType);
+    const variant = resolveInsightContextVariant({
+      variant: asNonEmptyString(parsed.variant),
+      insightType,
+      backgroundType: asNonEmptyString(parsed.backgroundType),
+    });
+
     return {
       badge: asNonEmptyString(parsed.badge) || 'INSIGHT',
       title: title || description || 'INSIGHT',
       ...(description ? { description } : {}),
-      category: resolveInsightVisualCategory({
-        category: asNonEmptyString(parsed.category),
-        insightType: asNonEmptyString(parsed.insightType),
-        backgroundType: asNonEmptyString(parsed.backgroundType),
-      }),
+      variant,
+      activityType:
+        (asNonEmptyString(parsed.activityType) as InsightActivityType | undefined) ??
+        resolveInsightActivityType(insightType),
     };
   } catch {
     return null;

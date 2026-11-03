@@ -1,45 +1,59 @@
 import { StyleSheet } from 'react-native';
 
-import type { AppColors } from '@/lib/colors';
-import { Typography } from '@/constants/styles';
+import { fonts, type V3Colors } from '@/theme';
 
-export function createChatMessageStyles(params: { colors: AppColors }) {
+export function createChatMessageStyles(params: { colors: V3Colors }) {
   const { colors } = params;
 
   return StyleSheet.create({
     contextText: {
-      fontSize: Typography.sm,
-      lineHeight: Typography.lineHeight.relaxed,
-    },
-    label: {
-      fontFamily: 'Fraunces_400Regular',
-      fontSize: Typography.sm,
-      fontStyle: 'italic',
-      color: colors['chat-label-muted'],
-      marginBottom: 6,
-    },
-    userLabel: {
-      alignSelf: 'flex-end',
-    },
-    assistantLabel: {
-      alignSelf: 'flex-start',
+      fontFamily: fonts.sansItalic,
+      fontSize: 15,
+      lineHeight: 21,
+      color: colors.text2,
     },
     messageContent: {
       alignSelf: 'stretch',
       width: '100%',
     },
-    userMessageContent: {
+    userBubble: {
       alignSelf: 'flex-end',
-      maxWidth: '100%',
+      maxWidth: 300,
+      backgroundColor: colors.surface2,
+      borderTopLeftRadius: 22,
+      borderTopRightRadius: 22,
+      borderBottomLeftRadius: 22,
+      borderBottomRightRadius: 6,
+      paddingHorizontal: 18,
+      paddingVertical: 13,
     },
-    body: {
-      fontSize: Typography.base,
-      lineHeight: Typography.lineHeight.relaxed + 4,
-      color: colors['chat-body'],
+    assistantBody: {
+      fontFamily: fonts.sans,
+      fontSize: 16,
+      lineHeight: 22,
+      color: colors.text,
+      flexShrink: 1,
+    },
+    userBody: {
+      fontFamily: fonts.sans,
+      fontSize: 16,
+      lineHeight: 23,
+      color: colors.text,
       flexShrink: 1,
     },
     stanzaSpacing: {
-      marginTop: 14,
+      marginTop: 16,
+    },
+    assistantWrap: {
+      marginBottom: 16,
+      width: '100%',
+      alignItems: 'flex-start',
+      maxWidth: 350,
+    },
+    userWrap: {
+      marginBottom: 16,
+      width: '100%',
+      alignItems: 'flex-end',
     },
   });
 }

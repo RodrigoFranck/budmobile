@@ -94,7 +94,9 @@ export default function WeekRecapView({
 
   const pattern = insight?.what_i_noticed?.content?.trim() || insight?.headline?.trim() || '';
   const patternParts = pattern ? italicLastWord(pattern) : null;
-  const quote = quoted(insight?.quote?.trim() || insight?.reflection?.content?.trim() || '');
+  // TF-20: "Uma frase sua" is only the literal quote from the person — never Bud reflection.
+  const quoteRaw = insight?.quote?.trim() || '';
+  const quote = quoteRaw ? quoted(quoteRaw) : '';
   const nextStep = insight?.next_steps?.content?.trim() || '';
 
   const shareRecap = useCallback(async () => {

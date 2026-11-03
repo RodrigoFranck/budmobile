@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  isUsableRecapFragment,
   nextRecapPile,
   recapCandidateIds,
   recapInvite,
@@ -87,4 +88,13 @@ test('uses a literal fragment as the card quote', () => {
     'Só descanso quando a lista acaba.',
   );
   assert.equal(recapInvite('Ontem'), 'Isso ficou de ontem. Quer conversar sobre o que ainda está aberto nisso?');
+});
+
+test('rejects greetings, tiny phrases and crisis speech as fragments', () => {
+  assert.equal(isUsableRecapFragment('Fala, Bud. Tudo bem?'), false);
+  assert.equal(isUsableRecapFragment('oi'), false);
+  assert.equal(isUsableRecapFragment('Quero me matar'), false);
+  assert.equal(isUsableRecapFragment('Só descanso quando a lista acaba.'), true);
+  assert.equal(recapQuote('Fala, Bud. Tudo bem?', 'Só descanso quando a lista acaba.'), 'Só descanso quando a lista acaba.');
+  assert.equal(recapQuote('Quero me matar', 'tema de risco'), '');
 });

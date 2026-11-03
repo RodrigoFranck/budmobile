@@ -6,6 +6,12 @@ import { Platform } from 'react-native';
 import { appAlert } from '@/contexts/AppAlertContext';
 import type { VoiceId } from '@/theme';
 import { fetchVoiceDemoBase64 } from '@/voice/fetchVoiceDemo';
+import {
+  prepareVoiceDemoAudioMode,
+  restoreVoiceRecordingAudioMode,
+} from '@/voice/voiceAudioSession';
+
+export { restoreVoiceRecordingAudioMode } from '@/voice/voiceAudioSession';
 
 export function useVoiceDemo() {
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -20,17 +26,19 @@ export function useVoiceDemo() {
     soundRef.current = null;
     playingIdRef.current = null;
     setPlayingId(null);
-    if (!sound) return;
-    try {
-      await sound.stopAsync();
-    } catch {
-      // already stopped
+    if (sound) {
+      try {
+        await sound.stopAsync();
+      } catch {
+        // already stopped
+      }
+      try {
+        await sound.unloadAsync();
+      } catch {
+        // ignore unload failures
+      }
     }
-    try {
-      await sound.unloadAsync();
-    } catch {
-      // ignore unload failures
-    }
+    await restoreVoiceRecordingAudioMode();
   }, []);
 
   useEffect(() => {
@@ -53,14 +61,8 @@ export function useVoiceDemo() {
       setLoadingId(voice);
 
       try {
-        if (Platform.OS !== 'web') {
-          await Audio.setAudioModeAsync({
-            allowsRecordingIOS: false,
-            playsInSilentModeIOS: true,
-            playThroughEarpieceAndroid: false,
-            staysActiveInBackground: false,
-          });
-        }
+        // Keep playAndRecord — playback-only breaks the next LiveKit mic publish.
+        await prepareVoiceDemoAudioMode();
 
         const audioBase64 = await fetchVoiceDemoBase64(voice);
         if (requestId !== requestIdRef.current) return;
@@ -83,6 +85,7 @@ export function useVoiceDemo() {
             if (soundRef.current === sound) {
               soundRef.current = null;
             }
+            void restoreVoiceRecordingAudioMode();
           }
         });
 

@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { noteRelationError, relationAvailable } from '@/lib/schemaAvailability';
 import type { StoredDailyLetter } from '@/utils/dailyLetter';
+import { isUsableRecapFragment } from '@/utils/homeRecaps';
 
 function asStoredLetter(value: unknown): StoredDailyLetter | null {
   if (!value || typeof value !== 'object') return null;
@@ -107,10 +108,13 @@ export async function fetchFirstUserSnippets(conversationIds: string[]) {
   }
 
   const snippets: Record<string, string> = {};
+
   for (const row of data ?? []) {
-    if (snippets[row.conversation_id]) continue;
     const content = row.content?.trim();
-    if (content) snippets[row.conversation_id] = content;
+    if (!content || snippets[row.conversation_id]) continue;
+    if (!isUsableRecapFragment(content)) continue;
+    snippets[row.conversation_id] = content;
   }
+
   return snippets;
 }

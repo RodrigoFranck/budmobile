@@ -1,13 +1,13 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
 export type AgeRangeOption =
+  | '65 ou mais'
   | '55 a 64'
   | '45 a 54'
   | '35 a 44'
   | '30 a 34'
   | '25 a 29'
-  | '18 a 24'
-  | 'Menos de 18';
+  | '18 a 24';
 
 export interface OnboardingFlowState {
   displayName: string;
@@ -19,13 +19,13 @@ export interface OnboardingFlowState {
 }
 
 const AGE_RANGE_OPTIONS: AgeRangeOption[] = [
+  '65 ou mais',
   '55 a 64',
   '45 a 54',
   '35 a 44',
   '30 a 34',
   '25 a 29',
   '18 a 24',
-  'Menos de 18',
 ];
 
 function asAgeRange(value: string | null | undefined): AgeRangeOption | null {

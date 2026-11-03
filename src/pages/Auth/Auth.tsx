@@ -10,7 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { Eye, EyeOff } from "lucide-react-native";
+import { ChevronLeft, Eye, EyeOff } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppAlert } from "@/contexts/AppAlertContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,7 +33,7 @@ import {
 } from "@/utils/auth/authMessages";
 import { AppleLogo } from "@/components/icons/AppleLogo";
 import { GoogleLogo } from "@/components/icons/GoogleLogo";
-import { BudButton } from "@/components/v3";
+import { BudButton, BudIconButton } from "@/components/v3";
 import { useV3Colors } from "@/theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Auth">;
@@ -347,18 +347,24 @@ export default function AuthScreen({ navigation }: Props) {
     </View>
   );
 
+  const canGoBack = navigation.canGoBack();
+  const scrollMinHeight =
+    SCREEN.height - (canGoBack ? 0 : insets.top + 24) - insets.bottom - 24;
+
   const renderAuth = () => (
-    <View
-      style={[
-        styles.content,
-        {
-          minHeight: SCREEN.height - insets.top - 24 - insets.bottom - 16,
-        },
-      ]}
-    >
+    <View style={[styles.content, { minHeight: scrollMinHeight }]}>
+      {canGoBack ? (
+        <View style={styles.navBar}>
+          <BudIconButton
+            icon={ChevronLeft}
+            accessibilityLabel="Voltar"
+            onPress={() => navigation.goBack()}
+          />
+        </View>
+      ) : null}
       <View style={styles.loginBody}>
         <View style={styles.loginTitleBlock}>
-          <Text style={styles.title}>
+          <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit>
             Que bom ter você <Text style={styles.titleAccent}>aqui</Text>
           </Text>
           <Text style={styles.subtitle}>
@@ -375,6 +381,7 @@ export default function AuthScreen({ navigation }: Props) {
           {activeTab === "signup" ? renderSignupForm() : renderLoginForm()}
         </View>
       </View>
+      <View style={{ flexGrow: 1, minHeight: 0 }} />
       <View style={styles.footerSection}>
         {activeTab === "login" ? (
           <BudButton
@@ -437,11 +444,12 @@ export default function AuthScreen({ navigation }: Props) {
             styles.scrollContent,
             {
               minHeight: SCREEN.height,
-              paddingTop: insets.top + 24,
-              paddingBottom: insets.bottom + 16,
+              paddingTop: canGoBack ? insets.top + 8 : insets.top + 24,
+              paddingBottom: insets.bottom + 24,
             },
           ]}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
           {renderAuth()}

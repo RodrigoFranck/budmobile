@@ -24,7 +24,12 @@ export function createAuthStyles(colors: V3Colors) {
     content: {
       width: '100%',
       flexGrow: 1,
-      justifyContent: 'space-between',
+    },
+    navBar: {
+      width: '100%',
+      height: 56,
+      justifyContent: 'center',
+      marginBottom: 26,
     },
     title: {
       fontSize: 34,
@@ -52,13 +57,13 @@ export function createAuthStyles(colors: V3Colors) {
     },
     footerSection: {
       width: '100%',
-      paddingBottom: 8,
+      marginTop: 40,
     },
     loginBody: {
       width: '100%',
     },
     loginTitleBlock: {
-      paddingHorizontal: 4,
+      width: '100%',
     },
     socialSection: {
       gap: 12,
@@ -137,6 +142,7 @@ export function createAuthStyles(colors: V3Colors) {
       justifyContent: 'flex-end',
       alignItems: 'center',
       paddingTop: 4,
+      minHeight: 18,
     },
     label: {
       fontSize: 14,
@@ -225,14 +231,14 @@ export function createAuthStyles(colors: V3Colors) {
       textAlign: 'center',
       paddingHorizontal: 6,
       lineHeight: 17,
-      marginTop: 16,
+      marginTop: 24,
     },
     termsLink: {
       color: colors.text3,
     },
     secondaryLink: {
       alignItems: 'center',
-      paddingVertical: 16,
+      marginTop: 16,
     },
     secondaryLinkText: {
       fontSize: 16,

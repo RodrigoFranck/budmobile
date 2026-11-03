@@ -26,7 +26,7 @@ export default function MotivesScreen() {
           paddingHorizontal: 4,
         }}
       >
-        Suas respostas do começo. Mudou alguma coisa? Atualize quando quiser.
+        Suas respostas do começo. Mudou alguma coisa? Atualize aqui.
       </Text>
       <PrefGroup style={{ marginTop: 20 }}>
         {MOTIVE_ROWS.map((row, index) => (

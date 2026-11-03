@@ -1,13 +1,12 @@
 import { memo, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Animated, Easing, View, Text } from 'react-native';
-import { cn } from '@/lib/utils';
-import { useAppColors } from '@/lib/colors';
-import type { MessageRole } from '@/types/messages';
 import { useStaggeredReveal, STANZA_FADE_MS } from '@/hooks/useStaggeredReveal';
 import { splitMessageStanzas } from '@/utils/splitMessageStanzas';
 import { parseInsightContextMessage } from '@/utils/insightContextMessage';
 import { createChatMessageStyles } from '@/components/chat/ChatMessage.styles';
 import { InsightContextCard } from '@/components/chat/InsightContextCard';
+import { useV3Colors } from '@/theme';
+import type { MessageRole } from '@/types/messages';
 
 interface ChatMessageProps {
   role: MessageRole;
@@ -109,22 +108,17 @@ function StaggeredAssistantContent({
   }
 
   return (
-    <>
-      {visibleCount > 0 ? (
-        <Text style={[styles.label, styles.assistantLabel]}>Bud.</Text>
-      ) : null}
-      <View style={styles.messageContent}>
-        {stanzas.slice(0, visibleCount).map((stanza, index) => (
-          <StanzaBlock
-            key={`${index}-${stanza.slice(0, 24)}`}
-            text={stanza}
-            style={styles.body}
-            spacingStyle={index > 0 ? styles.stanzaSpacing : undefined}
-            animate={enabled}
-          />
-        ))}
-      </View>
-    </>
+    <View style={styles.messageContent}>
+      {stanzas.slice(0, visibleCount).map((stanza, index) => (
+        <StanzaBlock
+          key={`${index}-${stanza.slice(0, 24)}`}
+          text={stanza}
+          style={styles.assistantBody}
+          spacingStyle={index > 0 ? styles.stanzaSpacing : undefined}
+          animate={enabled}
+        />
+      ))}
+    </View>
   );
 }
 
@@ -165,7 +159,7 @@ export const ChatMessage = memo(function ChatMessage({
   onRevealComplete,
   onContentGrowth,
 }: ChatMessageProps) {
-  const colors = useAppColors();
+  const colors = useV3Colors();
   const styles = createChatMessageStyles({ colors });
   const isUser = role === 'user';
   const isContext = role === 'context';
@@ -185,19 +179,15 @@ export const ChatMessage = memo(function ChatMessage({
           badge={contextCard.badge}
           title={contextCard.title}
           description={contextCard.description}
-          category={contextCard.category}
+          variant={contextCard.variant}
+          activityType={contextCard.activityType}
         />
       );
     }
 
     return (
-      <View className="my-4 px-2">
-        <Text
-          className="text-center italic text-muted-foreground"
-          style={styles.contextText}
-        >
-          {content}
-        </Text>
+      <View style={{ marginVertical: 16, paddingHorizontal: 8 }}>
+        <Text style={[styles.contextText, { textAlign: 'center' }]}>{content}</Text>
       </View>
     );
   }
@@ -209,12 +199,9 @@ export const ChatMessage = memo(function ChatMessage({
   if (isUser) {
     return (
       <MessageEntrance>
-        <View className={cn('mb-8 w-full items-end')}>
-          <Text style={[styles.label, styles.userLabel]}>Você</Text>
-          <View style={styles.userMessageContent}>
-            <Text style={[styles.body, { textAlign: 'right' }]}>
-              {content}
-            </Text>
+        <View style={styles.userWrap}>
+          <View style={styles.userBubble}>
+            <Text style={styles.userBody}>{content}</Text>
           </View>
         </View>
       </MessageEntrance>
@@ -222,7 +209,7 @@ export const ChatMessage = memo(function ChatMessage({
   }
 
   return (
-    <View className={cn('mb-8 w-full items-start')}>
+    <View style={styles.assistantWrap}>
       {useStaggeredLayoutRef.current ? (
         <StaggeredAssistantContent
           content={content}
@@ -233,14 +220,9 @@ export const ChatMessage = memo(function ChatMessage({
           onContentGrowth={onContentGrowth}
         />
       ) : (
-        <>
-          <Text style={[styles.label, styles.assistantLabel]}>Bud.</Text>
-          <View style={styles.messageContent}>
-            <Text style={[styles.body, { textAlign: 'left' }]}>
-              {content}
-            </Text>
-          </View>
-        </>
+        <View style={styles.messageContent}>
+          <Text style={styles.assistantBody}>{content}</Text>
+        </View>
       )}
     </View>
   );

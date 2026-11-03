@@ -108,6 +108,7 @@ export async function buildConversationRecapChatInsight(params: {
     internalContext,
     cardDescription: params.cardDescription,
     backgroundType: 'inspired',
+    contextVariant: 'start',
     conversationId: params.conversationId,
     initialUserMessage: title
       ? `Quero continuar nossa conversa sobre "${title}".`

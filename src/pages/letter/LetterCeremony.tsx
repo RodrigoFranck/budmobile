@@ -41,6 +41,7 @@ import {
   parseDailyLetterBody,
 } from '@/utils/dailyLetter';
 import { getNowInBrasilia, getWeekStartBrasilia } from '@/utils/dateUtils';
+import { buildLetterChatInsight } from '@/utils/buildLetterChatInsight';
 import { navigateToChatTab } from '@/utils/navigateToChat';
 
 import { playLetterHaptic } from './letterSounds';
@@ -55,10 +56,11 @@ export type LetterOrigin = {
 const OPEN_MS = motion.letterFlapMs + motion.letterRiseMs + motion.letterEnterMs;
 const P1 = motion.letterFlapMs / OPEN_MS;
 const P2 = (motion.letterFlapMs + motion.letterRiseMs) / OPEN_MS;
-const GENTLE = Easing.bezier(0.25, 0.1, 0.25, 1);
-const STANDARD = Easing.bezier(0.4, 0, 0.2, 1);
-const ENTER = Easing.bezier(0.25, 0.1, 0.25, 1);
-const EXIT = Easing.bezier(0.32, 0, 0.67, 0);
+// Motion tokens: gentle / standard / enter / exit (Sistema de movimento)
+const GENTLE = Easing.bezier(0.22, 1, 0.36, 1);
+const STANDARD = Easing.bezier(0.42, 0, 0.58, 1);
+const ENTER = Easing.bezier(0, 0, 0.58, 1);
+const EXIT = Easing.bezier(0.42, 0, 1, 1);
 const OPEN_ASPECT = 542 / 510;
 const MOUTH = 0.384;
 const PAPER_WIDTH_RATIO = 0.46;
@@ -325,7 +327,8 @@ export default function LetterCeremony({ origin, onClose }: LetterCeremonyProps)
       top: envTop + envH * ratio,
       width: size,
       height: size,
-      opacity: interpolate(progress.value, [0.72, 0.92], [1, 0], Extrapolation.CLAMP),
+      // Seal stays through M01 flap/rise; fades as the paper takes the screen (M02)
+      opacity: interpolate(progress.value, [P2, P2 + (1 - P2) * 0.55], [1, 0], Extrapolation.CLAMP),
       transform: [{ rotate: `${tilt}deg` }],
     };
   });
@@ -369,16 +372,14 @@ export default function LetterCeremony({ origin, onClose }: LetterCeremonyProps)
 
   const openChat = useCallback(() => {
     navigateToChatTab(navigation, {
-      chatInsight: {
-        insightType: 'yesterday_journey',
+      chatInsight: buildLetterChatInsight({
+        letterId: letter?.id,
         title,
-        contextSummary: opening,
-        internalContext: shareText,
-        cardDescription: opening,
-        backgroundType: 'yesterday',
-      },
+        shareText,
+        opening,
+      }),
     });
-  }, [navigation, opening, shareText, title]);
+  }, [letter?.id, navigation, opening, shareText, title]);
 
   return (
     <View style={styles.overlay} pointerEvents="auto">
