@@ -375,47 +375,18 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     [addMessage, currentConversationId],
   );
 
-  const handleSendMessage = useCallback(
-    async (message: string, contextOverride?: InsightContext | null) => {
-      if (!currentConversationId || !user || sendInFlightRef.current) return;
-      if (!canSendMessageRef.current) {
-        navigation.navigate('Paywall');
-        return;
-      }
-
-      sendInFlightRef.current = true;
-
-      const activeInsightContext =
-        contextOverride ?? insightContextRef.current ?? insightContext;
-
-      void logActionEvent(ACTION_EVENTS.MESSAGE_SENT, {
-        has_insight_context: activeInsightContext ? 'true' : 'false',
-      });
-
-      const userMessageId = createStreamingMessageId('user');
-      registerMessageClientId(messageClientIdsRef.current, 'user', message, userMessageId);
-      setStreamingMessages((prev) => [
-        ...prev,
-        {
-          id: userMessageId,
-          role: 'user',
-          content: message,
-          createdAt: new Date().toISOString(),
-        },
-      ]);
-
-      const userMessagePromise = addMessage(message, 'user');
-
-      const apiMessages = [
-        ...dbMessages
-          .filter((m) => m.role !== 'context' || !m.role)
-          .map((m) => ({
-            role: (m.role === 'context' ? 'user' : m.role) as 'user' | 'assistant',
-            content: m.content,
-          })),
-        { role: 'user' as const, content: message },
-      ];
-
+  const streamAssistantReply = useCallback(
+    async ({
+      apiMessages,
+      activeInsightContext,
+      approachSeed,
+      persistUserMessage,
+    }: {
+      apiMessages: Array<{ role: 'user' | 'assistant'; content: string }>;
+      activeInsightContext?: InsightContext | null;
+      approachSeed: string;
+      persistUserMessage?: Promise<unknown>;
+    }) => {
       setIsStreaming(true);
       const assistantMessageId = createStreamingMessageId('assistant');
       streamingIdRef.current = assistantMessageId;
@@ -434,7 +405,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       let accumulatedContent = '';
 
       const approachDecision = matchApproach(
-        message,
+        approachSeed,
         memoryLoading ? null : internalProfile,
         countUserTurns(apiMessages),
       );
@@ -502,9 +473,14 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
             );
             streamingIdRef.current = null;
 
-            await userMessagePromise;
+            if (persistUserMessage) {
+              await persistUserMessage;
+            }
             await addMessage(accumulatedContent, 'assistant');
-            scheduleSessionMemory(currentConversationId, dbMessages.length + 2);
+            scheduleSessionMemory(
+              currentConversationId!,
+              dbMessages.length + (persistUserMessage ? 2 : 1),
+            );
           },
           onError: (error) => {
             setIsStreaming(false);
@@ -523,16 +499,130 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       }
     },
     [
+      addMessage,
       currentConversationId,
-      user,
-      dbMessages,
-      userContext,
-      insightContext,
+      dbMessages.length,
+      internalProfile,
       memoryContext,
       memoryLoading,
-      internalProfile,
-      addMessage,
+      userContext,
+    ],
+  );
+
+  const handleOpenInsightConversation = useCallback(
+    async (insight: ChatInsightParam, contextOverride?: InsightContext | null) => {
+      if (!currentConversationId || !user || sendInFlightRef.current) return;
+      if (!canSendMessageRef.current) {
+        navigation.navigate('Paywall');
+        return;
+      }
+
+      sendInFlightRef.current = true;
+
+      const baseContext = contextOverride ?? mapChatInsightToContext(insight);
+      const explorationTheme = insight.initialUserMessage?.trim();
+      const activeInsightContext: InsightContext = {
+        ...baseContext,
+        internalContext: [
+          baseContext.internalContext?.trim(),
+          explorationTheme
+            ? `Tema escolhido pela pessoa para explorar: ${explorationTheme}`
+            : null,
+          'O texto do insight ativo é sobre a pessoa e ela escolheu conversar sobre isso; nunca responda como se fosse uma pergunta para você.',
+        ]
+          .filter((part): part is string => Boolean(part))
+          .join('\n\n'),
+      };
+
+      insightContextRef.current = activeInsightContext;
+      setInsightContext(activeInsightContext);
+
+      void logActionEvent(ACTION_EVENTS.MESSAGE_SENT, {
+        has_insight_context: 'true',
+      });
+
+      const historyMessages = dbMessages
+        .filter((m) => m.role !== 'context')
+        .map((m) => ({
+          role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
+          content: m.content,
+        }));
+
+      const openingCue =
+        '[Sistema: a pessoa escolheu explorar o insight ativo. Abra a conversa no tema dela, falando sobre ela — nunca como se o insight fosse uma pergunta dirigida a você. Não cumprimente de novo. Não diga boa pergunta.]';
+
+      await streamAssistantReply({
+        apiMessages: [...historyMessages, { role: 'user', content: openingCue }],
+        activeInsightContext,
+        approachSeed: explorationTheme || insight.title || insight.contextSummary || '',
+      });
+    },
+    [
+      currentConversationId,
+      dbMessages,
+      mapChatInsightToContext,
       navigation,
+      streamAssistantReply,
+      user,
+    ],
+  );
+
+  const handleSendMessage = useCallback(
+    async (message: string, contextOverride?: InsightContext | null) => {
+      if (!currentConversationId || !user || sendInFlightRef.current) return;
+      if (!canSendMessageRef.current) {
+        navigation.navigate('Paywall');
+        return;
+      }
+
+      sendInFlightRef.current = true;
+
+      const activeInsightContext =
+        contextOverride ?? insightContextRef.current ?? insightContext;
+
+      void logActionEvent(ACTION_EVENTS.MESSAGE_SENT, {
+        has_insight_context: activeInsightContext ? 'true' : 'false',
+      });
+
+      const userMessageId = createStreamingMessageId('user');
+      registerMessageClientId(messageClientIdsRef.current, 'user', message, userMessageId);
+      setStreamingMessages((prev) => [
+        ...prev,
+        {
+          id: userMessageId,
+          role: 'user',
+          content: message,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+
+      const userMessagePromise = addMessage(message, 'user');
+
+      const apiMessages = [
+        ...dbMessages
+          .filter((m) => m.role !== 'context' || !m.role)
+          .map((m) => ({
+            role: (m.role === 'context' ? 'user' : m.role) as 'user' | 'assistant',
+            content: m.content,
+          })),
+        { role: 'user' as const, content: message },
+      ];
+
+      await streamAssistantReply({
+        apiMessages,
+        activeInsightContext,
+        approachSeed: message,
+        persistUserMessage: userMessagePromise,
+      });
+    },
+    [
+      addMessage,
+      currentConversationId,
+      dbMessages,
+      insightContext,
+      navigation,
+      streamAssistantReply,
+      user,
     ],
   );
 
@@ -590,7 +680,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     }
 
     if (
-      pending?.initialUserMessage?.trim() &&
+      pending &&
       currentConversationId &&
       user &&
       !didAutoSendInsightRef.current &&
@@ -599,7 +689,6 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     ) {
       didAutoSendInsightRef.current = true;
       const insight = pending;
-      const message = insight.initialUserMessage?.trim() ?? '';
       const context = mapChatInsightToContext(insight);
       pendingChatInsightRef.current = null;
       void (async () => {
@@ -608,12 +697,12 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
         } catch {
           didPersistContextRef.current = false;
         }
-        await handleSendMessage(message, context);
+        await handleOpenInsightConversation(insight, context);
       })();
     }
   }, [
     currentConversationId,
-    handleSendMessage,
+    handleOpenInsightConversation,
     isChatFocused,
     isStreaming,
     mapChatInsightToContext,

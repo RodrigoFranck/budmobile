@@ -14,7 +14,7 @@ import {
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
-import { ArrowUp, ChevronLeft, MessageSquare, Mic, X } from 'lucide-react-native';
+import { ArrowUp, ChevronLeft, MessageSquare, X } from 'lucide-react-native';
 
 import { BudButton, BudIconButton } from '@/components/v3';
 import { useGenderedCopy } from '@/hooks/useGenderedCopy';
@@ -301,7 +301,6 @@ export function ActivityComposer({
           multiline
           style={[styles.composerInput, { color: colors.text }]}
         />
-        <Mic color={colors.text2} size={22} />
         <TouchableOpacity
           onPress={onSend}
           disabled={!canSend}
@@ -325,7 +324,9 @@ export function ActivityKicker({
 }) {
   const colors = useV3Colors();
   return (
-    <Text style={[styles.kicker, { color: colors.text3, textAlign: align }]}>{label}</Text>
+    <Text style={[styles.kicker, { color: colors.text3, textAlign: align }]}>
+      {label.toLocaleUpperCase('pt-BR')}
+    </Text>
   );
 }
 
@@ -493,8 +494,8 @@ export function ActivityResult({
         </View>
 
         <View style={styles.introBody}>
-          <Text style={[styles.insight, { color: colors.text }]}>{insight}</Text>
-          <Text style={[styles.body, { color: colors.text, paddingTop: 18 }]}>{body}</Text>
+          <Text style={[styles.insight, { color: colors.text }]}>{g(insight)}</Text>
+          <Text style={[styles.body, { color: colors.text, paddingTop: 18 }]}>{g(body)}</Text>
           <Text style={[styles.kicker, { color: colors.text3, textAlign: 'left', paddingTop: 38 }]}>
             {sectionLabel}
           </Text>

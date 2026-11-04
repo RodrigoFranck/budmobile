@@ -31,9 +31,8 @@ export const VoicePicker = forwardRef<
   {
     index: number;
     onIndexChange: (index: number) => void;
-    showSilentHint?: boolean;
   }
->(function VoicePicker({ index, onIndexChange, showSilentHint = false }, ref) {
+>(function VoicePicker({ index, onIndexChange }, ref) {
   const colors = useV3Colors();
   const { width } = useWindowDimensions();
   const listRef = useRef<FlatList<VoiceOption>>(null);
@@ -129,21 +128,6 @@ export const VoicePicker = forwardRef<
         })}
       </View>
 
-      {showSilentHint ? (
-        <Text
-          style={{
-            fontFamily: fonts.sans,
-            fontSize: 14,
-            lineHeight: 20,
-            textAlign: 'center',
-            marginTop: 32,
-            paddingHorizontal: 40,
-            color: colors.text2,
-          }}
-        >
-          Se o celular estiver no silencioso, você não vai ouvir as vozes.
-        </Text>
-      ) : null}
     </View>
   );
 });

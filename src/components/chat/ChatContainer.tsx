@@ -58,29 +58,7 @@ function buildListItems(messages: Message[]): ListItem[] {
 }
 
 function ChatEmptyPrompt() {
-  const colors = useAppColors();
-  const label = useMemo(() => {
-    const raw = format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR });
-    return capitalizePt(raw);
-  }, []);
-
-  const styles = useMemo(
-    () =>
-      createChatContainerStyles({ colors, topPadding: 0 }),
-    [colors],
-  );
-
-  return (
-    <View
-      className="flex-1 justify-center px-8"
-      style={styles.emptyPrompt}
-    >
-      <Text style={[styles.dateDividerText, { textAlign: 'center' }]}>
-        {label}
-      </Text>
-      <Text style={styles.emptyTitle}>O que você tem em mente?</Text>
-    </View>
-  );
+  return <View style={{ flex: 1 }} />;
 }
 
 function DateDivider({ label }: { label: string }) {

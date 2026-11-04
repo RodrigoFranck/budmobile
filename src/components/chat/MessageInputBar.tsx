@@ -9,7 +9,6 @@ import {
 } from '@/voice/VoiceInterface';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
 import { BudMessageField } from '@/components/v3';
-import { ChatShareSheet } from '@/components/chat/ChatShareSheet';
 import type { UserContext } from '@/utils/chatStream';
 
 interface MessageInputBarProps {
@@ -61,7 +60,6 @@ export function MessageInputBar({
 }: MessageInputBarProps) {
   const isFocused = useIsFocused();
   const [message, setMessage] = useState('');
-  const [shareOpen, setShareOpen] = useState(false);
   const messageRef = useRef('');
   const insets = useSafeAreaInsets();
 
@@ -79,40 +77,7 @@ export function MessageInputBar({
     }
   };
 
-  const startVoice = () => {
-    if (disabled || !voiceInterfaceRef?.current) return;
-    void voiceInterfaceRef.current.startConversation();
-  };
-
-  const pickFromCamera = async () => {
-    setShareOpen(false);
-    try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        appAlert({
-          title: 'Câmera',
-          message: 'Permita o acesso à câmera para tirar uma foto.',
-        });
-        return;
-      }
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        quality: 0.8,
-        exif: false,
-      });
-      if (result.canceled || !result.assets[0]) return;
-      appAlert({
-        title: 'Em breve',
-        message:
-          'O envio de fotos no chat ainda está sendo ligado. Sua foto foi capturada, mas ainda não entra na conversa.',
-      });
-    } catch {
-      appAlert({ title: 'Câmera', message: 'Não foi possível abrir a câmera.' });
-    }
-  };
-
   const pickFromGallery = async () => {
-    setShareOpen(false);
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
@@ -147,7 +112,6 @@ export function MessageInputBar({
         appearance={voiceAppearance ?? 'companion'}
         prominentSize={isProminentVoice ? 48 : undefined}
         onTranscript={(text) => {
-          // Voice transcript belongs in VoiceMode / chat history — never the composer.
           onVoiceTranscript?.(text);
         }}
         onVoiceModeChange={onVoiceModeChange}
@@ -182,16 +146,9 @@ export function MessageInputBar({
           setMessage(text);
         }}
         onSend={handleSend}
-        onAttach={disabled ? undefined : () => setShareOpen(true)}
-        onMicPress={disabled ? undefined : startVoice}
+        onAttach={disabled ? undefined : () => void pickFromGallery()}
         disabled={disabled}
         voiceSlot={voiceSlotContent}
-      />
-      <ChatShareSheet
-        visible={shareOpen}
-        onClose={() => setShareOpen(false)}
-        onTakePhoto={() => void pickFromCamera()}
-        onPickGallery={() => void pickFromGallery()}
       />
     </View>
   );

@@ -1,4 +1,8 @@
 import { CHECKIN_LABELS } from '@/analytics/labels';
+import {
+  genderAddressInstruction,
+  grammaticalGenderFrom,
+} from '@/copy/genderedCopy';
 import { psychologicalAssessmentSteps } from '@/features/psychologicalAssessment/psychologicalAssessmentSteps';
 import {
   HEALTH_SURVEY_INSTRUMENT,
@@ -213,6 +217,8 @@ export function formatDeclaredPreferences(
   add('Nome', input.name);
   add('Idade', input.age);
   add('Gênero', input.gender);
+  add('Gênero gramatical', grammaticalGenderFrom(input.gender));
+  add('Concordância de gênero', genderAddressInstruction(input.gender));
   add('Profissão', input.occupation);
   add(
     'Relacionamento',

@@ -229,21 +229,25 @@ export const FIEE_DIMENSIONS: FieeDimension[] = [
 export function shuffleFieeChipSet(words: FieeWord[], size = 6): FieeWord[] {
   const negative = words.filter((word) => word.valence < 0);
   const positive = words.filter((word) => word.valence > 0);
-  const neutral = words.filter((word) => word.valence === 0);
-  const pool = [...negative, ...positive, ...neutral];
-  for (let i = pool.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
   const half = Math.ceil(size / 2);
-  const pickedNeg = negative.sort(() => Math.random() - 0.5).slice(0, half);
-  const pickedPos = positive.sort(() => Math.random() - 0.5).slice(0, size - pickedNeg.length);
+  const pickedNeg = [...negative].sort(() => Math.random() - 0.5).slice(0, half);
+  const pickedPos = [...positive].sort(() => Math.random() - 0.5).slice(0, size - pickedNeg.length);
   const mixed = [...pickedNeg, ...pickedPos];
   for (let i = mixed.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
     [mixed[i], mixed[j]] = [mixed[j], mixed[i]];
   }
   return mixed.slice(0, size);
+}
+
+/** Full dimension table, shuffled, for the horizontal chip strip (TF-70). */
+export function shuffleFieeWords(words: FieeWord[]): FieeWord[] {
+  const pool = [...words];
+  for (let i = pool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool;
 }
 
 export const RELATION_TYPES = [

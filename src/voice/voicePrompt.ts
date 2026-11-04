@@ -1,3 +1,8 @@
+import {
+  genderAddressInstruction,
+  grammaticalGenderFrom,
+} from '@/copy/genderedCopy';
+
 export interface UserContext {
   name?: string | null;
   initialThoughts?: string | null;
@@ -172,10 +177,14 @@ Humanidade aparece quando o sistema não precisa estar certo, não precisa impre
 
 CONTEXTO DO USUÁRIO:
 
-Nome: {{name}} | Idade: {{age}} | Gênero: {{gender}} | Profissão: {{occupation}}
+Nome: {{name}} | Idade: {{age}} | Gênero: {{gender}} | Gênero gramatical: {{grammaticalGender}} | Profissão: {{occupation}}
 Relacionamento: {{relationship}} | Hobbies: {{hobbies}}
 Objetivo: {{conversationGoal}} | Pensamentos ao abrir: {{initialThoughts}}
 Primeira interação do dia: {{isFirstInteractionOfDay}}
+
+CONCORDÂNCIA DE GÊNERO:
+{{genderInstruction}}
+Nunca use adjetivo ou particípio referido à pessoa no gênero errado.
 
 Use esses dados naturalmente. Fale como quem já conhece {{name}}.
 {{insightBlock}}
@@ -239,6 +248,14 @@ export function interpolatePrompt(
   result = result.replace(/\{\{name\}\}/g, userCtx?.name || "amigo");
   result = result.replace(/\{\{age\}\}/g, userCtx?.age || "não informado");
   result = result.replace(/\{\{gender\}\}/g, userCtx?.gender || "não informado");
+  result = result.replace(
+    /\{\{grammaticalGender\}\}/g,
+    grammaticalGenderFrom(userCtx?.gender),
+  );
+  result = result.replace(
+    /\{\{genderInstruction\}\}/g,
+    genderAddressInstruction(userCtx?.gender),
+  );
   result = result.replace(/\{\{occupation\}\}/g, userCtx?.occupation || "não informado");
   result = result.replace(/\{\{relationship\}\}/g, userCtx?.relationship || "não informado");
   result = result.replace(/\{\{hobbies\}\}/g, userCtx?.hobbies?.join(", ") || "não informado");

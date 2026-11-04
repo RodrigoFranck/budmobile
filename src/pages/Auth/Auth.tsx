@@ -20,6 +20,7 @@ import { PlatformConstants, SCREEN } from "@/constants/layout";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createAuthStyles } from "./Auth.styles";
 import { SITE_ORIGIN } from "@/constants/auth";
+import { sendWelcomeEmail } from "@/services/welcomeEmail";
 import {
   PRIVACY_POLICY_URL,
   TERMS_OF_SERVICE_URL,
@@ -129,6 +130,13 @@ export default function AuthScreen({ navigation }: Props) {
         userId,
         redirectTo: SITE_ORIGIN,
       },
+    });
+
+    // TF-82: backup do gatilho DB (on_profile_created_welcome_email); idempotente via welcome_sent_at
+    void sendWelcomeEmail({
+      email: trimmedEmail,
+      name: signupName,
+      userId,
     });
 
     setIsLoadingSignup(false);

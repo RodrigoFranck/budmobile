@@ -19,7 +19,9 @@
       "googleServicesFile": "./ios/budmobile/GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "buildNumber": "32",
-      "associatedDomains": ["applinks:falecombud.com.br"],
+      "associatedDomains": [
+        "applinks:falecombud.com.br"
+      ],
       "entitlements": {
         "aps-environment": "development",
         "com.apple.developer.associated-domains": [
@@ -28,7 +30,6 @@
       },
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Bud precisa acessar o microfone para conversas de voz.",
-        "NSCameraUsageDescription": "Bud precisa acessar a câmera para tirar fotos e anexar imagens em conversas e solicitações.",
         "NSPhotoLibraryUsageDescription": "Bud precisa acessar suas fotos para anexar um print no suporte.",
         "NSFaceIDUsageDescription": "Bud usa o Face ID para desbloquear o app.",
         "ITSAppUsesNonExemptEncryption": false,
@@ -46,17 +47,20 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.falecombud.bud",
       "permissions": [
-        "RECORD_AUDIO",
         "POST_NOTIFICATIONS",
+        "READ_MEDIA_IMAGES",
+        "RECORD_AUDIO",
         "USE_BIOMETRIC",
-        "USE_FINGERPRINT",
-        "READ_MEDIA_IMAGES"
+        "USE_FINGERPRINT"
       ],
       "intentFilters": [
         {
           "action": "VIEW",
           "autoVerify": true,
-          "category": ["BROWSABLE", "DEFAULT"],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
           "data": [
             {
               "scheme": "https",

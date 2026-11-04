@@ -229,6 +229,7 @@ export default function RelationMapScreen() {
             matriz2,
           },
           userName: profile?.name,
+          gender: profile?.gender,
         });
         if (partialRequestRef.current !== requestId) return;
         setPartialReading(
@@ -321,6 +322,7 @@ export default function RelationMapScreen() {
         activityId: 'mapa_relacoes',
         answers: answersPayload(),
         userName: profile?.name,
+        gender: profile?.gender,
       });
       if (cancelled) return;
       if (!generated) setSynthesisFailed(true);

@@ -61,7 +61,6 @@ export function useVoiceDemo() {
       setLoadingId(voice);
 
       try {
-        // Keep playAndRecord — playback-only breaks the next LiveKit mic publish.
         await prepareVoiceDemoAudioMode();
 
         const audioBase64 = await fetchVoiceDemoBase64(voice);
@@ -89,7 +88,8 @@ export function useVoiceDemo() {
           }
         });
 
-        await sound.loadAsync({ uri }, { shouldPlay: true, volume: 1 });
+        await sound.loadAsync({ uri }, { shouldPlay: true, volume: 1.0, isMuted: false });
+        await sound.setVolumeAsync(1.0);
         if (requestId !== requestIdRef.current) {
           await sound.unloadAsync().catch(() => {});
           return;

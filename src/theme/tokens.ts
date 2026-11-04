@@ -58,6 +58,8 @@ export const motion = {
   letterExitMs: 1100,
   letterOpenMs: 1900,
   letterDissolveMs: 650,
+  // TF-80 / R02: Reduce Motion → simple 300 ms dissolve (not a skipped jump)
+  letterReduceMs: 300,
   activitySheetMs: 420,
   questionStepMs: 450,
   sproutSpinMs: 550,

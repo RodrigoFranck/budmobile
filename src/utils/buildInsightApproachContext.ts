@@ -44,7 +44,10 @@ export function buildInsightApproachContext(
   return {
     strategy: 'balanced_exploration',
     guidanceText:
-      `ORIENTAÇÃO INTERNA: o usuário abriu o chat a partir de um insight${insightType ? ` (${insightType})` : ''}.` +
+      `ORIENTAÇÃO INTERNA: a pessoa abriu o chat a partir de um insight${insightType ? ` (${insightType})` : ''}.` +
+      ' O texto do insight ativo é sobre a pessoa e ela escolheu conversar sobre isso; nunca responda como se fosse uma pergunta para você.' +
+      ' Não diga "boa pergunta". Não comente os sentimentos do Bud. Fale da pessoa e do tema dela.' +
+      ' Não há mensagem da pessoa nesta abertura — você abre a conversa no tema.' +
       resolveInsightGuidance(insightType),
   };
 }

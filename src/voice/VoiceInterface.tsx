@@ -469,15 +469,13 @@ function VoiceInterfaceNativeInner(
           voiceSessionActiveRef.current = false;
           clearPausedState();
           clearMicMutedState();
+          onConnectingChange?.(false);
           setSessionPhase('disconnecting');
           void conversation.endSession();
           onTranscript?.('');
           processedRef.current.clear();
+          onVoiceModeChange?.(false);
           onSafetyTriggered?.();
-          appAlert({
-            title: 'Apoio disponível',
-            message: 'Se precisar de ajuda, o CVV está disponível 24h pelo 188.',
-          });
           return;
         }
         processVoiceAssistantTurnRef.current(text);
@@ -1208,6 +1206,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
                 voiceSessionActiveRef.current = false;
                 clearPausedState();
                 clearMicMutedState();
+                onConnectingChange?.(false);
                 setSessionPhase('disconnecting');
                 if (conversationRef.current) {
                   void conversationRef.current.endSession();
@@ -1215,11 +1214,8 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
                 }
                 onTranscript?.('');
                 processedMessagesRef.current.clear();
+                onVoiceModeChange?.(false);
                 onSafetyTriggered?.();
-                appAlert({
-                  title: 'Apoio disponível',
-                  message: 'Se precisar de ajuda, o CVV está disponível 24h pelo 188.',
-                });
                 return;
               }
               processVoiceAssistantTurnRef.current(text);

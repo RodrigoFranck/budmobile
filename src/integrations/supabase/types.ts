@@ -533,6 +533,7 @@ export type Database = {
           timezone: string
           updated_at: string
           user_id: string
+          welcome_sent_at?: string | null
           app_mode?: string
           organization_id?: string | null
           selected_voice?: string | null

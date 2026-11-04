@@ -9,5 +9,8 @@ export const queryKeys = {
   dailyLetter: (userId: string, date: string) => ['dailyLetter', userId, date] as const,
   recapPile: (userId: string) => ['recapPile', userId] as const,
   recapSnippets: (userId: string, ids: string[]) => ['recapSnippets', userId, ids] as const,
+  recapBodies: (userId: string) => ['recapBodies', userId] as const,
+  recapBodiesGenerate: (userId: string, ids: string[]) =>
+    ['recapBodiesGenerate', userId, ids] as const,
   historyDays: (userId: string) => ['historyDays', userId] as const,
 };

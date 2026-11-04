@@ -143,7 +143,7 @@ export const NOTIFICATION_ROWS: {
   icon: 'mail' | 'clock' | 'activity' | 'message';
   capability?: Capability;
 }[] = [
-  { key: 'letter', label: 'Carta do dia', hint: 'Todo dia às 7h', icon: 'mail' },
+  { key: 'letter', label: 'Carta do dia', hint: 'Às 7h, quando houver carta', icon: 'mail' },
   { key: 'weekly', label: 'Resumo da semana', hint: 'Domingo às 17h', icon: 'clock' },
   {
     key: 'screening',
@@ -155,7 +155,7 @@ export const NOTIFICATION_ROWS: {
   {
     key: 'reminders',
     label: 'Lembretes para conversar',
-    hint: 'Quando você some por alguns dias',
+    hint: 'Depois de 3 dias sem conversa, às 19h',
     icon: 'message',
   },
 ];

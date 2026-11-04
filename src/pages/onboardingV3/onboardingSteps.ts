@@ -428,7 +428,8 @@ export const ONBOARDING_V3_STEPS: OnboardingV3Step[] = [
     field: "notifications",
     art: "bell",
     title: { before: "Um lembrete, quando ", accent: "ajudar" },
-    subtitle: "Receba check-ins do Bud. Dá para desligar quando quiser.",
+    subtitle:
+      "A carta do dia, o resumo da semana e a pesquisa de saúde chegam por aqui. Dá para ajustar quando quiser.",
     cta: "Ativar lembretes",
     skippable: true,
   },

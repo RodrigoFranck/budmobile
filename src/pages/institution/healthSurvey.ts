@@ -1,6 +1,6 @@
 export const HEALTH_SURVEY_INSTRUMENT = 'health_survey';
 export const UNKNOWN_ANSWER = 'Não sei';
-export const HEALTH_SURVEY_QUESTION_COUNT = 22;
+export const HEALTH_SURVEY_QUESTION_COUNT = 23;
 export const VAS_DEFAULT = 72;
 
 export type SurveyChoiceInput = {
@@ -34,12 +34,17 @@ export type HealthSurveyStep = {
   key: string;
   kicker?: string;
   title: string;
+  support?: string;
   input: SurveyInput;
   requiresWork?: boolean;
+  requiresWorkedHours?: boolean;
 };
 
 const QV_KICKER = 'Escolha a frase que melhor descreve a sua saúde HOJE.';
-const MOOD_KICKER = 'Nas últimas 2 semanas, com que frequência você se sentiu incomodada por:';
+const PHQ_KICKER =
+  'Durante as últimas 2 semanas, com que frequência você foi incomodada por qualquer um dos problemas abaixo?';
+const GAD_KICKER =
+  'Durante as últimas 2 semanas, com que frequência você foi incomodada pelos problemas abaixo?';
 const SERVICE_KICKER = 'Nos últimos 90 dias, quantas vezes você…';
 const MOOD_OPTIONS = ['Nenhuma vez', 'Vários dias', 'Mais da metade dos dias', 'Quase todos os dias'];
 
@@ -131,26 +136,26 @@ export const HEALTH_SURVEY_STEPS: HealthSurveyStep[] = [
   },
   {
     key: 'mood_interest',
-    kicker: MOOD_KICKER,
-    title: 'Pouco interesse ou prazer em fazer as coisas',
+    kicker: PHQ_KICKER,
+    title: 'Pouco interesse ou pouco prazer em fazer as coisas',
     input: { type: 'choice', options: MOOD_OPTIONS },
   },
   {
     key: 'mood_down',
-    kicker: MOOD_KICKER,
-    title: 'Se sentir para baixo, deprimida ou sem perspectiva',
+    kicker: PHQ_KICKER,
+    title: 'Se sentir “para baixo”, deprimida ou sem perspectiva',
     input: { type: 'choice', options: MOOD_OPTIONS },
   },
   {
     key: 'mood_nervous',
-    kicker: MOOD_KICKER,
-    title: 'Se sentir nervosa, ansiosa ou muito tensa',
+    kicker: GAD_KICKER,
+    title: 'Sentir-se nervosa, ansiosa ou muito tensa',
     input: { type: 'choice', options: MOOD_OPTIONS },
   },
   {
     key: 'mood_worry',
-    kicker: MOOD_KICKER,
-    title: 'Não conseguir parar ou controlar as preocupações',
+    kicker: GAD_KICKER,
+    title: 'Não ser capaz de impedir ou de controlar as preocupações',
     input: { type: 'choice', options: MOOD_OPTIONS },
   },
   {
@@ -198,59 +203,75 @@ export const HEALTH_SURVEY_STEPS: HealthSurveyStep[] = [
   {
     key: 'trabalho_employed',
     kicker:
-      'As próximas perguntas são sobre como problemas de saúde, físicos ou emocionais, afetaram seu trabalho e suas atividades nos últimos 7 dias.',
-    title: 'Você trabalha atualmente (com remuneração)?',
+      'As questões abaixo perguntam a respeito do efeito dos seus problemas de saúde na sua capacidade de trabalhar e realizar atividades regularmente. Por problemas de saúde estamos nos referindo a qualquer problema físico ou emocional ou sintoma.',
+    title: 'Você está atualmente empregada (trabalho remunerado)?',
     input: { type: 'choice', options: ['Sim', 'Não'] },
   },
   {
     key: 'trabalho_missed',
     kicker:
-      'Inclua dias de licença, atrasos e saídas mais cedo por causa da sua saúde. Não conte o tempo desta pesquisa.',
-    title: 'Nos últimos 7 dias, quantas horas de trabalho você perdeu por problemas de saúde?',
+      'As próximas questões se referem aos últimos sete dias, não incluindo o dia de hoje. Inclua as horas não trabalhadas quando você esteve doente, chegou atrasada, saiu mais cedo etc., por causa de sua saúde. Não inclua o tempo que você perdeu para participar desta pesquisa.',
+    title: 'Durante os últimos sete dias, quantas horas você deixou de trabalhar por causa dos seus problemas de saúde?',
     input: { type: 'number', placeholder: 'Horas' },
     requiresWork: true,
   },
   {
     key: 'trabalho_other',
-    kicker: 'Por exemplo: férias, feriados ou folgas.',
-    title: 'Nos últimos 7 dias, quantas horas de trabalho você perdeu por outros motivos?',
+    title:
+      'Durante os últimos sete dias, quantas horas você deixou de trabalhar por causa de qualquer outra razão, como férias, feriados, tempo livre para participar desta pesquisa?',
     input: { type: 'number', placeholder: 'Horas' },
     requiresWork: true,
   },
   {
     key: 'trabalho_hours',
-    title: 'Nos últimos 7 dias, quantas horas você trabalhou de fato?',
+    title: 'Durante os últimos sete dias, quantas horas você trabalhou?',
     input: { type: 'number', placeholder: 'Horas' },
     requiresWork: true,
   },
   {
     key: 'trabalho_productivity',
-    title: 'Nos últimos 7 dias, quanto a sua saúde atrapalhou a sua produtividade enquanto trabalhava?',
+    title:
+      'Durante os últimos sete dias, quanto os seus problemas de saúde afetaram a sua produtividade enquanto você estava trabalhando?',
+    support:
+      'Pense nos dias em que você esteve limitada na quantidade ou tipo de trabalho que você poderia fazer, dias em que você fez menos do que gostaria, ou dias em que você foi menos cuidadosa do que o normal no seu trabalho. Se os problemas de saúde afetaram seu trabalho só um pouco, escolha um número baixo. Escolha um número alto se os problemas de saúde afetaram demais o seu trabalho.',
     input: {
       type: 'scale',
       min: 0,
       max: 10,
-      minLabel: 'Não atrapalhou em nada',
-      maxLabel: 'Me impediu totalmente de trabalhar',
+      minLabel: 'Problemas de saúde não afetaram meu trabalho',
+      maxLabel: 'Problemas de saúde me impediram completamente de trabalhar',
     },
     requiresWork: true,
+    requiresWorkedHours: true,
   },
   {
     key: 'trabalho_daily',
-    title: 'Nos últimos 7 dias, quanto a sua saúde atrapalhou suas atividades do dia a dia, fora o trabalho?',
+    title:
+      'Durante os últimos sete dias, quanto seus problemas de saúde afetaram a sua capacidade de fazer suas atividades regulares diárias (outras além do trabalho no seu emprego)?',
+    support:
+      'Por atividades regulares, queremos dizer atividades comuns que você faz em casa, fazer compras, cuidar das crianças, ginástica, estudo etc. Pense nas vezes em que você esteve limitada na quantidade ou tipo de atividades que você pode fazer e nas vezes em que você fez menos do que gostaria. Se os problemas de saúde afetaram suas atividades só um pouco, escolha um número baixo. Escolha um número alto se os problemas de saúde afetaram demais suas atividades.',
     input: {
       type: 'scale',
       min: 0,
       max: 10,
-      minLabel: 'Não atrapalhou em nada',
-      maxLabel: 'Me impediu totalmente',
+      minLabel: 'Problemas de saúde não afetaram minhas atividades diárias',
+      maxLabel: 'Problemas de saúde me impediram completamente de fazer minhas atividades diárias',
     },
   },
 ];
 
 export function visibleHealthSurveySteps(answers: Record<string, string>): HealthSurveyStep[] {
   const employed = answers.trabalho_employed === 'Sim';
-  return HEALTH_SURVEY_STEPS.filter((step) => !step.requiresWork || employed);
+  const hoursRaw = answers.trabalho_hours;
+  const hoursWorked = hoursRaw === undefined || hoursRaw === '' ? null : Number(hoursRaw);
+  const skipProductivity =
+    employed && hoursWorked !== null && Number.isFinite(hoursWorked) && hoursWorked === 0;
+
+  return HEALTH_SURVEY_STEPS.filter((step) => {
+    if (step.requiresWork && !employed) return false;
+    if (step.requiresWorkedHours && skipProductivity) return false;
+    return true;
+  });
 }
 
 export function isStepAnswered(step: HealthSurveyStep, value: string | undefined): boolean {

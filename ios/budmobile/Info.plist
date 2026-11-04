@@ -48,8 +48,6 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSCameraUsageDescription</key>
-	<string>Bud precisa acessar a câmera para tirar fotos e anexar imagens em conversas e solicitações.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Bud usa o Face ID para desbloquear o app.</string>
 	<key>NSMicrophoneUsageDescription</key>

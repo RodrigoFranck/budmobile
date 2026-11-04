@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import {
   ChevronLeft,
-  Keyboard,
   Mic,
   MicOff,
   Volume2,
@@ -336,17 +335,6 @@ export function VoiceMode({
             ) : (
               <Mic size={22} color={muteIconColor} strokeWidth={2} />
             )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleClose}
-            disabled={isLocked}
-            accessibilityRole="button"
-            accessibilityLabel="Voltar ao teclado"
-            accessibilityState={{ disabled: isLocked }}
-            style={[styles.circleButton, isLocked && styles.circleButtonDisabled]}
-          >
-            <Keyboard size={22} color={colors.text} strokeWidth={2} />
           </TouchableOpacity>
 
           <View style={styles.endWrap}>

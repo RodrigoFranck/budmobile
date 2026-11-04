@@ -230,6 +230,7 @@ export default function ValuesSortScreen() {
             : preferences?.mood ?? profile?.initial_thoughts ?? null,
           memoria: null,
         },
+        gender: profile?.gender,
       });
       if (!generated.length) return;
       setDeck((current) =>
@@ -249,6 +250,7 @@ export default function ValuesSortScreen() {
         activityId: 'ordenacao_valores',
         answers: { muito: piles.muito, mais: piles.mais, menos: piles.menos },
         userName: profile?.name,
+        gender: profile?.gender,
       });
       if (!generated) setSynthesisFailed(true);
       else {

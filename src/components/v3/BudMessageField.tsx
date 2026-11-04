@@ -79,16 +79,18 @@ export function BudMessageField({
             maxHeight: 120,
           }}
         />
-        <TouchableOpacity
-          onPress={onMicPress}
-          disabled={disabled || !onMicPress}
-          accessibilityRole="button"
-          accessibilityLabel="Falar no campo"
-          hitSlop={8}
-          style={{ opacity: disabled || !onMicPress ? 0.35 : 1 }}
-        >
-          <Mic color={colors.text3} size={22} strokeWidth={2} />
-        </TouchableOpacity>
+        {onMicPress ? (
+          <TouchableOpacity
+            onPress={onMicPress}
+            disabled={disabled}
+            accessibilityRole="button"
+            accessibilityLabel="Falar no campo"
+            hitSlop={8}
+            style={{ opacity: disabled ? 0.35 : 1 }}
+          >
+            <Mic color={colors.text3} size={22} strokeWidth={2} />
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity
           onPress={onSend}
           disabled={!canSend}

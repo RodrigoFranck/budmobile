@@ -31,7 +31,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
-import { BudButton, BudIconButton, BudRangePicker, VoicePicker } from '@/components/v3';
+import { BudButton, BudIconButton, BudRangePicker, BudToggle, VoicePicker } from '@/components/v3';
 import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/constants/healthSafety';
 import { useOnboardingFlow } from '@/contexts/OnboardingFlowContext';
 import { useAppAudience } from '@/hooks/useAppAudience';
@@ -276,61 +276,6 @@ function AgeWheelPicker({
         );
       })}
     </ScrollView>
-  );
-}
-
-function BudToggle({ value, onValueChange }: { value: boolean; onValueChange: (next: boolean) => void }) {
-  const colors = useV3Colors();
-  const progress = useSharedValue(value ? 1 : 0);
-
-  useEffect(() => {
-    progress.value = withTiming(value ? 1 : 0, {
-      duration: onboardingMotion.toggleMs,
-      easing: onboardingEasing.standard,
-    });
-  }, [progress, value]);
-
-  const trackStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(progress.value, [0, 1], [colors.line, colors.accent]),
-  }));
-  const thumbStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(progress.value, [0, 1], [colors.text2, colors.onAccent]),
-    transform: [{ translateX: interpolate(progress.value, [0, 1], [3, 23]) }],
-  }));
-
-  return (
-    <Pressable
-      onPress={() => {
-        void Haptics.selectionAsync();
-        onValueChange(!value);
-      }}
-      accessibilityRole="switch"
-      accessibilityState={{ checked: value }}
-    >
-      <Animated.View
-        style={[
-          {
-            width: 52,
-            height: 32,
-            borderRadius: 16,
-            justifyContent: 'center',
-          },
-          trackStyle,
-        ]}
-      >
-        <Animated.View
-          style={[
-            {
-              width: 26,
-              height: 26,
-              borderRadius: 13,
-              position: 'absolute',
-            },
-            thumbStyle,
-          ]}
-        />
-      </Animated.View>
-    </Pressable>
   );
 }
 
@@ -934,15 +879,23 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
           <View style={styles.flexCenter}>
             <Image source={artSource(step.art, assets)} style={styles.lock} resizeMode="contain" />
           </View>
-          <Pressable
-            onPress={() => flow.setShareConversations(!flow.shareConversations)}
-            style={[styles.toggleCard, { backgroundColor: colors.surface }]}
-          >
-            <BudToggle value={flow.shareConversations} onValueChange={flow.setShareConversations} />
-            <Text style={[styles.toggleCopy, { color: colors.text }]}>
-              Ajudar a melhorar o Bud compartilhando minhas conversas de forma anônima.
-            </Text>
-          </Pressable>
+          <View style={[styles.toggleCard, { backgroundColor: colors.surface }]}>
+            <BudToggle
+              value={flow.shareConversations}
+              onValueChange={flow.setShareConversations}
+              accessibilityLabel="Compartilhar conversas de forma anônima"
+            />
+            <Pressable
+              onPress={() => flow.setShareConversations(!flow.shareConversations)}
+              accessibilityRole="button"
+              accessibilityLabel="Compartilhar conversas de forma anônima"
+              style={styles.flex}
+            >
+              <Text style={[styles.toggleCopy, { color: colors.text }]}>
+                Ajudar a melhorar o Bud compartilhando minhas conversas de forma anônima.
+              </Text>
+            </Pressable>
+          </View>
         </>
       );
     }
@@ -1131,7 +1084,7 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
       return (
         <View style={styles.flex}>
           <View style={styles.voicePicker}>
-            <VoicePicker index={voiceIndex} onIndexChange={setVoiceIndex} showSilentHint />
+            <VoicePicker index={voiceIndex} onIndexChange={setVoiceIndex} />
           </View>
         </View>
       );

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Pressable,
+  ScrollView,
   Text,
   TextInput,
   View,
@@ -29,7 +30,7 @@ import {
   ACTIVITY_FOLLOWUPS,
   ACTIVITY_INTROS,
   FIEE_DIMENSIONS,
-  shuffleFieeChipSet,
+  shuffleFieeWords,
   type FieeWord,
 } from '@/pages/activitiesV3/activityFlows';
 import {
@@ -105,14 +106,16 @@ export default function FieeScreen() {
   const [showResult, setShowResult] = useState(false);
   const [centeredWord, setCenteredWord] = useState('');
   const [chipSet, setChipSet] = useState<FieeWord[]>([]);
-  const [writingOwn, setWritingOwn] = useState(false);
   const [customDraft, setCustomDraft] = useState('');
   const [synthesis, setSynthesis] = useState<ActivitySynthesis | null>(null);
   const [synthesisFailed, setSynthesisFailed] = useState(false);
   const [feedback, setFeedback] = useState<ActivityFeedbackValue | null>(null);
   const saveActivity = useRef(createActivityPersister()).current;
+  const lineRef = useRef<TextInput>(null);
   const busy = useRef(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const answersRef = useRef(answers);
+  answersRef.current = answers;
   const intro = ACTIVITY_INTROS.fiee;
   const step = index >= 0 && index < FIEE_DIMENSIONS.length ? FIEE_DIMENSIONS[index] : null;
   const selected = step ? answers[step.key] : undefined;
@@ -120,7 +123,8 @@ export default function FieeScreen() {
   const compass = ASK_LEAF * 2;
   const glowIndex = phase === 'spin' ? Math.max(0, index - 1) : Math.max(0, index);
   const glowColor = FIEE_DIMENSIONS[glowIndex]?.color ?? colors.accent;
-  const canAdvance = Boolean(selected) || customDraft.trim().length >= 2;
+  // Chip selection always fills the line; free text needs 2+ chars (TF-70).
+  const canAdvance = customDraft.trim().length >= 2;
 
   const selectProgress = useSharedValue(0);
   const commitProgress = useSharedValue(0);
@@ -130,7 +134,7 @@ export default function FieeScreen() {
   const spinDeg = useSharedValue(0);
   const loadSpin = useSharedValue(0);
   const glowProgress = useSharedValue(0);
-    const slotY = useSharedValue(156);
+  const slotY = useSharedValue(156);
   const fill0 = useSharedValue(0);
   const fill1 = useSharedValue(0);
   const fill2 = useSharedValue(0);
@@ -156,9 +160,9 @@ export default function FieeScreen() {
 
   useEffect(() => {
     if (!step || phase !== 'ask') return;
-    setChipSet(shuffleFieeChipSet(step.words));
-    setWritingOwn(false);
-    setCustomDraft('');
+    setChipSet(shuffleFieeWords(step.words));
+    const existing = answersRef.current[step.key];
+    setCustomDraft(existing ? displayFiee(existing.palavra) : '');
   }, [phase, step?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const persistOnce = async (nextAnswers = answers, nextSynthesis = synthesis) => {
@@ -183,6 +187,7 @@ export default function FieeScreen() {
       activityId: 'fiee',
       answers: nextAnswers as unknown as Record<string, unknown>,
       userName: profile?.name,
+      gender: profile?.gender,
     });
     if (!generated) {
       setSynthesisFailed(true);
@@ -254,32 +259,55 @@ export default function FieeScreen() {
     holdTimer.current = setTimeout(() => {
       cancelAnimation(loadSpin);
       busy.current = false;
-      void loadSynthesis(nextAnswers);
+      void loadSynthesis({ ...nextAnswers, ...answersRef.current });
     }, LOADING_MS);
   };
 
-  const goNext = async () => {
+  const goNext = () => {
     if (!step || !asking || busy.current || !canAdvance) return;
     busy.current = true;
     const from = index;
+    const draftWord = customDraft.trim();
+    const fromChip = Boolean(selected && !selected.livre && selected.palavra);
     let nextAnswers = answers;
+    let displayWord = '';
 
-    if (!selected && customDraft.trim().length >= 2) {
-      const palavra = customDraft.trim();
-      const classified = await classifyFieeWord(palavra);
+    if (fromChip && selected) {
+      displayWord = displayFiee(selected.palavra);
+      nextAnswers = answers;
+    } else if (draftWord.length >= 2) {
+      displayWord = draftWord;
       const entry: FieeAnswer = {
-        palavra,
+        palavra: draftWord,
         livre: true,
-        valencia: classified?.valencia ?? 0,
+        valencia: 0,
         valencia_origem: 'ia',
       };
       nextAnswers = { ...answers, [step.key]: entry };
       setAnswers(nextAnswers);
-      setCenteredWord(palavra);
-    } else if (selected) {
-      setCenteredWord(displayFiee(selected.palavra));
+      void classifyFieeWord(draftWord).then((classified) => {
+        if (!classified) return;
+        setAnswers((current) => {
+          const currentEntry = current[step.key];
+          if (!currentEntry || currentEntry.palavra !== draftWord || !currentEntry.livre) {
+            return current;
+          }
+          return {
+            ...current,
+            [step.key]: {
+              ...currentEntry,
+              valencia: classified.valencia,
+              valencia_origem: 'ia',
+            },
+          };
+        });
+      });
+    } else {
+      busy.current = false;
+      return;
     }
 
+    setCenteredWord(displayWord);
     setPhase('commit');
     animPhase.value = PHASE_COMMIT;
     commitProgress.value = withTiming(1, { duration: M19_CENTER_MS, easing: STANDARD });
@@ -322,10 +350,6 @@ export default function FieeScreen() {
   };
 
   const followUps = synthesis?.perguntas_mais_fundo ?? ACTIVITY_FOLLOWUPS.fiee;
-  const chipRows = useMemo(() => {
-    const rowSize = Math.ceil(chipSet.length / 2);
-    return [chipSet.slice(0, rowSize), chipSet.slice(rowSize)];
-  }, [chipSet]);
 
   const talk = async (prompt: string) => {
     setSaving(true);
@@ -348,8 +372,8 @@ export default function FieeScreen() {
 
   const selectWord = (word: FieeWord) => {
     if (!asking || !step) return;
-    setWritingOwn(false);
-    setCustomDraft('');
+    const label = displayFiee(word.label);
+    setCustomDraft(label);
     setAnswers((current) => ({
       ...current,
       [step.key]: {
@@ -359,6 +383,19 @@ export default function FieeScreen() {
         valencia_origem: 'tabela',
       },
     }));
+  };
+
+  const onChangeLine = (text: string) => {
+    if (!asking || !step) return;
+    setCustomDraft(text);
+    setAnswers((current) => {
+      const existing = current[step.key];
+      if (!existing) return current;
+      // Typing clears a chip pick; keep a free-text draft as line-only until Próximo.
+      const next = { ...current };
+      delete next[step.key];
+      return next;
+    });
   };
 
   const spinStyle = useAnimatedStyle(() => ({
@@ -395,13 +432,14 @@ export default function FieeScreen() {
   const wordStyle = useAnimatedStyle(() => {
     const size = interpolate(commitProgress.value, [0, 1], [34, 26]);
     const spinFade = interpolate(enterProgress.value, [0, 0.4], [1, 0], Extrapolation.CLAMP);
-    const selectedFade = interpolate(selectProgress.value, [0, 1], [0, 1]);
     const opacity =
       animPhase.value === PHASE_ASK
-        ? selectedFade
+        ? 0
         : animPhase.value === PHASE_LOAD
           ? interpolate(loadProgress.value, [0, 1], [1, 0])
-          : spinFade;
+          : animPhase.value === PHASE_COMMIT
+            ? 1
+            : spinFade;
     return {
       top: slotY.value,
       fontSize: size,
@@ -410,6 +448,17 @@ export default function FieeScreen() {
       opacity,
       transform: [{ translateY: interpolate(commitProgress.value, [0, 1], [0, WORD_RISE]) }],
     };
+  });
+  const lineFieldStyle = useAnimatedStyle(() => {
+    if (animPhase.value === PHASE_ASK) {
+      return { opacity: 1 };
+    }
+    if (animPhase.value === PHASE_COMMIT) {
+      return {
+        opacity: interpolate(commitProgress.value, [0, 0.35], [1, 0], Extrapolation.CLAMP),
+      };
+    }
+    return { opacity: 0 };
   });
   const loadingCopyStyle = useAnimatedStyle(() => ({
     opacity: loadProgress.value,
@@ -599,10 +648,38 @@ export default function FieeScreen() {
             onLayout={(event) => {
               slotY.value = event.nativeEvent.layout.y + WORD_SLOT_PAD_TOP;
             }}
-            style={{ height: WORD_SLOT_H }}
-          />
+            style={{
+              height: WORD_SLOT_H,
+              justifyContent: 'flex-end',
+              paddingBottom: WORD_SLOT_PAD_BOTTOM,
+              paddingHorizontal: 60,
+            }}
+          >
+            <Animated.View style={lineFieldStyle}>
+              <TextInput
+                ref={lineRef}
+                value={customDraft}
+                onChangeText={onChangeLine}
+                editable={asking}
+                placeholder=""
+                accessibilityLabel="Escreva ou escolha uma palavra"
+                style={{
+                  fontFamily: fonts.display,
+                  fontSize: 26,
+                  lineHeight: WORD_LINE,
+                  letterSpacing: -0.4,
+                  color: colors.text,
+                  textAlign: 'center',
+                  paddingVertical: 0,
+                }}
+              />
+            </Animated.View>
+          </View>
 
-          <View
+          <Pressable
+            onPress={() => lineRef.current?.focus()}
+            accessibilityRole="button"
+            accessibilityLabel="Campo para digitar a palavra"
             style={{
               height: 1.5,
               backgroundColor: colors.line,
@@ -610,92 +687,38 @@ export default function FieeScreen() {
             }}
           />
 
-          <View style={{ paddingHorizontal: 24, gap: 10, paddingTop: CHIPS_PAD_TOP }}>
-            {chipRows.map((row, rowIndex) => (
-              <View
-                key={`fiee-row-${rowIndex}`}
-                style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}
-              >
-                {row.map((word) => (
-                  <FieeChip
-                    key={word.label}
-                    label={displayFiee(word.label)}
-                    selected={selected?.palavra === word.label && !selected?.livre}
-                    dimmed={Boolean(selected) && selected?.palavra !== word.label}
-                    color={step?.color ?? colors.accent}
-                    labelColor={CHIP_LABEL}
-                    onPress={() => selectWord(word)}
-                  />
-                ))}
-              </View>
-            ))}
-          </View>
-
-          <View
-            style={{
-              paddingHorizontal: 24,
-              paddingTop: 16,
-              flexDirection: 'row',
-              flexWrap: 'wrap',
-              gap: 12,
-              justifyContent: 'center',
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{
+              gap: 8,
+              paddingLeft: 24,
+              paddingRight: 16,
+              paddingTop: CHIPS_PAD_TOP,
+              alignItems: 'center',
             }}
+            style={{ flexGrow: 0 }}
           >
-            <Pressable
-              onPress={() => step && setChipSet(shuffleFieeChipSet(step.words))}
-              accessibilityRole="button"
-              accessibilityLabel="Outras palavras"
-            >
-              <Text style={{ fontFamily: fonts.sansMedium, fontSize: 15, color: colors.text2 }}>
-                Outras palavras
-              </Text>
-            </Pressable>
-            <Text style={{ color: colors.text3 }}>·</Text>
-            <Pressable
-              onPress={() => {
-                setWritingOwn(true);
-                setAnswers((current) => {
-                  if (!step) return current;
-                  const next = { ...current };
-                  delete next[step.key];
-                  return next;
-                });
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Escrever a minha"
-            >
-              <Text style={{ fontFamily: fonts.sansMedium, fontSize: 15, color: colors.text2 }}>
-                Escrever a minha
-              </Text>
-            </Pressable>
-          </View>
-
-          {writingOwn ? (
-            <View style={{ paddingHorizontal: 24, paddingTop: 14 }}>
-              <TextInput
-                value={customDraft}
-                onChangeText={setCustomDraft}
-                placeholder="Escreva uma palavra…"
-                placeholderTextColor={colors.text3}
-                autoFocus
-                style={{
-                  borderBottomWidth: 1.5,
-                  borderBottomColor: colors.line,
-                  fontFamily: fonts.display,
-                  fontSize: 26,
-                  lineHeight: 32,
-                  color: colors.text,
-                  textAlign: 'center',
-                  paddingVertical: 10,
-                }}
+            {chipSet.map((word) => (
+              <FieeChip
+                key={word.label}
+                label={displayFiee(word.label)}
+                selected={selected?.palavra === word.label && !selected?.livre}
+                dimmed={
+                  Boolean(selected && !selected.livre) && selected?.palavra !== word.label
+                }
+                color={step?.color ?? colors.accent}
+                labelColor={CHIP_LABEL}
+                onPress={() => selectWord(word)}
               />
-            </View>
-          ) : null}
+            ))}
+          </ScrollView>
 
           <View style={{ flex: 1 }} />
 
           <View style={{ paddingHorizontal: 24, paddingBottom: Math.max(insets.bottom, 16) + 12 }}>
-            <FieeNextButton enabled={canAdvance} onPress={() => void goNext()} />
+            <FieeNextButton enabled={canAdvance} onPress={goNext} />
           </View>
         </Animated.View>
       </View>

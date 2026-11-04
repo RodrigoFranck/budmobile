@@ -99,6 +99,8 @@ export const v3Assets = {
   voiceMarceloLine: require('@/assets/v3/voices/marcelo-line.png'),
   shareHandsDark: require('@/assets/v3/menu/share-hands-dark.png'),
   shareHandsLight: require('@/assets/v3/menu/share-hands-light.png'),
+  riskHandsDark: require('@/assets/v3/chat/risk-hands-dark.png'),
+  riskHandsLight: require('@/assets/v3/chat/risk-hands-light.png'),
   profileGizDark: require('@/assets/v3/menu/profile-giz-dark.png'),
   profileGizLight: require('@/assets/v3/menu/profile-giz-light.png'),
   notifBellDark: require('@/assets/v3/menu/notif-bell-dark.png'),
@@ -218,6 +220,7 @@ export type V3ThemedAssets = {
   onboardingBell: ImageSourcePropType;
   onboardingWaves: ImageSourcePropType;
   shareHands: ImageSourcePropType;
+  riskHands: ImageSourcePropType;
   profileGiz: ImageSourcePropType;
   notifBell: ImageSourcePropType;
   accountDeletedGiz: ImageSourcePropType;
@@ -301,6 +304,7 @@ export function useV3Asset(): V3ThemedAssets {
       onboardingBell: isDarkMode ? v3Assets.onboardingBellDark : v3Assets.onboardingBellLight,
       onboardingWaves: isDarkMode ? v3Assets.onboardingWavesDark : v3Assets.onboardingWavesLight,
       shareHands: isDarkMode ? v3Assets.shareHandsDark : v3Assets.shareHandsLight,
+      riskHands: isDarkMode ? v3Assets.riskHandsDark : v3Assets.riskHandsLight,
       profileGiz: isDarkMode ? v3Assets.profileGizDark : v3Assets.profileGizLight,
       notifBell: isDarkMode ? v3Assets.notifBellDark : v3Assets.notifBellLight,
       accountDeletedGiz: isDarkMode

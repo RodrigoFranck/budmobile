@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { BackHandler, Image, Linking, Pressable, Text, View } from 'react-native';
-import { CommonActions, useNavigation } from '@react-navigation/native';
+import { CommonActions, useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -69,11 +69,17 @@ export default function MenuScreen() {
   const navigation = useNavigation<MainTabNavigationProp>();
   const { signOut, user } = useAuth();
   const { can } = useAppAudience();
-  const screening = useScreeningCadence();
+  const screening = useScreeningCadence({ autoNavigate: false });
   const navItems = NAV_ITEMS.filter((item) => !item.capability || can(item.capability));
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      void screening.refresh();
+    }, [screening.refresh]),
+  );
   const progress = useSharedValue(0);
   const dragX = useSharedValue(0);
   const closingRef = useRef(false);
@@ -212,20 +218,29 @@ export default function MenuScreen() {
                 style={{ height: 54, flexDirection: 'row', alignItems: 'center', gap: 14 }}
               >
                 <item.icon color={colors.text} size={22} />
-                <Text style={{ fontFamily: fonts.sans, fontSize: 17, lineHeight: 17, color: colors.text }}>
-                  {item.label}
-                </Text>
-                {item.dest === 'Institution' && screening.due ? (
-                  <View
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                  <Text
                     style={{
-                      width: 9,
-                      height: 9,
-                      borderRadius: 5,
-                      backgroundColor: colors.accent,
-                      marginLeft: 4,
+                      fontFamily: fonts.sans,
+                      fontSize: 17,
+                      lineHeight: 17,
+                      color: colors.text,
+                      includeFontPadding: false,
                     }}
-                  />
-                ) : null}
+                  >
+                    {item.label}
+                  </Text>
+                  {item.dest === 'Institution' && screening.due ? (
+                    <View
+                      style={{
+                        width: 9,
+                        height: 9,
+                        borderRadius: 4.5,
+                        backgroundColor: colors.accent,
+                      }}
+                    />
+                  ) : null}
+                </View>
               </Pressable>
             ))}
           </View>
