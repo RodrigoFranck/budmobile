@@ -1,10 +1,9 @@
 /**
  * URLs de auth — Redirect URLs do Supabase / Google Cloud devem incluir estes valores.
  *
- * TF-81: o consent Google mostra o domínio do redirect_uri. Produção deve usar
- * o domínio próprio (app.falecombud.com.br), nunca lovable.app.
- * Override: EXPO_PUBLIC_SITE_ORIGIN (rollback temporário para budmind.lovable.app
- * enquanto o custom domain / OAuth branding não estiver no ar).
+ * TF-81: o consent Google mostra o domínio do redirect_uri. Produção usa
+ * falecombud.com.br (site Netlify com /auth/mobile-callback). Nunca lovable.app.
+ * Override: EXPO_PUBLIC_SITE_ORIGIN se precisar apontar para outro host.
  *
  * Google OAuth exige callback HTTPS cadastrado no Google Cloud Console.
  * Reset de senha usa deep link nativo — sem dependência do front web.
@@ -14,7 +13,7 @@ import * as Linking from 'expo-linking';
 /** Origem HTTPS autorizada no Google OAuth / fluxos de e-mail. */
 export const SITE_ORIGIN =
   process.env.EXPO_PUBLIC_SITE_ORIGIN?.trim() ||
-  'https://app.falecombud.com.br';
+  'https://falecombud.com.br';
 
 /** Deep link nativo: com.bud.app://reset-password */
 export const PASSWORD_RESET_REDIRECT = Linking.createURL('reset-password', {
