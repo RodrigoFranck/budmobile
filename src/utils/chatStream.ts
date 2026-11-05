@@ -7,9 +7,10 @@ import {
   extractAssistantContent,
   parseChatErrorPayload,
 } from "@/utils/chatStreamParse";
+import type { ChatApiContent } from "@/utils/chatImageMessage";
 import type { ChatMemoryContext } from "@/utils/formatInternalProfile";
 
-type Message = { role: "user" | "assistant"; content: string };
+type Message = { role: "user" | "assistant"; content: ChatApiContent };
 
 export type { ChatMemoryContext };
 export {

@@ -5,12 +5,15 @@ import { splitMessageStanzas } from '@/utils/splitMessageStanzas';
 import { parseInsightContextMessage } from '@/utils/insightContextMessage';
 import { createChatMessageStyles } from '@/components/chat/ChatMessage.styles';
 import { InsightContextCard } from '@/components/chat/InsightContextCard';
+import { ChatPhoto } from '@/components/chat/ChatPhoto';
+import { parseChatImageContent } from '@/utils/chatImageMessage';
 import { useV3Colors } from '@/theme';
 import type { MessageRole } from '@/types/messages';
 
 interface ChatMessageProps {
   role: MessageRole;
   content: string;
+  imageUri?: string;
   isStreaming?: boolean;
   isRevealing?: boolean;
   messageId?: string | number;
@@ -153,6 +156,7 @@ function MessageEntrance({ children }: { children: ReactNode }) {
 export const ChatMessage = memo(function ChatMessage({
   role,
   content,
+  imageUri,
   isStreaming,
   isRevealing,
   messageId,
@@ -197,6 +201,25 @@ export const ChatMessage = memo(function ChatMessage({
   }
 
   if (isUser) {
+    const storagePath = parseChatImageContent(content)?.storagePath ?? null;
+    const inlineUri = content.startsWith('data:image/') ? content : null;
+    const photoUri = imageUri ?? inlineUri;
+    if (photoUri || storagePath) {
+      return (
+        <MessageEntrance>
+          <View style={styles.userWrap}>
+            <View style={styles.userPhotoBubble}>
+              <ChatPhoto
+                uri={photoUri}
+                storagePath={photoUri ? null : storagePath}
+                style={styles.userPhoto}
+              />
+            </View>
+          </View>
+        </MessageEntrance>
+      );
+    }
+
     return (
       <MessageEntrance>
         <View style={styles.userWrap}>

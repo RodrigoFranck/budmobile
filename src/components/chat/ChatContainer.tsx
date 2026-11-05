@@ -229,6 +229,7 @@ export function ChatContainer({
         <ChatMessage
           role={msg.role}
           content={msg.content}
+          imageUri={msg.imageUri}
           isStreaming={msg.isStreaming}
           isRevealing={msg.isRevealing}
           messageId={msg.id}

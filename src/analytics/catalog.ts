@@ -72,6 +72,11 @@ export const EVENT_CATALOG: Record<string, AnalyticsEventMeta> = {
     feature: 'chat',
     featureLabel: 'Chat',
   },
+  anexo_enviado: {
+    label: 'Anexo enviado',
+    feature: 'chat',
+    featureLabel: 'Chat',
+  },
   voice_session_start: {
     label: 'Sessão de voz iniciada',
     feature: 'chat',

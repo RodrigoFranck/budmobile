@@ -2,17 +2,19 @@ import { useEffect, useRef, useState } from 'react';
 import { useIsFocused } from '@react-navigation/native';
 import { View, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
 import { appAlert } from '@/contexts/AppAlertContext';
+import { pickChatGalleryImage } from '@/utils/pickChatGalleryImage';
 import {
   VoiceInterface,
 } from '@/voice/VoiceInterface';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
 import { BudMessageField } from '@/components/v3';
 import type { UserContext } from '@/utils/chatStream';
+import type { ChatGalleryImage } from '@/utils/chatImageMessage';
 
 interface MessageInputBarProps {
   onSendMessage?: (message: string) => void;
+  onSendImage?: (image: ChatGalleryImage) => void;
   disabled?: boolean;
   voiceInterfaceRef?: React.RefObject<VoiceInterfaceRef | null>;
   onVoiceModeChange?: (active: boolean) => void;
@@ -39,6 +41,7 @@ interface MessageInputBarProps {
 
 export function MessageInputBar({
   onSendMessage,
+  onSendImage,
   disabled,
   voiceInterfaceRef,
   onVoiceModeChange,
@@ -79,27 +82,15 @@ export function MessageInputBar({
 
   const pickFromGallery = async () => {
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        appAlert({
-          title: 'Galeria',
-          message: 'Permita o acesso às fotos para escolher da galeria.',
-        });
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        quality: 0.8,
-        exif: false,
-      });
-      if (result.canceled || !result.assets[0]) return;
+      const image = await pickChatGalleryImage();
+      if (!image) return;
+      if (!onSendImage) return;
+      onSendImage(image);
+    } catch (error) {
       appAlert({
-        title: 'Em breve',
-        message:
-          'O envio de fotos no chat ainda está sendo ligado. A imagem foi escolhida, mas ainda não entra na conversa.',
+        title: 'Galeria',
+        message: error instanceof Error ? error.message : 'Não foi possível abrir a galeria.',
       });
-    } catch {
-      appAlert({ title: 'Galeria', message: 'Não foi possível abrir a galeria.' });
     }
   };
 

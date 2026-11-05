@@ -62,6 +62,7 @@ export default function TextChatScreen() {
     recentInsights,
     chatHomeResetToken,
     handleSendMessage,
+    handleSendImage,
     handleVoiceUserMessage,
     handleVoiceAssistantMessage,
     handleEndVoiceSession,
@@ -144,6 +145,7 @@ export default function TextChatScreen() {
           ) : null}
           <MessageInputBar
             onSendMessage={handleSendMessage}
+            onSendImage={handleSendImage}
             disabled={isStreaming || !canSendMessage}
             paddingTop={showLastFreeBanner ? 14 : 12}
             voiceAppearance="prominent"

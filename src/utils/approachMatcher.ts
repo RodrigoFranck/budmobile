@@ -276,6 +276,6 @@ export function matchApproach(
   };
 }
 
-export function countUserTurns(messages: Array<{ role: string; content: string }>): number {
+export function countUserTurns(messages: Array<{ role: string }>): number {
   return messages.filter((message) => message.role === 'user').length;
 }

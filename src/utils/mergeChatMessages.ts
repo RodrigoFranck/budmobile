@@ -5,6 +5,7 @@ type DbMessage = {
   role: string;
   content: string;
   created_at?: string;
+  imageUri?: string;
 };
 
 let streamingMessageSeq = 0;
@@ -43,6 +44,11 @@ export function mergeDbAndStreamingMessages(
     }
   });
 
+  const imageUriByClientId = new Map<string, string>();
+  streamingMessages.forEach((msg) => {
+    if (msg.imageUri) imageUriByClientId.set(String(msg.id), msg.imageUri);
+  });
+
   const usedClientIds = new Set<string>();
 
   const takeClientId = (key: string): string | number | undefined => {
@@ -60,12 +66,17 @@ export function mergeDbAndStreamingMessages(
 
   const dbMessagesFormatted = dbMessages
     .filter((msg) => !revealingKeys.has(`${msg.role}:${msg.content}`))
-    .map((msg) => ({
-      id: takeClientId(`${msg.role}:${msg.content}`) ?? msg.id,
-      role: msg.role as 'user' | 'assistant' | 'context',
-      content: msg.content,
-      createdAt: msg.created_at,
-    }));
+    .map((msg) => {
+      const id = takeClientId(`${msg.role}:${msg.content}`) ?? msg.id;
+      const imageUri = imageUriByClientId.get(String(id)) ?? msg.imageUri;
+      return {
+        id,
+        role: msg.role as 'user' | 'assistant' | 'context',
+        content: msg.content,
+        createdAt: msg.created_at,
+        ...(imageUri ? { imageUri } : {}),
+      };
+    });
 
   const dbContents = new Set(dbMessages.map((m) => `${m.role}:${m.content}`));
   const filteredStreaming = streamingMessages.filter((msg) => {
@@ -87,6 +98,7 @@ export function mergeDbAndStreamingMessages(
       createdAt: msg.createdAt,
       isStreaming: msg.isStreaming,
       isRevealing: msg.isRevealing,
+      ...(msg.imageUri ? { imageUri: msg.imageUri } : {}),
     })),
   ];
 

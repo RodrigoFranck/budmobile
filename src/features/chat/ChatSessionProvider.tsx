@@ -20,6 +20,16 @@ import { countUserTurns, matchApproach } from '@/utils/approachMatcher';
 import { buildInsightApproachContext } from '@/utils/buildInsightApproachContext';
 import { isIncompleteAssistantReply } from '@/utils/chatReplyQuality';
 import { streamChat, type InsightContext, type UserContext } from '@/utils/chatStream';
+import {
+  buildChatImageApiContent,
+  chatMessageTextForModel,
+  CHAT_IMAGE_HISTORY_TEXT,
+  validateChatGalleryImage,
+  type ChatApiContent,
+  type ChatGalleryImage,
+} from '@/utils/chatImageMessage';
+import { storeChatImage } from '@/utils/uploadChatImage';
+import { appAlert } from '@/contexts/AppAlertContext';
 import { userContextFieldsFromProfile } from '@/utils/userContextFromProfile';
 import type { ChatInsightParam } from '@/types/chatInsight';
 import type { ChatTabParams, MainTabNavigationProp } from '@/types/navigation';
@@ -50,6 +60,7 @@ interface ChatSessionContextValue {
     id: string | number;
     role: 'user' | 'assistant' | 'context';
     content: string;
+    imageUri?: string;
     createdAt?: string;
     isStreaming?: boolean;
     isRevealing?: boolean;
@@ -77,6 +88,7 @@ interface ChatSessionContextValue {
   recentInsights: Array<{ insight_type: string; title: string; description: string }>;
   internalProfileText: string | null | undefined;
   handleSendMessage: (message: string, contextOverride?: InsightContext | null) => Promise<void>;
+  handleSendImage: (image: ChatGalleryImage) => Promise<void>;
   handleVoiceUserMessage: (text: string) => Promise<void>;
   handleVoiceAssistantMessage: (text: string) => Promise<void>;
   handleEndVoiceSession: () => Promise<void>;
@@ -297,7 +309,11 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   }, [profile, dbMessages, currentConversationId, insightContext]);
 
   const messageHistory = useMemo(
-    () => dbMessages.map((msg) => ({ role: msg.role, content: msg.content })),
+    () =>
+      dbMessages.map((msg) => ({
+        role: msg.role,
+        content: chatMessageTextForModel(msg.content),
+      })),
     [dbMessages],
   );
 
@@ -382,7 +398,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       approachSeed,
       persistUserMessage,
     }: {
-      apiMessages: Array<{ role: 'user' | 'assistant'; content: string }>;
+      apiMessages: Array<{ role: 'user' | 'assistant'; content: ChatApiContent }>;
       activeInsightContext?: InsightContext | null;
       approachSeed: string;
       persistUserMessage?: Promise<unknown>;
@@ -545,7 +561,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
         .filter((m) => m.role !== 'context')
         .map((m) => ({
           role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
-          content: m.content,
+          content: chatMessageTextForModel(m.content),
         }));
 
       const openingCue =
@@ -568,21 +584,37 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   );
 
   const handleSendMessage = useCallback(
-    async (message: string, contextOverride?: InsightContext | null) => {
-      if (!currentConversationId || !user || sendInFlightRef.current) return;
+    async (
+      message: string,
+      contextOverride?: InsightContext | null,
+      options?: { imageUri?: string; apiContent?: ChatApiContent; skipLock?: boolean },
+    ) => {
+      if (!currentConversationId || !user) {
+        sendInFlightRef.current = false;
+        return;
+      }
+      if (!options?.skipLock) {
+        if (sendInFlightRef.current) return;
+        sendInFlightRef.current = true;
+      }
       if (!canSendMessageRef.current) {
+        sendInFlightRef.current = false;
+        setIsStreaming(false);
         navigation.navigate('Paywall');
         return;
       }
 
-      sendInFlightRef.current = true;
-
       const activeInsightContext =
         contextOverride ?? insightContextRef.current ?? insightContext;
+      const attached = Boolean(options?.apiContent);
 
       void logActionEvent(ACTION_EVENTS.MESSAGE_SENT, {
         has_insight_context: activeInsightContext ? 'true' : 'false',
+        has_attachment: attached ? 'true' : 'false',
       });
+      if (attached) {
+        void logActionEvent(ACTION_EVENTS.ATTACHMENT_SENT, { tipo: 'image' });
+      }
 
       const userMessageId = createStreamingMessageId('user');
       registerMessageClientId(messageClientIdsRef.current, 'user', message, userMessageId);
@@ -592,6 +624,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
           id: userMessageId,
           role: 'user',
           content: message,
+          imageUri: options?.imageUri,
           createdAt: new Date().toISOString(),
         },
       ]);
@@ -603,15 +636,15 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
           .filter((m) => m.role !== 'context' || !m.role)
           .map((m) => ({
             role: (m.role === 'context' ? 'user' : m.role) as 'user' | 'assistant',
-            content: m.content,
+            content: chatMessageTextForModel(m.content),
           })),
-        { role: 'user' as const, content: message },
+        { role: 'user' as const, content: options?.apiContent ?? message },
       ];
 
       await streamAssistantReply({
         apiMessages,
         activeInsightContext,
-        approachSeed: message,
+        approachSeed: attached ? CHAT_IMAGE_HISTORY_TEXT : message,
         persistUserMessage: userMessagePromise,
       });
     },
@@ -624,6 +657,56 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       streamAssistantReply,
       user,
     ],
+  );
+
+  const handleSendImage = useCallback(
+    async (image: ChatGalleryImage) => {
+      if (!currentConversationId || !user || sendInFlightRef.current) return;
+      if (!canSendMessageRef.current) {
+        navigation.navigate('Paywall');
+        return;
+      }
+
+      const validationError = validateChatGalleryImage(image);
+      if (validationError) {
+        appAlert({ title: 'Foto', message: validationError });
+        return;
+      }
+
+      sendInFlightRef.current = true;
+      setIsStreaming(true);
+
+      try {
+        const stored = await storeChatImage({
+          userId: user.id,
+          conversationId: currentConversationId,
+          base64: image.base64,
+        });
+        if (!stored) {
+          sendInFlightRef.current = false;
+          setIsStreaming(false);
+          appAlert({
+            title: 'Foto',
+            message: 'Não foi possível enviar a foto. Tente outra imagem.',
+          });
+          return;
+        }
+
+        await handleSendMessage(stored, null, {
+          imageUri: image.uri,
+          apiContent: buildChatImageApiContent(image.base64),
+          skipLock: true,
+        });
+      } catch {
+        sendInFlightRef.current = false;
+        setIsStreaming(false);
+        appAlert({
+          title: 'Foto',
+          message: 'Não foi possível enviar a foto. Tente outra imagem.',
+        });
+      }
+    },
+    [currentConversationId, handleSendMessage, navigation, user],
   );
 
   const bootstrapInsightSession = useCallback(() => {
@@ -798,6 +881,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       recentInsights,
       internalProfileText,
       handleSendMessage,
+      handleSendImage,
       handleVoiceUserMessage,
       handleVoiceAssistantMessage,
       handleEndVoiceSession,
@@ -829,6 +913,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       recentInsights,
       internalProfileText,
       handleSendMessage,
+      handleSendImage,
       handleVoiceUserMessage,
       handleVoiceAssistantMessage,
       handleEndVoiceSession,

@@ -34,6 +34,20 @@ export function createChatMessageStyles(params: { colors: V3Colors }) {
       color: colors.text,
       flexShrink: 1,
     },
+    userPhotoBubble: {
+      alignSelf: 'flex-end',
+      width: 264,
+      backgroundColor: colors.surface2,
+      borderTopLeftRadius: 22,
+      borderTopRightRadius: 22,
+      borderBottomLeftRadius: 22,
+      borderBottomRightRadius: 6,
+      overflow: 'hidden',
+    },
+    userPhoto: {
+      width: 264,
+      height: 176,
+    },
     userBody: {
       fontFamily: fonts.sans,
       fontSize: 16,
