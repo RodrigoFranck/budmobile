@@ -34,7 +34,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>33</string>
+	<string>34</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSMinimumSystemVersion</key>
@@ -48,6 +48,8 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Bud precisa acessar a câmera para você tirar uma foto e anexar no chat ou no suporte.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Bud usa o Face ID para desbloquear o app.</string>
 	<key>NSMicrophoneUsageDescription</key>
