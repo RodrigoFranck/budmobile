@@ -34,7 +34,7 @@ export default function AccountScreen() {
   const { showAlert } = useAppAlert();
   const { user } = useAuth();
   const { values, persist } = useV3Preferences();
-  const { planId, status } = useUserPlan();
+  const { planId, status, isSubscribed, manageSubscription } = useUserPlan();
   const { can } = useAppAudience();
   const [sendingReset, setSendingReset] = useState(false);
   const [shareConversations, setShareConversations] = useState(values.shareConversations);
@@ -108,7 +108,18 @@ export default function AccountScreen() {
             label="Assinatura"
             value={planLabel}
             last
-            onPress={() => navigation.navigate('Paywall')}
+            onPress={() => {
+              if (isSubscribed) {
+                void manageSubscription().catch(() => {
+                  showAlert({
+                    title: 'Não foi possível abrir a assinatura',
+                    message: 'Tente de novo pela loja do celular.',
+                  });
+                });
+                return;
+              }
+              navigation.navigate('Paywall');
+            }}
           />
         ) : null}
       </PrefGroup>

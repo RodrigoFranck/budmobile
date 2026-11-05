@@ -33,6 +33,7 @@ import Animated, {
 
 import { BudButton, BudIconButton, BudRangePicker, BudToggle, VoicePicker } from '@/components/v3';
 import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/constants/healthSafety';
+import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useOnboardingFlow } from '@/contexts/OnboardingFlowContext';
 import { useAppAudience } from '@/hooks/useAppAudience';
 import { useAppProfileQuery } from '@/hooks/useAppProfileQuery';
@@ -457,7 +458,8 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
   const { completeOnboarding, submitting } = useOnboardingComplete();
   const { can } = useAppAudience();
   const showPaywall = can('paywall');
-  const { startCheckout } = useUserPlan();
+  const { startCheckout, restorePurchases, prices } = useUserPlan();
+  const { showAlert } = useAppAlert();
   const { setNotificationsEnabled } = useNotificationPreferences();
   const [index, setIndex] = useState(0);
   const [hubOpen, setHubOpen] = useState(replay);
@@ -671,7 +673,16 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
       return;
     }
     if (step.layout === 'paywall') {
-      await startCheckout(planInterval);
+      try {
+        const purchased = await startCheckout(planInterval);
+        if (!purchased) return;
+      } catch (error) {
+        showAlert({
+          title: 'Não foi possível assinar',
+          message: error instanceof Error ? error.message : 'Tente novamente.',
+        });
+        return;
+      }
       await finishOnboarding();
       return;
     }
@@ -1116,7 +1127,7 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
     if (step.layout === 'paywall') {
       return (
         <View style={styles.paywallCardWrap}>
-          <PaywallOfferCard interval={planInterval} onChangeInterval={setPlanInterval} />
+          <PaywallOfferCard interval={planInterval} onChangeInterval={setPlanInterval} prices={prices} />
         </View>
       );
     }
@@ -1229,7 +1240,7 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
             <Text style={[styles.renew, { color: colors.text2 }]}>
               Renova em{' '}
               <Text style={{ fontFamily: fonts.sansSemi, color: colors.text }}>
-                {planInterval === 'annual' ? 'R$ 999,90 por ano' : 'R$ 129,90 por mês'}
+                {planInterval === 'annual' ? `${prices.annualTotal} por ano` : `${prices.monthly} por mês`}
               </Text>
               {' · cancele quando quiser'}
             </Text>
@@ -1256,7 +1267,28 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
                 <Text style={[styles.skipText, { color: colors.text }]}>Agora não</Text>
               </Pressable>
               <Text style={[styles.legal, { color: colors.text3 }]}>
-                Restaurar compra ·{' '}
+                <Text
+                  onPress={() => {
+                    void restorePurchases()
+                      .then((restored) => {
+                        if (restored) return finishOnboarding();
+                        showAlert({
+                          title: 'Nenhuma compra para restaurar',
+                          message: 'Quando a assinatura estiver ativa na loja, ela volta para esta conta por aqui.',
+                        });
+                        return undefined;
+                      })
+                      .catch((error: unknown) => {
+                        showAlert({
+                          title: 'Não foi possível restaurar',
+                          message: error instanceof Error ? error.message : 'Tente novamente.',
+                        });
+                      });
+                  }}
+                >
+                  Restaurar compra
+                </Text>
+                {' · '}
                 <Text onPress={() => void Linking.openURL(TERMS_OF_SERVICE_URL)}>Termos</Text>
                 {' · '}
                 <Text onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}>Privacidade</Text>

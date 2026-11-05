@@ -14,6 +14,7 @@ import { useFocusEffect, useIsFocused, useNavigation, useRoute } from '@react-na
 
 import { useAuth } from '@/contexts/AuthContext';
 import { ACTION_EVENTS, logActionEvent } from '@/analytics';
+import { PAYWALL_REQUIRED } from '@/billing/entitlement';
 import { useUserPlan } from '@/hooks/useUserPlan';
 import { useTabScreenContext } from '@/contexts/TabScreenContext';
 import { countUserTurns, matchApproach } from '@/utils/approachMatcher';
@@ -110,10 +111,8 @@ const ChatSessionContext = createContext<ChatSessionContextValue | undefined>(un
 
 export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const { canSendMessage } = useUserPlan();
+  const { canSendInConversation, canUseVoice, isSubscribed, refetch: refetchPlan } = useUserPlan();
   const navigation = useNavigation<MainTabNavigationProp>();
-  const canSendMessageRef = useRef(canSendMessage);
-  canSendMessageRef.current = canSendMessage;
   const route = useRoute();
   const isChatFocused = useIsFocused();
   const {
@@ -128,6 +127,15 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     internalProfile,
     memoryLoading,
   } = useTabScreenContext();
+  const canSendMessage = canSendInConversation(currentConversationId ?? null);
+  const canSendMessageRef = useRef(canSendMessage);
+  canSendMessageRef.current = canSendMessage;
+  const canUseVoiceRef = useRef(canUseVoice);
+  canUseVoiceRef.current = canUseVoice;
+  const isSubscribedRef = useRef(isSubscribed);
+  isSubscribedRef.current = isSubscribed;
+  const refetchPlanRef = useRef(refetchPlan);
+  refetchPlanRef.current = refetchPlan;
 
   const [streamingMessages, setStreamingMessages] = useState<StreamingMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -440,6 +448,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       try {
         await streamChat({
           messages: apiMessages,
+          conversationId: currentConversationId,
           userContext: streamUserContext,
           insightContext: activeInsightContext ?? undefined,
           memoryContext: memoryLoading ? undefined : memoryContext,
@@ -493,6 +502,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
               await persistUserMessage;
             }
             await addMessage(accumulatedContent, 'assistant');
+            if (!isSubscribedRef.current) void refetchPlanRef.current();
             scheduleSessionMemory(
               currentConversationId!,
               dbMessages.length + (persistUserMessage ? 2 : 1),
@@ -501,11 +511,15 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
           onError: (error) => {
             setIsStreaming(false);
             sendInFlightRef.current = false;
-            alert(`Erro: ${error}`);
             setStreamingMessages((prev) =>
               prev.filter((msg) => msg.id !== assistantMessageId),
             );
             streamingIdRef.current = null;
+            if (error === PAYWALL_REQUIRED) {
+              navigation.navigate('Paywall');
+              return;
+            }
+            alert(`Erro: ${error}`);
           },
         });
       } catch {
@@ -521,6 +535,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       internalProfile,
       memoryContext,
       memoryLoading,
+      navigation,
       userContext,
     ],
   );
@@ -722,7 +737,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       currentConversationId &&
       !isVoiceAutoStartInFlightRef.current
     ) {
-      if (!canSendMessageRef.current) {
+      if (!canSendMessageRef.current || !canUseVoiceRef.current) {
         navigation.navigate('Paywall');
         return;
       }

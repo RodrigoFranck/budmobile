@@ -25,6 +25,9 @@ async function resolveVoiceFunctionError(
   if (response) {
     try {
       const body = (await response.json()) as { error?: string };
+      if (body.error === 'paywall_required') {
+        return 'O modo de voz faz parte do Bud Premium.';
+      }
       if (body.error) return body.error;
     } catch {
       // response body may be empty or non-JSON

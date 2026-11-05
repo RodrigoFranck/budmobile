@@ -1,5 +1,7 @@
 import { Platform } from "react-native";
 
+import { PAYWALL_REQUIRED } from "@/billing/entitlement";
+
 import { supabase } from "@/integrations/supabase/client";
 import { resolveChatTextRequestUrls } from "@/utils/chatFunctionsUrl";
 import {
@@ -151,11 +153,13 @@ export async function streamChat({
   insightContext,
   memoryContext,
   approachContext,
+  conversationId,
   onDelta,
   onDone,
   onError,
 }: {
   messages: Message[];
+  conversationId?: string | null;
   userContext?: UserContext;
   insightContext?: InsightContext;
   memoryContext?: ChatMemoryContext;
@@ -183,6 +187,7 @@ export async function streamChat({
       insightContext,
       memoryContext,
       approachContext,
+      conversationId,
       internalProfile: memoryContext?.internalProfileText ?? null,
     });
     const urls = fallback ? [primary, fallback] : [primary];
@@ -242,6 +247,11 @@ export async function streamChat({
 
     if (result.status === 401) {
       onError("Sessão expirada. Por favor, faça login novamente.");
+      return;
+    }
+
+    if (result.status === 402) {
+      onError(PAYWALL_REQUIRED);
       return;
     }
 

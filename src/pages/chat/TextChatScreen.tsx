@@ -33,8 +33,7 @@ export default function TextChatScreen() {
   const tabLoading = useTabScreenLoading('Chat');
   const navigation = useNavigation<ChatStackNavigationProp>();
   const tabNavigation = useNavigation<MainTabNavigationProp>();
-  const { canSendMessage, isLastFreeConversation } = useUserPlan();
-  const showLastFreeBanner = isLastFreeConversation || !canSendMessage;
+  const { canSendInConversation, canUseVoice, isLastFreeConversation } = useUserPlan();
   const route = useRoute<RouteProp<ChatStackParamList, 'TextChat'>>();
   const {
     allMessages,
@@ -71,7 +70,10 @@ export default function TextChatScreen() {
     handleAssistantRevealComplete,
     requestAutoStartVoice,
     bootstrapInsightSession,
+    currentConversationId,
   } = useChatSession();
+  const canSendMessage = canSendInConversation(currentConversationId ?? null);
+  const showLastFreeBanner = isLastFreeConversation || !canSendMessage;
 
   useFocusEffect(
     useCallback(() => {
@@ -149,7 +151,7 @@ export default function TextChatScreen() {
             disabled={isStreaming || !canSendMessage}
             paddingTop={showLastFreeBanner ? 14 : 12}
             voiceAppearance="prominent"
-            voiceInterfaceRef={canSendMessage ? voiceInterfaceRef : undefined}
+            voiceInterfaceRef={canSendMessage && canUseVoice ? voiceInterfaceRef : undefined}
             onVoiceModeChange={setIsVoiceModeActive}
             onVoiceConnectingChange={setIsVoiceConnecting}
             onVoiceSessionBusyChange={setIsVoiceSessionBusy}

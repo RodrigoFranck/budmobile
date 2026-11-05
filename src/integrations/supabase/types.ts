@@ -198,6 +198,72 @@ export type Database = {
         }
         Relationships: []
       }
+      subscriptions: {
+        Row: {
+          billing_interval: string | null
+          cancel_at_period_end: boolean
+          created_at: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          free_conversation_id: string | null
+          id: string
+          plan_id: string
+          status: string
+          store: string | null
+          store_original_transaction_id: string | null
+          store_product_id: string | null
+          store_purchase_token: string | null
+          store_transaction_id: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          trial_ends_at: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          billing_interval?: string | null
+          cancel_at_period_end?: boolean
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          free_conversation_id?: string | null
+          id?: string
+          plan_id?: string
+          status?: string
+          store?: string | null
+          store_original_transaction_id?: string | null
+          store_product_id?: string | null
+          store_purchase_token?: string | null
+          store_transaction_id?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          billing_interval?: string | null
+          cancel_at_period_end?: boolean
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          free_conversation_id?: string | null
+          id?: string
+          plan_id?: string
+          status?: string
+          store?: string | null
+          store_original_transaction_id?: string | null
+          store_product_id?: string | null
+          store_purchase_token?: string | null
+          store_transaction_id?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           conversation_date: string
