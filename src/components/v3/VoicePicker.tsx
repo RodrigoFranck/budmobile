@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -17,24 +17,29 @@ import { fonts, useV3Colors, v3LightColors, voiceOptions, type VoiceId } from '@
 import { useVoiceDemo } from '@/voice/useVoiceDemo';
 
 const PORTRAIT = 200;
+const GIZ = 144;
 const DOT_GAP = 7;
 
 type VoiceOption = (typeof voiceOptions)[number];
 
-export function VoicePicker({
-  index,
-  onIndexChange,
-  showSilentHint = false,
-}: {
-  index: number;
-  onIndexChange: (index: number) => void;
-  showSilentHint?: boolean;
-}) {
+export type VoicePickerHandle = {
+  stopDemo: () => Promise<void>;
+};
+
+export const VoicePicker = forwardRef<
+  VoicePickerHandle,
+  {
+    index: number;
+    onIndexChange: (index: number) => void;
+  }
+>(function VoicePicker({ index, onIndexChange }, ref) {
   const colors = useV3Colors();
   const { width } = useWindowDimensions();
   const listRef = useRef<FlatList<VoiceOption>>(null);
   const fromScroll = useRef(false);
   const { playingId, loadingId, play, stop } = useVoiceDemo();
+
+  useImperativeHandle(ref, () => ({ stopDemo: stop }), [stop]);
 
   useEffect(() => {
     if (fromScroll.current) {
@@ -123,24 +128,9 @@ export function VoicePicker({
         })}
       </View>
 
-      {showSilentHint ? (
-        <Text
-          style={{
-            fontFamily: fonts.sans,
-            fontSize: 14,
-            lineHeight: 20,
-            textAlign: 'center',
-            marginTop: 32,
-            paddingHorizontal: 40,
-            color: colors.text2,
-          }}
-        >
-          Se o celular estiver no silencioso, você não vai ouvir as vozes.
-        </Text>
-      ) : null}
     </View>
   );
-}
+});
 
 function VoiceSlide({
   voice,
@@ -175,9 +165,15 @@ function VoiceSlide({
           borderRadius: 22,
           overflow: 'hidden',
           backgroundColor: v3LightColors.surface,
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
-        <Image source={voice.image} style={{ width: PORTRAIT, height: PORTRAIT }} />
+        <Image
+          source={voice.image}
+          style={{ width: GIZ, height: GIZ }}
+          resizeMode="contain"
+        />
       </View>
       <View style={{ flex: 1, marginLeft: 22, paddingTop: 8 }}>
         <Text

@@ -311,6 +311,8 @@ export function SurveyScale({
 const VAS_TRACK = 330;
 const VAS_THUMB = 40;
 const VAS_RING = 8;
+const VAS_LABEL_GAP = 16;
+const VAS_BOTTOM_GAP = 32;
 
 export function SurveyVas({
   value,
@@ -364,13 +366,20 @@ export function SurveyVas({
   const labelStyle = {
     fontFamily: fonts.sans,
     fontSize: 14,
-    lineHeight: 14,
+    lineHeight: 18,
     color: colors.text2,
-    marginLeft: 110,
+    flexShrink: 1,
+  } as const;
+
+  const numberStyle = {
+    fontFamily: fonts.sansSemi,
+    fontSize: 14,
+    lineHeight: 18,
+    color: colors.text2,
   } as const;
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, paddingBottom: VAS_BOTTOM_GAP }}>
       <Text
         style={{
           fontFamily: fonts.display,
@@ -383,64 +392,89 @@ export function SurveyVas({
       >
         {value}
       </Text>
-      <Text style={[labelStyle, { marginTop: 34 }]}>{maxLabel}</Text>
       <View
-        {...pan.panHandlers}
-        onLayout={onTrackLayout}
         style={{
-          width: VAS_THUMB,
           flex: 1,
+          flexDirection: 'row',
+          alignItems: 'stretch',
+          marginTop: 34,
+          marginLeft: 46,
+          marginRight: 24,
           maxHeight: VAS_TRACK,
-          marginTop: 16,
-          marginLeft: 53,
-          alignItems: 'center',
         }}
       >
         <View
+          {...pan.panHandlers}
+          onLayout={onTrackLayout}
           style={{
-            position: 'absolute',
-            width: 6,
-            top: 0,
-            bottom: 0,
-            borderRadius: 3,
-            backgroundColor: colors.surface2,
-          }}
-        />
-        <View
-          style={{
-            position: 'absolute',
-            width: 6,
-            borderRadius: 3,
-            backgroundColor: colors.accent,
-            bottom: 0,
-            height: Math.max(6, fillHeight),
-          }}
-        />
-        <View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            width: VAS_THUMB + VAS_RING * 2,
-            height: VAS_THUMB + VAS_RING * 2,
-            borderRadius: VAS_THUMB / 2 + VAS_RING,
-            backgroundColor: colors.bg,
-            top: thumbTop - VAS_RING,
-            left: -VAS_RING,
+            width: VAS_THUMB,
+            flex: 1,
+            maxHeight: VAS_TRACK,
             alignItems: 'center',
-            justifyContent: 'center',
           }}
         >
           <View
             style={{
-              width: VAS_THUMB,
-              height: VAS_THUMB,
-              borderRadius: VAS_THUMB / 2,
-              backgroundColor: colors.btn,
+              position: 'absolute',
+              width: 6,
+              top: 0,
+              bottom: 0,
+              borderRadius: 3,
+              backgroundColor: colors.surface2,
             }}
           />
+          <View
+            style={{
+              position: 'absolute',
+              width: 6,
+              borderRadius: 3,
+              backgroundColor: colors.accent,
+              bottom: 0,
+              height: Math.max(6, fillHeight),
+            }}
+          />
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              width: VAS_THUMB + VAS_RING * 2,
+              height: VAS_THUMB + VAS_RING * 2,
+              borderRadius: VAS_THUMB / 2 + VAS_RING,
+              backgroundColor: colors.bg,
+              top: thumbTop - VAS_RING,
+              left: -VAS_RING,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <View
+              style={{
+                width: VAS_THUMB,
+                height: VAS_THUMB,
+                borderRadius: VAS_THUMB / 2,
+                backgroundColor: colors.btn,
+              }}
+            />
+          </View>
+        </View>
+        <View
+          pointerEvents="none"
+          style={{
+            flex: 1,
+            marginLeft: VAS_LABEL_GAP,
+            justifyContent: 'space-between',
+          }}
+        >
+          <Text style={labelStyle} numberOfLines={2}>
+            <Text style={numberStyle}>100</Text>
+            {` · ${maxLabel}`}
+          </Text>
+          <Text style={labelStyle} numberOfLines={2}>
+            <Text style={numberStyle}>0</Text>
+            {` · ${minLabel}`}
+          </Text>
         </View>
       </View>
-      <Text style={[labelStyle, { marginTop: 12 }]}>{minLabel}</Text>
     </View>
   );
 }

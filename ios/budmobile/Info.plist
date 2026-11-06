@@ -19,7 +19,7 @@
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.0.21</string>
+	<string>2.0.24</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleURLTypes</key>
@@ -34,7 +34,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>31</string>
+	<string>35</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSMinimumSystemVersion</key>
@@ -49,7 +49,7 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>Bud precisa acessar a câmera para tirar fotos e anexar imagens em conversas e solicitações.</string>
+	<string>Bud precisa acessar a câmera para você tirar uma foto e anexar no chat ou no suporte.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Bud usa o Face ID para desbloquear o app.</string>
 	<key>NSMicrophoneUsageDescription</key>

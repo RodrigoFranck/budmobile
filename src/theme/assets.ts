@@ -19,6 +19,10 @@ export const v3Assets = {
   gizMoonDark: require('@/assets/v3/giz/lua-dark.png'),
   gizMoonLight: require('@/assets/v3/giz/lua-light.png'),
   voiceAmanda: require('@/assets/v3/voices/amanda.png'),
+  voiceGizXicara: require('@/assets/v3/voices/giz-xicara-claro.png'),
+  voiceGizLua: require('@/assets/v3/voices/giz-lua-claro.png'),
+  voiceGizCaminho: require('@/assets/v3/voices/giz-caminho-claro.png'),
+  voiceGizSol: require('@/assets/v3/voices/giz-sol-claro.png'),
   fieeLeaf: require('@/assets/v3/activities/fiee-leaf-cut.png'),
   mistPorquesDark: require('@/assets/v3/activities/mist-porques-cut.png'),
   mistPorquesLight: require('@/assets/v3/activities/mist-porques-light.png'),
@@ -44,7 +48,8 @@ export const v3Assets = {
   valoresGizLight: require('@/assets/v3/activities/valores-giz-light.png'),
   cincoPorquesCoverDark: require('@/assets/v3/activities/cinco-porques-cover.png'),
   cincoPorquesCoverLight: require('@/assets/v3/activities/cinco-porques-cover-light.png'),
-  cincoPorquesLoadingOrb: require('@/assets/v3/activities/cinco-porques-loading-orb.png'),
+  cincoPorquesLoadingOrbDark: require('@/assets/v3/activities/cinco-porques-loading-orb.png'),
+  cincoPorquesLoadingOrbLight: require('@/assets/v3/activities/cinco-porques-loading-orb-light.png'),
   fieeCoverDark: require('@/assets/v3/activities/fiee-cover.png'),
   fieeCoverLight: require('@/assets/v3/activities/fiee-cover-light.png'),
   mapaCoverDark: require('@/assets/v3/activities/mapa-cover.png'),
@@ -58,7 +63,8 @@ export const v3Assets = {
   fieeLeafIntelectual: require('@/assets/v3/activities/fiee-leaf-intelectual.png'),
   fieeLeafEmocional: require('@/assets/v3/activities/fiee-leaf-emocional.png'),
   fieeLeafSocial: require('@/assets/v3/activities/fiee-leaf-social.png'),
-  valoresCardsGiz: require('@/assets/v3/activities/valores-cards-giz.png'),
+  valoresCardsGizDark: require('@/assets/v3/activities/valores-cards-giz.png'),
+  valoresCardsGizLight: require('@/assets/v3/activities/valores-cards-giz-light.png'),
   splashTextureDark: require('@/assets/v3/auth/splash-texture.png'),
   splashTextureLight: require('@/assets/v3/auth/splash-texture-light.png'),
   wordmarkDark: require('@/assets/v3/auth/wordmark.png'),
@@ -93,6 +99,8 @@ export const v3Assets = {
   voiceMarceloLine: require('@/assets/v3/voices/marcelo-line.png'),
   shareHandsDark: require('@/assets/v3/menu/share-hands-dark.png'),
   shareHandsLight: require('@/assets/v3/menu/share-hands-light.png'),
+  riskHandsDark: require('@/assets/v3/chat/risk-hands-dark.png'),
+  riskHandsLight: require('@/assets/v3/chat/risk-hands-light.png'),
   profileGizDark: require('@/assets/v3/menu/profile-giz-dark.png'),
   profileGizLight: require('@/assets/v3/menu/profile-giz-light.png'),
   notifBellDark: require('@/assets/v3/menu/notif-bell-dark.png'),
@@ -109,7 +117,8 @@ export const v3Assets = {
   healthSproutLight: require('@/assets/v3/health/sprout-light.png'),
   paywallMistDark: require('@/assets/v3/paywall/mist-dark.png'),
   paywallMistLight: require('@/assets/v3/paywall/mist-light.png'),
-  historyCalendarGiz: require('@/assets/v3/history/calendar-giz.png'),
+  historyCalendarGizDark: require('@/assets/v3/history/calendar-giz.png'),
+  historyCalendarGizLight: require('@/assets/v3/history/calendar-giz-light.png'),
   historyCalendarMarks: require('@/assets/v3/history/calendar-marks.png'),
   historyRecapMistDark: require('@/assets/v3/history/recap-mist-dark.png'),
   historyRecapMistLight: require('@/assets/v3/history/recap-mist-light.png'),
@@ -122,35 +131,28 @@ export const voiceOptions = [
     id: 'kaique',
     label: 'Kaique',
     bio: 'Poético e suave. A voz que o Bud já usa.',
-    image: v3Assets.voiceMarceloLine,
+    image: v3Assets.voiceGizLua,
     elevenLabsVoiceId: 'Hmn4B9B77pf6ttydteJ8',
   },
   {
     id: 'amanda',
     label: 'Amanda',
     bio: 'Calorosa e próxima. Como uma amiga que escuta.',
-    image: v3Assets.voiceAmandaLine,
+    image: v3Assets.voiceGizXicara,
     elevenLabsVoiceId: 'oi8rgjIfLgJRsQ6rbZh3',
-  },
-  {
-    id: 'carla',
-    label: 'Carla',
-    bio: 'Calorosa e próxima. Como uma amiga que escuta.',
-    image: v3Assets.voiceAmandaLine,
-    elevenLabsVoiceId: 'm151rjrbWXbBqyq56tly',
   },
   {
     id: 'marcelo',
     label: 'Marcelo',
     bio: 'Grave e firme. Uma presença que acalma.',
-    image: v3Assets.voiceMarceloLine,
+    image: v3Assets.voiceGizCaminho,
     elevenLabsVoiceId: 'bJrNspxJVFovUxNBQ0wh',
   },
   {
     id: 'will',
     label: 'Will',
-    bio: 'Grave e firme. Uma presença que acalma.',
-    image: v3Assets.voiceMarceloLine,
+    bio: 'Leve e animada. Mais energia, mais ritmo.',
+    image: v3Assets.voiceGizSol,
     elevenLabsVoiceId: 'CstacWqMhJQlnfLPxRG4',
   },
 ] as const;
@@ -159,26 +161,34 @@ export type VoiceId = (typeof voiceOptions)[number]['id'];
 
 export const DEFAULT_VOICE_ID: VoiceId = 'kaique';
 
+const LEGACY_VOICE_MAP: Record<string, VoiceId> = {
+  carla: 'kaique',
+};
+
 export function isVoiceId(value: unknown): value is VoiceId {
   return typeof value === 'string' && voiceOptions.some((option) => option.id === value);
 }
 
 export function voiceFromValue(value: unknown): VoiceId {
-  return isVoiceId(value) ? value : DEFAULT_VOICE_ID;
+  if (isVoiceId(value)) return value;
+  if (typeof value === 'string' && value in LEGACY_VOICE_MAP) return LEGACY_VOICE_MAP[value];
+  return DEFAULT_VOICE_ID;
 }
 
 export function storedVoiceId(selectedVoice: unknown, preferences: unknown): VoiceId {
-  if (isVoiceId(selectedVoice)) return selectedVoice;
+  const fromSelected = voiceFromValue(selectedVoice);
+  if (isVoiceId(selectedVoice) || (typeof selectedVoice === 'string' && selectedVoice in LEGACY_VOICE_MAP)) {
+    return fromSelected;
+  }
   if (preferences && typeof preferences === 'object' && preferences !== null && 'voice' in preferences) {
-    const nested = (preferences as { voice?: unknown }).voice;
-    if (isVoiceId(nested)) return nested;
+    return voiceFromValue((preferences as { voice?: unknown }).voice);
   }
   return DEFAULT_VOICE_ID;
 }
 
 export function elevenLabsVoiceIdFor(voice: string | null | undefined): string | undefined {
-  if (!isVoiceId(voice) || voice === DEFAULT_VOICE_ID) return undefined;
-  return voiceOptions.find((item) => item.id === voice)?.elevenLabsVoiceId;
+  const resolved = voiceFromValue(voice);
+  return voiceOptions.find((item) => item.id === resolved)?.elevenLabsVoiceId;
 }
 
 export type ActivityCardArt = ImageSourcePropType;
@@ -210,6 +220,7 @@ export type V3ThemedAssets = {
   onboardingBell: ImageSourcePropType;
   onboardingWaves: ImageSourcePropType;
   shareHands: ImageSourcePropType;
+  riskHands: ImageSourcePropType;
   profileGiz: ImageSourcePropType;
   notifBell: ImageSourcePropType;
   accountDeletedGiz: ImageSourcePropType;
@@ -293,6 +304,7 @@ export function useV3Asset(): V3ThemedAssets {
       onboardingBell: isDarkMode ? v3Assets.onboardingBellDark : v3Assets.onboardingBellLight,
       onboardingWaves: isDarkMode ? v3Assets.onboardingWavesDark : v3Assets.onboardingWavesLight,
       shareHands: isDarkMode ? v3Assets.shareHandsDark : v3Assets.shareHandsLight,
+      riskHands: isDarkMode ? v3Assets.riskHandsDark : v3Assets.riskHandsLight,
       profileGiz: isDarkMode ? v3Assets.profileGizDark : v3Assets.profileGizLight,
       notifBell: isDarkMode ? v3Assets.notifBellDark : v3Assets.notifBellLight,
       accountDeletedGiz: isDarkMode
@@ -305,7 +317,9 @@ export function useV3Asset(): V3ThemedAssets {
       healthClipboard: isDarkMode ? v3Assets.healthClipboardDark : v3Assets.healthClipboardLight,
       healthSprout: isDarkMode ? v3Assets.healthSproutDark : v3Assets.healthSproutLight,
       paywallMist: isDarkMode ? v3Assets.paywallMistDark : v3Assets.paywallMistLight,
-      historyCalendarGiz: v3Assets.historyCalendarGiz,
+      historyCalendarGiz: isDarkMode
+        ? v3Assets.historyCalendarGizDark
+        : v3Assets.historyCalendarGizLight,
       historyCalendarMarks: v3Assets.historyCalendarMarks,
       historyRecapMist: isDarkMode
         ? v3Assets.historyRecapMistDark
@@ -318,10 +332,14 @@ export function useV3Asset(): V3ThemedAssets {
       fieeLeafIntelectual: v3Assets.fieeLeafIntelectual,
       fieeLeafEmocional: v3Assets.fieeLeafEmocional,
       fieeLeafSocial: v3Assets.fieeLeafSocial,
-      valoresCardsGiz: v3Assets.valoresCardsGiz,
+      valoresCardsGiz: isDarkMode
+        ? v3Assets.valoresCardsGizDark
+        : v3Assets.valoresCardsGizLight,
       mistPorques: isDarkMode ? v3Assets.cincoPorquesMistDark : v3Assets.cincoPorquesMistLight,
       cincoPorquesGiz: isDarkMode ? v3Assets.cincoPorquesGizDark : v3Assets.cincoPorquesGizLight,
-      cincoPorquesLoadingOrb: v3Assets.cincoPorquesLoadingOrb,
+      cincoPorquesLoadingOrb: isDarkMode
+        ? v3Assets.cincoPorquesLoadingOrbDark
+        : v3Assets.cincoPorquesLoadingOrbLight,
       fieeMist: isDarkMode ? v3Assets.fieeMistDark : v3Assets.fieeMistLight,
       fieeGiz: isDarkMode ? v3Assets.fieeGizDark : v3Assets.fieeGizLight,
       mapaMist: isDarkMode ? v3Assets.mapaMistDark : v3Assets.mapaMistLight,

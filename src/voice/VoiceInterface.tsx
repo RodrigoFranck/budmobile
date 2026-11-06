@@ -41,8 +41,21 @@ import { WavesIcon } from '@/voice/WavesIcon';
 import type { VoiceInterfaceRef, StartVoiceConversationOptions } from '@/voice/VoiceInterface.types';
 import { buildVoiceSessionStartOptions, omitVoiceFirstMessage, type VoiceSessionStartOptions } from '@/voice/voiceElevenLabsSession';
 import { playVoiceMuteSound } from '@/voice/voiceCallSounds';
+import { restoreVoiceRecordingAudioMode } from '@/voice/voiceAudioSession';
 
 type VoiceSessionPhase = 'idle' | 'connecting' | 'connected' | 'disconnecting';
+
+const VOICE_CONNECT_TIMEOUT_MS = 25000;
+
+function voiceErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === 'string' && error.trim()) return error;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+}
 
 async function releaseVoiceAudioSession() {
   if (Platform.OS === 'web') return;
@@ -210,6 +223,7 @@ function VoiceInterfaceNativeInner(
 ) {
   const [sessionPhase, setSessionPhase] = useState<VoiceSessionPhase>('idle');
   const startSessionPromiseRef = useRef<Promise<unknown> | null>(null);
+  const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const processedRef = useRef<Set<string>>(new Set());
   const noResponseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastUserMsgAtRef = useRef<number | null>(null);
@@ -291,6 +305,13 @@ function VoiceInterfaceNativeInner(
     }
   }, [onMicMutedChange]);
 
+  const clearConnectTimeout = useCallback(() => {
+    if (connectTimeoutRef.current) {
+      clearTimeout(connectTimeoutRef.current);
+      connectTimeoutRef.current = null;
+    }
+  }, []);
+
   const unmuteMicIfAllowed = useCallback(
     (setMuted: (muted: boolean) => void) => {
       if (isPausedRef.current || isMicMutedRef.current) return;
@@ -314,6 +335,7 @@ function VoiceInterfaceNativeInner(
         return;
       }
 
+      clearConnectTimeout();
       onConnectingChange?.(false);
       setSessionPhase('connected');
       setIsLoading(false);
@@ -353,6 +375,7 @@ function VoiceInterfaceNativeInner(
     onDisconnect: () => {
       voiceSessionActiveRef.current = false;
       startSessionPromiseRef.current = null;
+      clearConnectTimeout();
       clearPausedState();
       clearMicMutedState();
       onConnectingChange?.(false);
@@ -446,15 +469,13 @@ function VoiceInterfaceNativeInner(
           voiceSessionActiveRef.current = false;
           clearPausedState();
           clearMicMutedState();
+          onConnectingChange?.(false);
           setSessionPhase('disconnecting');
           void conversation.endSession();
           onTranscript?.('');
           processedRef.current.clear();
+          onVoiceModeChange?.(false);
           onSafetyTriggered?.();
-          appAlert({
-            title: 'Apoio disponível',
-            message: 'Se precisar de ajuda, o CVV está disponível 24h pelo 188.',
-          });
           return;
         }
         processVoiceAssistantTurnRef.current(text);
@@ -495,6 +516,7 @@ function VoiceInterfaceNativeInner(
     onError: (message: string) => {
       voiceSessionActiveRef.current = false;
       startSessionPromiseRef.current = null;
+      clearConnectTimeout();
       clearPausedState();
       clearMicMutedState();
       onConnectingChange?.(false);
@@ -534,9 +556,10 @@ function VoiceInterfaceNativeInner(
         clearInterval(micArmTimerRef.current);
         micArmTimerRef.current = null;
       }
+      clearConnectTimeout();
       clearPauseKeepAlive();
     };
-  }, [clearPauseKeepAlive]);
+  }, [clearConnectTimeout, clearPauseKeepAlive]);
 
   const [isLoading, setIsLoading] = useState(false);
 
@@ -612,6 +635,7 @@ function VoiceInterfaceNativeInner(
 
     startGenerationRef.current += 1;
     voiceSessionActiveRef.current = false;
+    clearConnectTimeout();
     clearPausedState();
     clearMicMutedState();
     setSessionPhase('disconnecting');
@@ -645,6 +669,7 @@ function VoiceInterfaceNativeInner(
     processedRef.current.clear();
     sessionMessagesRef.current = [];
   }, [
+    clearConnectTimeout,
     clearMicMutedState,
     clearPausedState,
     conversation,
@@ -709,10 +734,29 @@ function VoiceInterfaceNativeInner(
     voiceSessionActiveRef.current = true;
     clearPausedState();
     clearMicMutedState();
+    clearConnectTimeout();
     setSessionPhase('connecting');
     onVoiceModeChange?.(true);
     onConnectingChange?.(true);
     setIsLoading(true);
+
+    connectTimeoutRef.current = setTimeout(() => {
+      if (generation !== startGenerationRef.current) return;
+      if (!voiceSessionActiveRef.current) return;
+      voiceSessionActiveRef.current = false;
+      startSessionPromiseRef.current = null;
+      clearConnectTimeout();
+      setSessionPhase('idle');
+      onConnectingChange?.(false);
+      onVoiceModeChange?.(false);
+      setIsLoading(false);
+      appAlert({
+        title: 'Erro',
+        message: 'A conexão de voz demorou demais. Feche e tente de novo.',
+      });
+      void Promise.resolve(conversation.endSession()).catch(() => {});
+      void releaseVoiceAudioSession();
+    }, VOICE_CONNECT_TIMEOUT_MS);
 
     const hasMic = await ensureMicrophonePermission();
     if (!hasMic) {
@@ -720,6 +764,7 @@ function VoiceInterfaceNativeInner(
         return;
       }
       voiceSessionActiveRef.current = false;
+      clearConnectTimeout();
       setSessionPhase('idle');
       onConnectingChange?.(false);
       onVoiceModeChange?.(false);
@@ -732,15 +777,11 @@ function VoiceInterfaceNativeInner(
     }
 
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
+      await restoreVoiceRecordingAudioMode();
 
       if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
         voiceSessionActiveRef.current = false;
+        clearConnectTimeout();
         setSessionPhase('idle');
         onConnectingChange?.(false);
         onVoiceModeChange?.(false);
@@ -757,6 +798,7 @@ function VoiceInterfaceNativeInner(
 
       if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
         voiceSessionActiveRef.current = false;
+        clearConnectTimeout();
         setSessionPhase('idle');
         onConnectingChange?.(false);
         onVoiceModeChange?.(false);
@@ -794,12 +836,15 @@ function VoiceInterfaceNativeInner(
         return;
       }
       voiceSessionActiveRef.current = false;
+      clearConnectTimeout();
       setSessionPhase('idle');
       onConnectingChange?.(false);
       onVoiceModeChange?.(false);
       setIsLoading(false);
-      const msg = e instanceof Error ? e.message : 'Falha ao iniciar conversa';
-      appAlert({ title: 'Erro', message: msg });
+      appAlert({
+        title: 'Erro',
+        message: voiceErrorMessage(e, 'Falha ao iniciar conversa'),
+      });
       void releaseVoiceAudioSession();
     } finally {
       if (generation === startGenerationRef.current) {
@@ -807,6 +852,7 @@ function VoiceInterfaceNativeInner(
       }
     }
   }, [
+    clearConnectTimeout,
     clearMicMutedState,
     clearPausedState,
     conversation,
@@ -1054,6 +1100,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
         setIsLoading(false);
         onConnectingChange?.(false);
         onVoiceModeChange?.(false);
+        void releaseVoiceAudioSession();
       }
 
       onTranscript?.('');
@@ -1159,6 +1206,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
                 voiceSessionActiveRef.current = false;
                 clearPausedState();
                 clearMicMutedState();
+                onConnectingChange?.(false);
                 setSessionPhase('disconnecting');
                 if (conversationRef.current) {
                   void conversationRef.current.endSession();
@@ -1166,11 +1214,8 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
                 }
                 onTranscript?.('');
                 processedMessagesRef.current.clear();
+                onVoiceModeChange?.(false);
                 onSafetyTriggered?.();
-                appAlert({
-                  title: 'Apoio disponível',
-                  message: 'Se precisar de ajuda, o CVV está disponível 24h pelo 188.',
-                });
                 return;
               }
               processVoiceAssistantTurnRef.current(text);

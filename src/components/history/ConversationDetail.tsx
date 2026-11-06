@@ -9,15 +9,22 @@ import { InsightContextCard } from '@/components/chat/InsightContextCard';
 import { useMessages } from '@/hooks/useMessages';
 import { useOnboardingColors } from '@/constants/onboardingTheme';
 import { useConversationDetailStyles } from '@/components/history/ConversationDetail.styles';
+import type { HistoryActivityChip } from '@/hooks/useHistoryDays';
+import type { ActivityId } from '@/pages/activitiesV3/activityFlows';
+import type { InsightActivityType } from '@/utils/insightContextVariant';
 import {
   isUserMessageAfterContext,
   parseInsightContextMessage,
 } from '@/utils/insightContextMessage';
 
 interface ConversationDetailProps {
-  conversationId: string;
+  conversationId: string | null;
   conversationTitle: string;
   conversationDate: string;
+  weekdayLabel?: string;
+  dateLabel?: string;
+  activities?: HistoryActivityChip[];
+  hasLetter?: boolean;
   onBack: () => void;
 }
 
@@ -28,9 +35,18 @@ function capitalizeFirst(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function toInsightActivityType(id: ActivityId): InsightActivityType {
+  if (id === 'ordenacao_valores') return 'valores';
+  return id;
+}
+
 export default function ConversationDetail({
   conversationId,
   conversationDate,
+  weekdayLabel: weekdayLabelProp,
+  dateLabel: dateLabelProp,
+  activities = [],
+  hasLetter = false,
   onBack,
 }: ConversationDetailProps) {
   const { messages, loading } = useMessages(conversationId);
@@ -39,13 +55,20 @@ export default function ConversationDetail({
   const styles = useConversationDetailStyles();
 
   const weekdayLabel = useMemo(() => {
+    if (weekdayLabelProp) return weekdayLabelProp;
     const raw = format(new Date(conversationDate), 'EEEE', { locale: ptBR });
     return capitalizeFirst(raw);
-  }, [conversationDate]);
+  }, [conversationDate, weekdayLabelProp]);
 
   const dateLabel = useMemo(() => {
+    if (dateLabelProp) return dateLabelProp;
     return format(new Date(conversationDate), "d 'de' MMMM", { locale: ptBR });
-  }, [conversationDate]);
+  }, [conversationDate, dateLabelProp]);
+
+  const activityTypesShown = useMemo(
+    () => new Set(activities.map((activity) => toInsightActivityType(activity.id))),
+    [activities],
+  );
 
   if (loading) {
     return (
@@ -56,6 +79,10 @@ export default function ConversationDetail({
       </View>
     );
   }
+
+  const hasMessages = messages.length > 0;
+  const showEmpty =
+    !hasMessages && activities.length === 0 && !hasLetter;
 
   return (
     <View style={styles.screen}>
@@ -81,12 +108,40 @@ export default function ConversationDetail({
           <Text style={styles.dateLabel}>{dateLabel}</Text>
         </View>
 
-        {messages.length === 0 ? (
+        {activities.length > 0 ? (
+          <View style={styles.activitiesBlock}>
+            <Text style={styles.activitiesTitle}>Atividades</Text>
+            {activities.map((activity) => (
+              <InsightContextCard
+                key={activity.id}
+                badge={`${activity.label} · Resultado`}
+                title={activity.resultText?.trim() || activity.label}
+                description={
+                  activity.resultText?.trim()
+                    ? undefined
+                    : 'Você fez esta atividade neste dia.'
+                }
+                variant="activity"
+                activityType={toInsightActivityType(activity.id)}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {hasLetter && !hasMessages ? (
+          <View style={styles.letterNote}>
+            <Text style={styles.letterNoteText}>Você abriu a carta deste dia.</Text>
+          </View>
+        ) : null}
+
+        {showEmpty ? (
           <View style={styles.emptyState}>
             <MessageSquare size={48} color={onboardingColors.textSecondary} />
             <Text style={styles.emptyText}>Nenhuma mensagem encontrada nesta conversa.</Text>
           </View>
-        ) : (
+        ) : null}
+
+        {hasMessages ? (
           <View style={styles.messages}>
             {messages.map((message, index) => {
               if (isUserMessageAfterContext(messages, index)) {
@@ -101,13 +156,20 @@ export default function ConversationDetail({
                   {message.role === 'context' ? (
                     (() => {
                       const contextData = parseInsightContextMessage(message.content);
+                      if (
+                        contextData?.activityType &&
+                        activityTypesShown.has(contextData.activityType)
+                      ) {
+                        return null;
+                      }
                       if (contextData) {
                         return (
                           <InsightContextCard
                             badge={contextData.badge}
                             title={contextData.title}
                             description={contextData.description}
-                            category={contextData.category}
+                            variant={contextData.variant}
+                            activityType={contextData.activityType}
                           />
                         );
                       }
@@ -135,7 +197,7 @@ export default function ConversationDetail({
               );
             })}
           </View>
-        )}
+        ) : null}
       </ScrollView>
     </View>
   );

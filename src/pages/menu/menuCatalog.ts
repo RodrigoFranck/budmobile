@@ -34,7 +34,9 @@ export type PrefEditField =
   | 'blockers'
   | 'faith'
   | 'neurodivergence'
-  | 'interests';
+  | 'interests'
+  | 'anythingElse'
+  | 'origin';
 
 export type PrefEditKind = 'text' | 'single' | 'multi';
 
@@ -100,6 +102,16 @@ export const PREF_EDIT_SPECS: Record<PrefEditField, PrefEditSpec> = {
   faith: specFromOnboarding('faith', 'single'),
   neurodivergence: specFromOnboarding('neurodivergence', 'single'),
   interests: specFromOnboarding('interests', 'multi'),
+  anythingElse: {
+    field: 'anythingElse',
+    kind: 'text',
+    titleBefore: 'Quer contar mais ',
+    titleAccent: 'alguma coisa',
+    titleAfter: '?',
+    subtitle: '',
+    placeholder: 'O Bud está ouvindo.',
+  },
+  origin: specFromOnboarding('origin', 'single'),
 };
 
 export const ABOUT_ME_ROWS: { field: PrefEditField; label: string }[] = [
@@ -120,6 +132,8 @@ export const MOTIVE_ROWS: { field: PrefEditField; label: string }[] = [
   { field: 'blockers', label: 'O que te impede de agir' },
   { field: 'faith', label: 'Fé e espiritualidade' },
   { field: 'neurodivergence', label: 'Neurodivergência' },
+  { field: 'anythingElse', label: 'Algo mais sobre você' },
+  { field: 'origin', label: 'Como conheceu o Bud' },
 ];
 
 export const NOTIFICATION_ROWS: {
@@ -129,7 +143,7 @@ export const NOTIFICATION_ROWS: {
   icon: 'mail' | 'clock' | 'activity' | 'message';
   capability?: Capability;
 }[] = [
-  { key: 'letter', label: 'Carta do dia', hint: 'Todo dia às 7h', icon: 'mail' },
+  { key: 'letter', label: 'Carta do dia', hint: 'Às 7h, quando houver carta', icon: 'mail' },
   { key: 'weekly', label: 'Resumo da semana', hint: 'Domingo às 17h', icon: 'clock' },
   {
     key: 'screening',
@@ -141,7 +155,7 @@ export const NOTIFICATION_ROWS: {
   {
     key: 'reminders',
     label: 'Lembretes para conversar',
-    hint: 'Quando você some por alguns dias',
+    hint: 'Depois de 3 dias sem conversa, às 19h',
     icon: 'message',
   },
 ];

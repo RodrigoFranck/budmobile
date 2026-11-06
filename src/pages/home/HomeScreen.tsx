@@ -37,8 +37,6 @@ import { navigateToChatTab } from '@/utils/navigateToChat';
 
 type RecapItem = HomeRecapItem;
 
-const RECAP_FOOTER =
-  'Esses convites vêm das suas conversas dos últimos dias e semanas. Guardamos até 10; até 3 novos por dia.';
 const EMPTY_LETTER_TITLE = 'A carta de amanhã começa ';
 const EMPTY_LETTER_BODY =
   'O Bud escreve sua carta de madrugada, a partir do que vocês conversarem. Que tal começar agora?';
@@ -145,7 +143,6 @@ function RecapCard({
         </Text>
       </View>
       <Text
-        numberOfLines={4}
         style={{
           marginTop: 12,
           fontFamily: fonts.sans,
@@ -216,6 +213,7 @@ export default function HomeScreen() {
 
   const [openingRecapId, setOpeningRecapId] = useState<string | null>(null);
   const [letterOrigin, setLetterOrigin] = useState<LetterOrigin | null>(null);
+  const [hideLetterEnvelope, setHideLetterEnvelope] = useState(false);
   const [recapStuck, setRecapStuck] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const { setMainTabsReady } = useBootSplash();
@@ -235,19 +233,23 @@ export default function HomeScreen() {
       width: envW,
       height: envH,
     };
+    const commitOrigin = (origin: LetterOrigin) => {
+      setHideLetterEnvelope(true);
+      setLetterOrigin(origin);
+    };
     const root = homeRootRef.current;
     const node = envelopeRef.current;
     if (!root || !node) {
-      setLetterOrigin(fallback);
+      commitOrigin(fallback);
       return;
     }
     root.measureInWindow((rootX, rootY) => {
       node.measureInWindow((x, y, width, height) => {
         if (width < 40 || height < 40) {
-          setLetterOrigin(fallback);
+          commitOrigin(fallback);
           return;
         }
-        setLetterOrigin({
+        commitOrigin({
           x: x - rootX,
           y: y - rootY,
           width,
@@ -425,11 +427,13 @@ export default function HomeScreen() {
               marginTop: 10,
             }}
           >
-            {new Date().toLocaleDateString('pt-BR', {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-            })}
+            {capitalizeFirst(
+              new Date().toLocaleDateString('pt-BR', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+              }),
+            )}
           </Text>
 
           {hasLetter ? (
@@ -437,7 +441,7 @@ export default function HomeScreen() {
             onPress={openLetter}
             accessibilityRole="button"
             accessibilityLabel="Abrir carta de hoje"
-            style={{ alignItems: 'center', marginTop: 20, opacity: letterOrigin ? 0 : 1 }}
+            style={{ alignItems: 'center', marginTop: 20, opacity: hideLetterEnvelope ? 0 : 1 }}
           >
             <View ref={envelopeRef} collapsable={false} style={{ width: envW, height: envH }}>
               <Image
@@ -586,20 +590,6 @@ export default function HomeScreen() {
                 />
               ))}
             </View>
-
-            <Text
-              style={{
-                marginTop: 26,
-                paddingHorizontal: 40,
-                fontFamily: fonts.sans,
-                fontSize: 13.5,
-                lineHeight: 20,
-                color: colors.text3,
-                textAlign: 'center',
-              }}
-            >
-              {RECAP_FOOTER}
-            </Text>
           </View>
           ) : null}
         </ScrollView>
@@ -634,7 +624,18 @@ export default function HomeScreen() {
         </Pressable>
       </View>
       {letterOrigin ? (
-        <LetterCeremony origin={letterOrigin} onClose={() => setLetterOrigin(null)} />
+        <LetterCeremony
+          origin={letterOrigin}
+          onCloseStart={({ reduceMotion }) => {
+            if (reduceMotion) {
+              setHideLetterEnvelope(false);
+            }
+          }}
+          onClose={() => {
+            setLetterOrigin(null);
+            setHideLetterEnvelope(false);
+          }}
+        />
       ) : null}
     </View>
   );

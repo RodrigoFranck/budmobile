@@ -7,7 +7,8 @@ export type AnalyticsFeature =
   | 'assessment'
   | 'history'
   | 'settings'
-  | 'auth';
+  | 'auth'
+  | 'notifications';
 
 export type AnalyticsEventMeta = {
   label: string;
@@ -68,6 +69,11 @@ export const EVENT_CATALOG: Record<string, AnalyticsEventMeta> = {
   },
   chat_message_send: {
     label: 'Mensagem enviada',
+    feature: 'chat',
+    featureLabel: 'Chat',
+  },
+  anexo_enviado: {
+    label: 'Anexo enviado',
     feature: 'chat',
     featureLabel: 'Chat',
   },
@@ -140,5 +146,10 @@ export const EVENT_CATALOG: Record<string, AnalyticsEventMeta> = {
     label: 'Logout',
     feature: 'auth',
     featureLabel: 'Autenticação',
+  },
+  notification_open: {
+    label: 'Toque em notificação',
+    feature: 'notifications',
+    featureLabel: 'Notificações',
   },
 };

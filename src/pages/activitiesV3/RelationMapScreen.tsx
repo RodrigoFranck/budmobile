@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
+  Image,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -37,6 +38,7 @@ import {
   relationMapResultText,
 } from '@/copy/relationPersonCopy';
 import { useGenderedCopy } from '@/hooks/useGenderedCopy';
+import { useUserProfile } from '@/hooks/useUserProfile';
 import {
   ACTIVITY_FOLLOWUPS,
   ACTIVITY_INTROS,
@@ -46,6 +48,7 @@ import {
   relationRankingItems,
 } from '@/pages/activitiesV3/activityFlows';
 import {
+  ACTIVITY_FEEDBACK_OPTIONS,
   ActivityFlowHeader,
   ActivityIntro,
   ActivityKicker,
@@ -53,9 +56,14 @@ import {
   ActivityPrompt,
   ActivityResult,
   ResultEntry,
+  type ActivityFeedbackValue,
 } from '@/pages/activitiesV3/activityChrome';
 import { activityEasing, activityMotion } from '@/pages/activitiesV3/activityMotion';
 import { createActivityPersister } from '@/pages/activitiesV3/persistActivity';
+import {
+  generateActivitySynthesis,
+  type ActivitySynthesis,
+} from '@/services/activityGeneration';
 import { activityColors, fonts, useV3Asset, useV3Colors } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
 import { navigateToChatTab } from '@/utils/navigateToChat';
@@ -70,6 +78,8 @@ type Step =
   | 'papel'
   | 'matriz2'
   | 'frequencia'
+  | 'validacao'
+  | 'loading'
   | 'result';
 
 const STEPS: Step[] = [
@@ -81,6 +91,7 @@ const STEPS: Step[] = [
   'papel',
   'matriz2',
   'frequencia',
+  'validacao',
 ];
 const MAP = 360;
 const PUCK = 48;
@@ -104,10 +115,13 @@ export default function RelationMapScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const navigation = useNavigation<MainTabNavigationProp>();
   const { user } = useAuth();
+  const { profile } = useUserProfile();
   const { g, voice } = useGenderedCopy();
   const intro = ACTIVITY_INTROS.mapa_relacoes;
   const [step, setStep] = useState<Step>('intro');
   const [exitStep, setExitStep] = useState<Step | null>(null);
+  const [slideDir, setSlideDir] = useState<1 | -1>(1);
+  const [awaitingKeyboard, setAwaitingKeyboard] = useState(false);
   const [tipo, setTipo] = useState('');
   const [nome, setNome] = useState('');
   const [idade, setIdade] = useState('');
@@ -117,9 +131,26 @@ export default function RelationMapScreen() {
   const [matriz2, setMatriz2] = useState({ x: 0.5, y: 0.5 });
   const [ranking, setRanking] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [continuing, setContinuing] = useState(false);
+  const [partialReading, setPartialReading] = useState('');
+  const [validacao, setValidacao] = useState<ActivityFeedbackValue | null>(null);
+  const [synthesis, setSynthesis] = useState<ActivitySynthesis | null>(null);
+  const [synthesisFailed, setSynthesisFailed] = useState(false);
+  const [feedback, setFeedback] = useState<ActivityFeedbackValue | null>(null);
   const saveActivity = useRef(createActivityPersister()).current;
+  const continuingRef = useRef(false);
+  const talkingRef = useRef(false);
+  const partialRequestRef = useRef(0);
   const stepDir = useSharedValue(1);
   const stepProgress = useSharedValue(1);
+  const stepActive = useSharedValue(0);
+  const pageWidth = useSharedValue(windowWidth);
+  const textInputRef = useRef<TextInput>(null);
+  const fromStepRef = useRef<Step | null>(null);
+  const slidingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const keyboardSubRef = useRef<{ remove: () => void } | null>(null);
+  const keyboardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const personName = nome.trim();
   const person = personName || 'essa pessoa';
@@ -140,52 +171,154 @@ export default function RelationMapScreen() {
     return source.map(g);
   }, [bond, g, person, ranking]);
 
-  const clearExit = useCallback(() => setExitStep(null), []);
+  const clearExit = useCallback(() => {
+    slidingRef.current = false;
+    setAwaitingKeyboard(false);
+    setExitStep(null);
+    continuingRef.current = false;
+    setContinuing(false);
+  }, []);
 
-  const animateTo = (next: Step, direction: 1 | -1) => {
-    if (next === step || exitStep) return;
-    if (isTextStep(step) && !isTextStep(next)) {
-      Keyboard.dismiss();
-    }
+  const beginSlide = (next: Step, direction: 1 | -1, from: Step) => {
+    if (!mountedRef.current) return;
+    fromStepRef.current = from;
+    slidingRef.current = true;
+    pageWidth.value = windowWidth;
     stepDir.value = direction;
     stepProgress.value = 0;
-    setExitStep(step);
+    setSlideDir(direction);
+    setExitStep(from);
     setStep(next);
   };
 
+  const animateTo = (next: Step, direction: 1 | -1) => {
+    if (next === step || exitStep || slidingRef.current) return false;
+    const from = step;
+    if (isTextStep(from) && !isTextStep(next) && Keyboard.isVisible()) {
+      slidingRef.current = true;
+      setAwaitingKeyboard(true);
+      keyboardSubRef.current?.remove();
+      if (keyboardTimerRef.current) clearTimeout(keyboardTimerRef.current);
+      let started = false;
+      const start = () => {
+        if (started) return;
+        started = true;
+        keyboardSubRef.current?.remove();
+        keyboardSubRef.current = null;
+        if (keyboardTimerRef.current) clearTimeout(keyboardTimerRef.current);
+        keyboardTimerRef.current = null;
+        if (!mountedRef.current) return;
+        setAwaitingKeyboard(false);
+        beginSlide(next, direction, from);
+      };
+      keyboardSubRef.current = Keyboard.addListener('keyboardDidHide', start);
+      keyboardTimerRef.current = setTimeout(start, 420);
+      Keyboard.dismiss();
+      return true;
+    }
+    if (isTextStep(from) && !isTextStep(next)) Keyboard.dismiss();
+    beginSlide(next, direction, from);
+    return true;
+  };
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      keyboardSubRef.current?.remove();
+      if (keyboardTimerRef.current) clearTimeout(keyboardTimerRef.current);
+    };
+  }, []);
+
   useLayoutEffect(() => {
     if (!exitStep) return;
+    pageWidth.value = windowWidth;
+    stepProgress.value = 0;
+    stepActive.value = 1;
     const duration = stepDir.value > 0 ? activityMotion.nextMs : activityMotion.backMs;
-    stepProgress.value = withTiming(1, { duration, easing: activityEasing.standard }, (finished) => {
-      if (finished) runOnJS(clearExit)();
+    stepProgress.value = withTiming(1, { duration, easing: activityEasing.quick }, (finished) => {
+      if (!finished) return;
+      stepActive.value = 0;
+      stepProgress.value = 1;
+      runOnJS(clearExit)();
     });
-  }, [clearExit, exitStep, step, stepDir, stepProgress]);
+  }, [clearExit, exitStep, pageWidth, stepActive, stepDir, stepProgress, windowWidth]);
 
-  const outgoingStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateX: interpolate(stepProgress.value, [0, 1], [0, -windowWidth * stepDir.value]),
-      },
-    ],
-  }));
+  useLayoutEffect(() => {
+    if (!isTextStep(step) || exitStep) return;
+    textInputRef.current?.focus();
+  }, [exitStep, step]);
+
+  const outgoingStyle = useAnimatedStyle(() => {
+    if (stepActive.value === 0) return { transform: [{ translateX: 0 }] };
+    const travel = pageWidth.value * stepDir.value;
+    return {
+      transform: [{ translateX: interpolate(stepProgress.value, [0, 1], [0, -travel]) }],
+    };
+  });
   const incomingStyle = useAnimatedStyle(() => ({
     transform: [
       {
-        translateX: interpolate(stepProgress.value, [0, 1], [windowWidth * stepDir.value, 0]),
+        translateX: interpolate(stepProgress.value, [0, 1], [0, -pageWidth.value * stepDir.value]),
       },
     ],
   }));
 
   const goNext = () => {
+    if (continuingRef.current || slidingRef.current || exitStep || !canContinue()) return;
+
     const next = STEPS[stepIndex + 1];
     if (step === 'nome') {
       setRanking(relationRankingItems(nome.trim() || 'essa pessoa', bond));
     }
-    if (next) animateTo(next, 1);
-    else setStep('result');
+    if (next === 'validacao') {
+      continuingRef.current = true;
+      setContinuing(true);
+      const requestId = partialRequestRef.current + 1;
+      partialRequestRef.current = requestId;
+      void (async () => {
+        const generated = await generateActivitySynthesis({
+          activityId: 'mapa_relacoes',
+          answers: {
+            modo: 'parcial',
+            tipo,
+            nome: person,
+            idade,
+            papel,
+            frequencia,
+            ranking: rankingItems,
+            matriz1,
+            matriz2,
+          },
+          userName: profile?.name,
+          gender: profile?.gender,
+        });
+        if (partialRequestRef.current !== requestId) return;
+        setPartialReading(
+          generated?.paragrafo ||
+            `Olhando ${person}, aparece uma relação que importa — e ainda guarda tensão entre o que você sente e o que consegue mostrar.`,
+        );
+        if (!animateTo('validacao', 1)) {
+          continuingRef.current = false;
+          setContinuing(false);
+        }
+      })();
+      return;
+    }
+    if (next) {
+      animateTo(next, 1);
+      return;
+    }
+    setStep('loading');
   };
 
   const goBack = () => {
+    if (exitStep || slidingRef.current) return;
+    if (continuingRef.current) {
+      partialRequestRef.current += 1;
+      continuingRef.current = false;
+      setContinuing(false);
+    }
     if (stepIndex <= 0) {
       setStep('intro');
       return;
@@ -199,6 +332,7 @@ export default function RelationMapScreen() {
     if (step === 'idade') return Boolean(idade.trim());
     if (step === 'papel') return Boolean(papel);
     if (step === 'frequencia') return Boolean(frequencia);
+    if (step === 'validacao') return validacao != null;
     return true;
   };
 
@@ -214,44 +348,79 @@ export default function RelationMapScreen() {
     userVoice: voice,
   });
 
-  const persistOnce = async () => {
+  const answersPayload = () => ({
+    tipo,
+    tipoResolvido: mapped.displayTipo,
+    nome: person,
+    idade,
+    papel,
+    frequencia,
+    generoNome: mapped.personVoice ?? '',
+    ranking: rankingItems,
+    matriz1,
+    matriz2,
+    validacao,
+  });
+
+  const persistOnce = async (nextSynthesis = synthesis) => {
     if (!user?.id) return;
     await saveActivity({
       userId: user.id,
       activityId: 'mapa_relacoes',
-      answers: {
-        tipo,
-        tipoResolvido: mapped.displayTipo,
-        nome: person,
-        idade,
-        papel,
-        frequencia,
-        generoNome: mapped.personVoice ?? '',
-        ranking: rankingItems.join('|'),
-        matriz1: `${matriz1.x.toFixed(2)},${matriz1.y.toFixed(2)}`,
-        matriz2: `${matriz2.x.toFixed(2)},${matriz2.y.toFixed(2)}`,
-      },
-      resultText,
+      answers: answersPayload(),
+      resultText: nextSynthesis?.titulo ?? resultText,
+      feedback,
     });
   };
 
   useEffect(() => {
-    if (step === 'result') void persistOnce();
-  }, [step]);
+    if (step !== 'loading') return;
+    let cancelled = false;
+    void (async () => {
+      const generated = await generateActivitySynthesis({
+        activityId: 'mapa_relacoes',
+        answers: answersPayload(),
+        userName: profile?.name,
+        gender: profile?.gender,
+      });
+      if (cancelled) return;
+      if (!generated) setSynthesisFailed(true);
+      else {
+        setSynthesis(generated);
+        void persistOnce(generated);
+      }
+      setStep('result');
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const followUps = synthesis?.perguntas_mais_fundo ?? ACTIVITY_FOLLOWUPS.mapa_relacoes;
 
   const talk = async (prompt: string) => {
+    if (talkingRef.current) return;
+    talkingRef.current = true;
     setSaving(true);
-    await persistOnce();
-    setSaving(false);
-    navigateToChatTab(navigation, {
-      chatInsight: {
-        insightType: 'activity_mapa_relacoes',
-        title: person,
-        contextSummary: resultText,
-        internalContext,
-        initialUserMessage: prompt,
-      },
-    });
+    try {
+      await persistOnce();
+      navigateToChatTab(navigation, {
+        chatInsight: {
+          insightType: 'activity_mapa_relacoes',
+          title: synthesis?.titulo || person,
+          contextSummary: synthesis?.paragrafo || resultText,
+          internalContext,
+          initialUserMessage: prompt,
+          contextVariant: 'activity',
+          activityType: 'mapa_relacoes',
+          badge: 'Mapa de Relações · Resultado',
+          cardDescription: synthesis?.paragrafo || resultText,
+        },
+      });
+    } finally {
+      talkingRef.current = false;
+      setSaving(false);
+    }
   };
 
   const renderStep = (current: Step) => {
@@ -301,12 +470,12 @@ export default function RelationMapScreen() {
             {current === 'nome' ? 'Qual é o nome?' : `Quantos anos ${person} tem?`}
           </ActivityPrompt>
           <TextInput
+            ref={current === step ? textInputRef : undefined}
             value={current === 'nome' ? nome : idade}
             onChangeText={current === 'nome' ? setNome : setIdade}
             placeholder={current === 'nome' ? 'Nome' : 'Idade'}
             placeholderTextColor={colors.text3}
             keyboardType={current === 'idade' ? 'number-pad' : 'default'}
-            autoFocus={current === step && (!exitStep || isTextStep(exitStep))}
             style={{
               marginTop: 78,
               fontFamily: fonts.display,
@@ -380,6 +549,38 @@ export default function RelationMapScreen() {
       );
     }
 
+    if (current === 'validacao') {
+      return (
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 24 }}>
+          <ActivityKicker label="Leitura parcial" align="left" />
+          <View style={{ paddingTop: 12 }}>
+            <ActivityPrompt align="left">Isso faz sentido pra você?</ActivityPrompt>
+          </View>
+          <Text
+            style={{
+              fontFamily: fonts.sans,
+              fontSize: 16,
+              lineHeight: 25,
+              color: colors.text2,
+              paddingTop: 28,
+            }}
+          >
+            {partialReading || 'Montando a leitura…'}
+          </Text>
+          <View style={{ gap: 10, paddingTop: 40 }}>
+            {ACTIVITY_FEEDBACK_OPTIONS.map((option) => (
+              <ActivityOptionRow
+                key={option.value}
+                label={option.label}
+                selected={validacao === option.value}
+                onPress={() => setValidacao(option.value)}
+              />
+            ))}
+          </View>
+        </ScrollView>
+      );
+    }
+
     return null;
   };
 
@@ -395,15 +596,65 @@ export default function RelationMapScreen() {
     );
   }
 
+  if (step === 'loading') {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+        <ActivityFlowHeader title="Mapa de Relações" onClose={() => navigation.goBack()} />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 }}>
+          <Image
+            source={assets.mapaGiz}
+            style={{ width: 140, height: 140 }}
+            resizeMode="contain"
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          />
+          <Text
+            style={{
+              fontFamily: fonts.display,
+              fontSize: 26,
+              lineHeight: 32,
+              color: colors.text,
+              textAlign: 'center',
+              paddingTop: 18,
+            }}
+          >
+            O Bud está pensando nas suas respostas…
+          </Text>
+          <Text
+            style={{
+              fontFamily: fonts.sans,
+              fontSize: 15,
+              color: colors.text3,
+              paddingTop: 12,
+              textAlign: 'center',
+            }}
+          >
+            Você respondeu {STEPS.length} perguntas
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   if (step === 'result') {
     return (
       <ActivityResult
         mist={assets.mapaMist}
         giz={assets.mapaGiz}
-        insight={`Olhar para ${person} já muda o tamanho da relação`}
-        body={`Você escolheu ${g(mapped.displayTipo).toLowerCase()} com ${person}. ${g(papel)}. ${applyPersonGenderedCopy(g(frequencia), mapped.personVoice)}. Isso já é um mapa.`}
+        insight={synthesis?.titulo || `Olhar para ${person} já muda o tamanho da relação`}
+        body={
+          synthesisFailed
+            ? 'Não consegui juntar agora. Suas respostas estão salvas — você pode tentar de novo.'
+            : synthesis?.paragrafo ||
+              `Você escolheu ${g(mapped.displayTipo).toLowerCase()} com ${person}. ${g(papel)}. ${applyPersonGenderedCopy(g(frequencia), mapped.personVoice)}. Isso já é um mapa.`
+        }
         sectionLabel="O que mais importa"
-        followUps={ACTIVITY_FOLLOWUPS.mapa_relacoes}
+        followUps={[...followUps]}
+        feedback={feedback}
+        onFeedback={(value) => {
+          setFeedback(value);
+          void persistOnce();
+        }}
         onBack={async () => {
           await persistOnce();
           navigation.goBack();
@@ -418,6 +669,9 @@ export default function RelationMapScreen() {
           value={applyPersonGenderedCopy(g(frequencia), mapped.personVoice)}
           colors={colors}
         />
+        {rankingItems[0] ? (
+          <ResultEntry label="O que mais importa" value={rankingItems[0]} colors={colors} />
+        ) : null}
       </ActivityResult>
     );
   }
@@ -435,21 +689,35 @@ export default function RelationMapScreen() {
         progress={progress}
       />
 
-      <View style={{ flex: 1, overflow: 'hidden' }}>
+      <View style={relationStyles.stage} pointerEvents={exitStep || awaitingKeyboard ? 'none' : 'auto'}>
+        <Animated.View style={[{ flex: 1, backgroundColor: colors.bg }, outgoingStyle]}>
+          {renderStep(exitStep ?? step)}
+        </Animated.View>
         {exitStep ? (
-          <>
-            <Animated.View style={[StyleSheet.absoluteFill, outgoingStyle]} pointerEvents="none">
-              {renderStep(exitStep)}
-            </Animated.View>
-            <Animated.View style={[StyleSheet.absoluteFill, incomingStyle]}>{renderStep(step)}</Animated.View>
-          </>
-        ) : (
-          <View style={{ flex: 1 }}>{renderStep(step)}</View>
-        )}
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              relationStyles.incoming,
+              {
+                width: windowWidth,
+                left: slideDir * windowWidth,
+                backgroundColor: colors.bg,
+              },
+              incomingStyle,
+            ]}
+          >
+            {renderStep(step)}
+          </Animated.View>
+        ) : null}
       </View>
 
       <View style={{ paddingHorizontal: 24, paddingBottom: Math.max(insets.bottom, 16) + 12 }}>
-        <BudButton label="Continuar" disabled={!canContinue() || Boolean(exitStep)} onPress={goNext} />
+        <BudButton
+          label="Continuar"
+          disabled={!canContinue() || Boolean(exitStep) || awaitingKeyboard}
+          loading={continuing}
+          onPress={goNext}
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -928,6 +1196,19 @@ function RankNumber({ value }: { value: number }) {
     </View>
   );
 }
+
+const relationStyles = StyleSheet.create({
+  stage: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  incoming: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    zIndex: 2,
+  },
+});
 
 const rankNumberText = {
   fontFamily: fonts.display,

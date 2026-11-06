@@ -31,6 +31,6 @@ export function userContextFieldsFromProfile(
     relationship: profile?.relationship || joinPrefList(prefs.relationships) || null,
     hobbies,
     conversationGoal: profile?.conversation_goal || joinPrefList(prefs.focus) || null,
-    initialThoughts: profile?.initial_thoughts || prefs.mood || null,
+    initialThoughts: profile?.initial_thoughts || null,
   };
 }

@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  isUsableRecapBody,
+  isUsableRecapFragment,
+  looksLikeFixedRecapTemplate,
   nextRecapPile,
   recapCandidateIds,
   recapInvite,
@@ -86,5 +89,38 @@ test('uses a literal fragment as the card quote', () => {
     recapQuote('  “Só descanso quando a lista acaba.”  ', 'título'),
     'Só descanso quando a lista acaba.',
   );
-  assert.equal(recapInvite('Ontem'), 'Isso ficou de ontem. Quer conversar sobre o que ainda está aberto nisso?');
+});
+
+test('rejects greetings, app-talk, tiny phrases and crisis speech as fragments', () => {
+  assert.equal(isUsableRecapFragment('Fala, Bud. Tudo bem?'), false);
+  assert.equal(isUsableRecapFragment('oi'), false);
+  assert.equal(isUsableRecapFragment('Quero continuar nossa conversa de ontem'), false);
+  assert.equal(isUsableRecapFragment('Não sei. Tô aqui pra falar com você.'), false);
+  assert.equal(isUsableRecapFragment('Quero me matar'), false);
+  assert.equal(isUsableRecapFragment('Só descanso quando a lista acaba.'), true);
+  assert.equal(recapQuote('Fala, Bud. Tudo bem?', 'Só descanso quando a lista acaba.'), 'Só descanso quando a lista acaba.');
+  assert.equal(recapQuote('Quero me matar', 'tema de risco'), '');
+});
+
+test('rejects the fixed Para começar template as card body (TF-67)', () => {
+  assert.equal(
+    looksLikeFixedRecapTemplate(
+      'Isso ficou de semana passada. Quer conversar sobre o que ainda está aberto nisso?',
+    ),
+    true,
+  );
+  assert.equal(
+    isUsableRecapBody(
+      'Isso ficou de ontem. Quer conversar sobre o que ainda está aberto nisso?',
+    ),
+    false,
+  );
+  assert.equal(
+    isUsableRecapBody(
+      'Você contou que só se permite parar quando tudo está feito. Nos dias em que a lista não acaba, o descanso fica para depois. Quer olhar para o que essa regra protege?',
+    ),
+    true,
+  );
+  // recapInvite still exists for legacy callers but must not power cards
+  assert.equal(looksLikeFixedRecapTemplate(recapInvite('Ontem')), true);
 });

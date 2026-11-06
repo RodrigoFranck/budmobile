@@ -1,21 +1,23 @@
-import type { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import {
   Modal,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 
-import { BudButton, BudIconButton } from '@/components/v3';
+import { BudButton, BudIconButton, BudToggle } from '@/components/v3';
 import { useGenderedCopy } from '@/hooks/useGenderedCopy';
 import { fonts, useV3Colors } from '@/theme';
+
+export { BudToggle };
 
 export function MenuHeader({
   title,
@@ -155,7 +157,8 @@ export function PrefRow({
 }) {
   const colors = useV3Colors();
   const subtitle = hint;
-  const height = tall || subtitle ? 72 : 58;
+  // TF-39 · conta_00: 64 single-line / 80 with subtitle (was 58 / 72)
+  const height = tall || subtitle ? 80 : 64;
   const content = (
     <View
       style={{
@@ -220,49 +223,6 @@ export function PrefRow({
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
       {content}
-    </Pressable>
-  );
-}
-
-export function BudToggle({
-  value,
-  onValueChange,
-  accessibilityLabel,
-  disabled,
-}: {
-  value: boolean;
-  onValueChange: (next: boolean) => void;
-  accessibilityLabel: string;
-  disabled?: boolean;
-}) {
-  const colors = useV3Colors();
-  return (
-    <Pressable
-      onPress={() => {
-        if (disabled) return;
-        onValueChange(!value);
-      }}
-      accessibilityRole="switch"
-      accessibilityState={{ checked: value, disabled: Boolean(disabled) }}
-      accessibilityLabel={accessibilityLabel}
-      style={{
-        width: 52,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: value ? colors.accent : colors.line,
-        justifyContent: 'center',
-        opacity: disabled ? 0.55 : 1,
-      }}
-    >
-      <View
-        style={{
-          width: 26,
-          height: 26,
-          borderRadius: 13,
-          backgroundColor: value ? colors.onAccent : colors.text2,
-          marginLeft: value ? 23 : 3,
-        }}
-      />
     </Pressable>
   );
 }

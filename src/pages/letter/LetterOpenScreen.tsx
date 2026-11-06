@@ -8,6 +8,7 @@ import { useDailyLetter } from '@/hooks/useDailyLetter';
 import { useGenderedCopy } from '@/hooks/useGenderedCopy';
 import { fonts, useV3Asset, useV3Colors } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
+import { buildLetterChatInsight } from '@/utils/buildLetterChatInsight';
 import {
   formatDailyLetterPlain,
   LETTER_NOTICED_HEADING,
@@ -159,14 +160,12 @@ export default function LetterOpenScreen() {
             label="Conversar sobre isso"
             onPress={() =>
               navigateToChatTab(navigation, {
-                chatInsight: {
-                  insightType: 'yesterday_journey',
+                chatInsight: buildLetterChatInsight({
+                  letterId: letter?.id,
                   title,
-                  contextSummary: opening,
-                  internalContext: shareText,
-                  cardDescription: opening,
-                  backgroundType: 'yesterday',
-                },
+                  shareText,
+                  opening,
+                }),
               })
             }
             style={{ marginTop: 32 }}

@@ -35,8 +35,6 @@ type IndexRow = {
 const PREF_ROWS: { field: OnboardingField; label: string }[] = [
   { field: 'voice', label: 'Voz' },
   { field: 'interests', label: 'Interesses' },
-  { field: 'anythingElse', label: 'Algo mais' },
-  { field: 'origin', label: 'Como conheceu o Bud' },
 ];
 
 function stepKeyForField(field: OnboardingField) {

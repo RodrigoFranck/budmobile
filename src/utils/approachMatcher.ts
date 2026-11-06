@@ -33,6 +33,11 @@ export interface ApproachDecision {
 const CRISIS_PATTERN =
   /suicid|me matar|quero morrer|autoles[aã]o|me cortar|n[aã]o quero viver|acabar com tudo|n[aã]o aguento mais viver/i;
 
+/** Client-side RISCO gate for Home “Para começar” fragments (TF-09). */
+export function looksLikeCrisisSpeech(text: string): boolean {
+  return CRISIS_PATTERN.test(text.trim());
+}
+
 const HIGH_INTENSITY_PATTERN =
   /odeio|desespero|n[aã]o aguento mais|socorro|!!+|[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{8,}/;
 
@@ -271,6 +276,6 @@ export function matchApproach(
   };
 }
 
-export function countUserTurns(messages: Array<{ role: string; content: string }>): number {
+export function countUserTurns(messages: Array<{ role: string }>): number {
   return messages.filter((message) => message.role === 'user').length;
 }

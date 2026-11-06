@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Image, Linking, Pressable, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Image, Linking, Pressable, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import {
@@ -8,12 +8,13 @@ import {
   Leaf,
   Lock,
   Mic,
-  RotateCcw,
   Sun,
   User,
   Volume2,
 } from 'lucide-react-native';
 
+import { TOGGLE_SAVE_FAILED_MESSAGE } from '@/components/v3/BudToggle';
+import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useAppLock } from '@/contexts/AppLockContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useV3Preferences } from '@/hooks/useV3Preferences';
@@ -26,18 +27,25 @@ import {
   ScreenScaffold,
   SectionLabel,
 } from '@/pages/menu/menuUi';
-import { fonts, useV3Asset, useV3Colors, voiceOptions } from '@/theme';
+import { fonts, motion, useV3Asset, useV3Colors, voiceFromValue, voiceOptions } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
 
 export default function PreferencesScreen() {
   const colors = useV3Colors();
   const assets = useV3Asset();
   const navigation = useNavigation<MainTabNavigationProp>();
+  const { showAlert } = useAppAlert();
   const { mode, setMode } = useTheme();
   const { values, profileIncomplete, persist } = useV3Preferences();
-  const { enabled: appLockEnabled, busy: appLockBusy, setEnabled: setAppLockEnabled } = useAppLock();
+  const { enabled: appLockEnabled, busy: appLockBusy, setEnabled: setAppLockEnabled, restoreEnabled } =
+    useAppLock();
+  const [lockPreview, setLockPreview] = useState<boolean | null>(null);
   const [micLabel, setMicLabel] = useState('Permitido');
-  const voiceLabel = voiceOptions.find((option) => option.id === values.voice)?.label ?? 'Amanda';
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [themeLight, setThemeLight] = useState(mode === 'light');
+  const themeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const voiceLabel =
+    voiceOptions.find((option) => option.id === voiceFromValue(values.voice))?.label ?? 'Kaique';
   const interestsLabel = formatPrefValue(values.interests, values.gender);
   const motivesLabel = profileIncomplete ? 'Não respondido' : 'Suas respostas do começo';
 
@@ -47,18 +55,56 @@ export default function PreferencesScreen() {
     });
   }, []);
 
+  useEffect(() => {
+    setThemeLight(mode === 'light');
+  }, [mode]);
+
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {
+      sub.remove();
+      if (themeTimer.current) clearTimeout(themeTimer.current);
+    };
+  }, []);
+
   const openMic = useCallback(() => {
     void Linking.openSettings();
   }, []);
 
+  const toggleTheme = useCallback(
+    (nextLight: boolean) => {
+      setThemeLight(nextLight);
+      if (themeTimer.current) clearTimeout(themeTimer.current);
+      const delay = reduceMotion ? 120 : motion.toggleMs;
+      themeTimer.current = setTimeout(() => {
+        void setMode(nextLight ? 'light' : 'dark');
+      }, delay);
+    },
+    [reduceMotion, setMode],
+  );
+
   const toggleAppLock = useCallback(
     (next: boolean) => {
+      setLockPreview(next);
       void (async () => {
         const ok = await setAppLockEnabled(next);
-        if (ok) await persist({ appLock: next });
+        if (!ok) {
+          setLockPreview(null);
+          return;
+        }
+        try {
+          const saved = await persist({ appLock: next });
+          if (!saved) throw new Error('save failed');
+          setLockPreview(null);
+        } catch {
+          restoreEnabled(!next);
+          setLockPreview(null);
+          showAlert({ title: TOGGLE_SAVE_FAILED_MESSAGE });
+        }
       })();
     },
-    [persist, setAppLockEnabled],
+    [persist, restoreEnabled, setAppLockEnabled, showAlert],
   );
 
   return (
@@ -129,14 +175,8 @@ export default function PreferencesScreen() {
           icon={Leaf}
           label="O que te trouxe aqui"
           hint={motivesLabel}
-          onPress={() => navigation.navigate('Motives')}
-        />
-        <PrefRow
-          icon={RotateCcw}
-          label="Refazer onboarding"
-          hint="As respostas novas substituem as atuais"
           last
-          onPress={() => navigation.navigate('OnboardingReplay')}
+          onPress={() => navigation.navigate('Motives')}
         />
       </PrefGroup>
 
@@ -164,8 +204,8 @@ export default function PreferencesScreen() {
           label="Tema claro"
           trailing={
             <BudToggle
-              value={mode === 'light'}
-              onValueChange={(next) => void setMode(next ? 'light' : 'dark')}
+              value={themeLight}
+              onValueChange={toggleTheme}
               accessibilityLabel="Tema claro"
             />
           }
@@ -182,7 +222,7 @@ export default function PreferencesScreen() {
           last
           trailing={
             <BudToggle
-              value={appLockEnabled}
+              value={lockPreview ?? appLockEnabled}
               disabled={appLockBusy}
               onValueChange={toggleAppLock}
               accessibilityLabel="Bloqueio do app"

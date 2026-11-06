@@ -1,24 +1,32 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
-import { BudButton, VoicePicker } from '@/components/v3';
+import { BudButton, VoicePicker, type VoicePickerHandle } from '@/components/v3';
 import { appAlert } from '@/contexts/AppAlertContext';
 import { useV3Preferences } from '@/hooks/useV3Preferences';
 import { AccentTitle, MenuHeader, ScreenScaffold } from '@/pages/menu/menuUi';
-import { fonts, useV3Colors, voiceOptions } from '@/theme';
+import { fonts, useV3Colors, voiceFromValue, voiceOptions } from '@/theme';
+import { restoreVoiceRecordingAudioMode } from '@/voice/voiceAudioSession';
 
 export default function VoiceSelectScreen() {
   const colors = useV3Colors();
   const navigation = useNavigation();
   const { values, persist } = useV3Preferences();
+  const pickerRef = useRef<VoicePickerHandle>(null);
+  const resolvedVoice = voiceFromValue(values.voice);
   const initial = Math.max(
     0,
-    voiceOptions.findIndex((option) => option.id === values.voice),
+    voiceOptions.findIndex((option) => option.id === resolvedVoice),
   );
   const [index, setIndex] = useState(initial);
   const [saving, setSaving] = useState(false);
   const voice = voiceOptions[index] ?? voiceOptions[0];
+
+  const prepareLeave = async () => {
+    await pickerRef.current?.stopDemo();
+    await restoreVoiceRecordingAudioMode();
+  };
 
   return (
     <ScreenScaffold
@@ -31,6 +39,7 @@ export default function VoiceSelectScreen() {
           onPress={async () => {
             setSaving(true);
             try {
+              await prepareLeave();
               await persist({ selectedVoice: voice.id });
               navigation.goBack();
             } catch (error) {
@@ -46,7 +55,11 @@ export default function VoiceSelectScreen() {
       }
     >
       <View style={{ paddingHorizontal: 20 }}>
-        <MenuHeader onBack={() => navigation.goBack()} />
+        <MenuHeader
+          onBack={() => {
+            void prepareLeave().finally(() => navigation.goBack());
+          }}
+        />
       </View>
       <View style={{ paddingHorizontal: 28, marginTop: 36 }}>
         <AccentTitle before="Qual voz você " accent="prefere" after="?" />
@@ -64,7 +77,7 @@ export default function VoiceSelectScreen() {
       </View>
 
       <View style={{ marginTop: 88 }}>
-        <VoicePicker index={index} onIndexChange={setIndex} />
+        <VoicePicker ref={pickerRef} index={index} onIndexChange={setIndex} />
       </View>
     </ScreenScaffold>
   );

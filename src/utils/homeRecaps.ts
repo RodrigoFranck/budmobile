@@ -1,6 +1,17 @@
+import { looksLikeCrisisSpeech } from '@/utils/approachMatcher';
+
 export const RECAP_LIMIT = 10;
 export const RECAP_NEW_PER_DAY = 3;
 export const RECAP_LOOKBACK_DAYS = 14;
+
+const GREETING_PATTERN =
+  /^(oi|ol[aá]|fala|e a[ií]|bom dia|boa tarde|boa noite|tudo bem|hey|hi|hello)\b/i;
+
+const APP_TALK_PATTERN =
+  /(quero continuar (nossa |a )?conversa|continuar (de onde|nossa conversa)|t[oô] aqui pra falar|estou aqui para falar|falar com (voc[eê]|o bud)|conversar com o bud)/i;
+
+const FIXED_RECAP_TEMPLATE =
+  /^isso ficou de .+\.\s*quer conversar sobre o que ainda est[aá] aberto nisso\??$/i;
 
 export type RecapPileItem = {
   id: string;
@@ -88,12 +99,53 @@ export function clipCardText(text: string, max = 220) {
   return `${cut.trim()}…`;
 }
 
-export function recapQuote(fragment?: string | null, fallback?: string | null) {
-  const fromFragment = fragment?.trim().replace(/^[“”"']+|[“”"']+$/g, '');
-  if (fromFragment) return clipCardText(fromFragment, 88);
-  return fallback?.trim() ?? '';
+export function contentWordCount(text: string) {
+  return text
+    .trim()
+    .split(/\s+/)
+    .filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
 }
 
+/** TF-67: template fixo antigo — nunca mostrar como parágrafo do card. */
+export function looksLikeFixedRecapTemplate(text?: string | null) {
+  const cleaned = text?.trim().replace(/\s+/g, ' ') ?? '';
+  if (!cleaned) return false;
+  return FIXED_RECAP_TEMPLATE.test(cleaned);
+}
+
+/** FRAGMENTO_LITERAL client gate: skip greetings, app-talk, tiny phrases, and RISCO speech. */
+export function isUsableRecapFragment(text?: string | null) {
+  const cleaned = text?.trim().replace(/^[“”"']+|[“”"']+$/g, '') ?? '';
+  if (!cleaned) return false;
+  if (looksLikeCrisisSpeech(cleaned)) return false;
+  if (APP_TALK_PATTERN.test(cleaned)) return false;
+  if (contentWordCount(cleaned) < 4) return false;
+  if (GREETING_PATTERN.test(cleaned) && contentWordCount(cleaned) < 8) return false;
+  return true;
+}
+
+/** Parágrafo próprio do card: gerado, sem template fixo (TF-67). */
+export function isUsableRecapBody(text?: string | null) {
+  const cleaned = text?.trim().replace(/\s+/g, ' ') ?? '';
+  if (!cleaned) return false;
+  if (looksLikeFixedRecapTemplate(cleaned)) return false;
+  if (looksLikeCrisisSpeech(cleaned)) return false;
+  return contentWordCount(cleaned) >= 12;
+}
+
+export function recapQuote(fragment?: string | null, fallback?: string | null) {
+  const fromFragment = fragment?.trim().replace(/^[“”"']+|[“”"']+$/g, '');
+  if (fromFragment && isUsableRecapFragment(fromFragment)) {
+    return clipCardText(fromFragment, 88);
+  }
+  const fromFallback = fallback?.trim().replace(/^[“”"']+|[“”"']+$/g, '') ?? '';
+  if (fromFallback && isUsableRecapFragment(fromFallback)) {
+    return clipCardText(fromFallback, 88);
+  }
+  return '';
+}
+
+/** @deprecated TF-67 — template fixo; não usar como parágrafo do card. */
 export function recapInvite(dateLabel: string) {
   const when = dateLabel.trim().toLowerCase();
   if (when === 'ontem') {

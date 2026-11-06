@@ -69,21 +69,21 @@ export type OnboardingV3Step = {
 };
 
 export const AGE_OPTIONS = [
+  "65 ou mais",
   "55 a 64",
   "45 a 54",
   "35 a 44",
   "30 a 34",
   "25 a 29",
   "18 a 24",
-  "Menos de 18",
 ] as const;
 
 export const MOOD_STOPS = [
   { label: "Sem energia", hint: "Vamos começar devagar." },
-  { label: "Sem energia", hint: "Vamos começar devagar." },
+  { label: "Pesando", hint: "Um passo de cada vez." },
   { label: "Altos e baixos", hint: "A gente vai no seu ritmo." },
   { label: "Levando", hint: "Bora buscar ainda melhor." },
-  { label: "Levando", hint: "Bora buscar ainda melhor." },
+  { label: "Leve", hint: "Que bom. Vamos cuidar disso." },
 ] as const;
 
 export const ONBOARDING_V3_STEPS: OnboardingV3Step[] = [
@@ -428,7 +428,8 @@ export const ONBOARDING_V3_STEPS: OnboardingV3Step[] = [
     field: "notifications",
     art: "bell",
     title: { before: "Um lembrete, quando ", accent: "ajudar" },
-    subtitle: "Receba check-ins do Bud. Dá para desligar quando quiser.",
+    subtitle:
+      "A carta do dia, o resumo da semana e a pesquisa de saúde chegam por aqui. Dá para ajustar quando quiser.",
     cta: "Ativar lembretes",
     skippable: true,
   },

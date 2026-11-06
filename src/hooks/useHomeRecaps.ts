@@ -7,14 +7,20 @@ import type { Insight } from '@/hooks/useExploreInsights';
 import { queryKeys } from '@/lib/queryKeys';
 import type { Conversation } from '@/services/conversationsQuery';
 import { fetchFirstUserSnippets } from '@/services/dailyLetterQuery';
+import {
+  requestParaComecarCards,
+  type ParaComecarCard,
+} from '@/services/paraComecarQuery';
 import { isUsableLetterInsight, YESTERDAY_CARD_QUOTE } from '@/utils/dailyLetter';
+import { looksLikeCrisisSpeech } from '@/utils/approachMatcher';
 import {
   clipCardText,
   conversationDayKey,
+  isUsableRecapBody,
+  isUsableRecapFragment,
   nextRecapPile,
   parseRecapPile,
   recapCandidateIds,
-  recapInvite,
   recapQuote,
   RECAP_LIMIT,
   type RecapPileItem,
@@ -25,13 +31,66 @@ export type HomeRecapItem =
   | { kind: 'yesterday'; id: 'yesterday'; label: string; quote: string; body: string }
   | { kind: 'conversation'; id: string; label: string; quote: string; body: string };
 
+type CachedParaComecar = Record<
+  string,
+  { fragmento: string; paragrafo: string; mensagem_id: string }
+>;
+
 function pileStorageKey(userId: string) {
   return `home_recap_pile_${userId}`;
+}
+
+function paraComecarStorageKey(userId: string) {
+  return `home_para_comecar_${userId}`;
 }
 
 function pileEquals(left: RecapPileItem[], right: RecapPileItem[]) {
   if (left.length !== right.length) return false;
   return left.every((item, index) => item.id === right[index]?.id && item.addedOn === right[index]?.addedOn);
+}
+
+function parseParaComecarCache(raw: string | null): CachedParaComecar {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const out: CachedParaComecar = {};
+    for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!value || typeof value !== 'object') continue;
+      const row = value as Partial<CachedParaComecar[string]>;
+      if (
+        typeof row.fragmento === 'string' &&
+        typeof row.paragrafo === 'string' &&
+        typeof row.mensagem_id === 'string' &&
+        isUsableRecapBody(row.paragrafo)
+      ) {
+        out[id] = {
+          fragmento: row.fragmento.trim(),
+          paragrafo: row.paragrafo.trim(),
+          mensagem_id: row.mensagem_id,
+        };
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function mergeParaComecarCache(
+  current: CachedParaComecar,
+  cards: ParaComecarCard[],
+): CachedParaComecar {
+  const next = { ...current };
+  for (const card of cards) {
+    if (!isUsableRecapBody(card.paragrafo)) continue;
+    next[card.conversation_id] = {
+      fragmento: card.fragmento,
+      paragrafo: card.paragrafo,
+      mensagem_id: card.mensagem_id,
+    };
+  }
+  return next;
 }
 
 export function useHomeRecaps(params: {
@@ -89,6 +148,49 @@ export function useHomeRecaps(params: {
     void SecureStore.setItemAsync(pileStorageKey(userId), JSON.stringify(nextPile));
   }, [nextPile, params.conversationsReady, pile, pileReady, queryClient, userId]);
 
+  const cacheQuery = useQuery({
+    queryKey: queryKeys.recapBodies(userId ?? ''),
+    queryFn: async () => parseParaComecarCache(await SecureStore.getItemAsync(paraComecarStorageKey(userId!))),
+    enabled: Boolean(userId),
+    staleTime: Infinity,
+  });
+
+  const cachedBodies = cacheQuery.data ?? {};
+  const cacheReady = !userId || cacheQuery.isFetched;
+
+  const missingBodyIds = useMemo(() => {
+    if (!cacheReady) return [] as string[];
+    return nextPile.map((item) => item.id).filter((id) => !cachedBodies[id]);
+  }, [cacheReady, cachedBodies, nextPile]);
+
+  const generatedQuery = useQuery({
+    queryKey: queryKeys.recapBodiesGenerate(userId ?? '', missingBodyIds),
+    queryFn: async () => {
+      const knownBodies = Object.values(cachedBodies).map((item) => item.paragrafo);
+      const cards = await requestParaComecarCards({
+        conversationIds: missingBodyIds,
+        knownBodies,
+      });
+      return mergeParaComecarCache(cachedBodies, cards);
+    },
+    enabled:
+      Boolean(userId) &&
+      pileReady &&
+      cacheReady &&
+      params.conversationsReady &&
+      missingBodyIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (!userId || !generatedQuery.data) return;
+    const merged = generatedQuery.data;
+    queryClient.setQueryData(queryKeys.recapBodies(userId), merged);
+    void SecureStore.setItemAsync(paraComecarStorageKey(userId), JSON.stringify(merged));
+  }, [generatedQuery.data, queryClient, userId]);
+
+  const bodiesById = generatedQuery.data ?? cachedBodies;
+
   const snippetQuery = useQuery({
     queryKey: queryKeys.recapSnippets(userId ?? '', nextPile.map((item) => item.id)),
     queryFn: () => fetchFirstUserSnippets(nextPile.map((item) => item.id)),
@@ -102,46 +204,64 @@ export function useHomeRecaps(params: {
 
     if (params.hasLetter) {
       const insight = params.yesterdayInsight;
-      const quote = recapQuote(
-        isUsableLetterInsight(insight) ? insight?.title : null,
-        YESTERDAY_CARD_QUOTE,
-      );
-      const body = clipCardText(
-        (isUsableLetterInsight(insight) ? insight?.contextSummary || insight?.description : '') ||
-          recapInvite('Ontem'),
-      );
-      items.push({
-        kind: 'yesterday',
-        id: 'yesterday',
-        label: 'Ontem',
-        quote: quote || YESTERDAY_CARD_QUOTE,
-        body,
-      });
+      const rawQuote = isUsableLetterInsight(insight) ? insight?.title : null;
+      const rawBody = isUsableLetterInsight(insight)
+        ? insight?.contextSummary || insight?.description
+        : '';
+      if (!looksLikeCrisisSpeech(rawQuote ?? '') && !looksLikeCrisisSpeech(rawBody ?? '')) {
+        const quote = recapQuote(rawQuote, YESTERDAY_CARD_QUOTE);
+        const body = isUsableRecapBody(rawBody) ? clipCardText(rawBody!) : '';
+        if (quote && body) {
+          items.push({
+            kind: 'yesterday',
+            id: 'yesterday',
+            label: 'Ontem',
+            quote,
+            body,
+          });
+        }
+      }
     }
 
-    const remaining = RECAP_LIMIT - items.length;
-    for (const item of nextPile.slice(0, remaining)) {
+    for (const item of nextPile) {
+      if (items.length >= RECAP_LIMIT) break;
       const conversation = byId.get(item.id);
       if (!conversation?.title) continue;
+      if (looksLikeCrisisSpeech(conversation.title)) continue;
+
+      const generated = bodiesById[conversation.id];
+      const snippet = snippets[conversation.id];
+      if (snippet && looksLikeCrisisSpeech(snippet)) continue;
+
+      const quote = recapQuote(generated?.fragmento ?? snippet, conversation.title);
+      if (!quote || !isUsableRecapFragment(quote)) continue;
+
+      const body = generated?.paragrafo?.trim() ?? '';
+      if (!isUsableRecapBody(body)) continue;
+
       const dateSource = conversation.conversation_date || conversation.created_at;
       const label = params.dateLabel(dateSource);
       items.push({
         kind: 'conversation',
         id: conversation.id,
         label,
-        quote: recapQuote(snippets[conversation.id], conversation.title),
-        body: recapInvite(label),
+        quote,
+        body: clipCardText(body),
       });
     }
 
     return items;
-  }, [nextPile, params, snippetQuery.data]);
+  }, [bodiesById, nextPile, params, snippetQuery.data]);
 
   const snippetsReady = nextPile.length === 0 || snippetQuery.isFetched;
+  const bodiesReady =
+    missingBodyIds.length === 0 || generatedQuery.isFetched || generatedQuery.isError;
 
   return {
     recaps,
     recapCountLabel: `${recaps.length} de ${RECAP_LIMIT}`,
-    loading: Boolean(userId) && (!pileReady || !params.conversationsReady || !snippetsReady),
+    loading:
+      Boolean(userId) &&
+      (!pileReady || !cacheReady || !params.conversationsReady || !snippetsReady || !bodiesReady),
   };
 }

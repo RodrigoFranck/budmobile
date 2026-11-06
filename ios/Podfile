@@ -80,5 +80,18 @@ target 'budmobile' do
         config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
       end
     end
+
+    # fmt 11.0.2 (shipped with RN 0.81) fails to compile on Apple clang 17+
+    # because consteval format strings are not constant expressions.
+    fmt_base = File.join(installer.sandbox.pod_dir('fmt'), 'include', 'fmt', 'base.h')
+    if File.exist?(fmt_base)
+      contents = File.read(fmt_base)
+      needle = "#elif defined(__apple_build_version__) && __apple_build_version__ < 14000029L\n#  define FMT_USE_CONSTEVAL 0  // consteval is broken in Apple clang < 14.\n"
+      workaround = "#{needle}#elif defined(__apple_build_version__) && __apple_build_version__ >= 17000000L\n#  define FMT_USE_CONSTEVAL 0  // consteval is broken in Apple clang 17+.\n"
+      if contents.include?(needle) && !contents.include?('Apple clang 17+')
+        File.chmod(0644, fmt_base)
+        File.write(fmt_base, contents.sub(needle, workaround))
+      end
+    end
   end
 end

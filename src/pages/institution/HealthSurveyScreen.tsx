@@ -62,7 +62,7 @@ export default function HealthSurveyScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainTabNavigationProp>();
   const { user } = useAuth();
-  const { snooze, refresh } = useScreeningCadence({ autoNavigate: false });
+  const { snooze, refresh, markComplete } = useScreeningCadence({ autoNavigate: false });
   const metaIcon = isDarkMode ? colors.text : colors.accent;
   const bottomPad = Math.max(insets.bottom, 16) + 16;
   const { g } = useGenderedCopy();
@@ -102,28 +102,39 @@ export default function HealthSurveyScreen() {
       if (!user?.id) return;
       setSaving(true);
       const stored = persistableAnswers(nextAnswers);
-      await supabase.from('clinical_screenings' as never).insert({
+      const { error } = await supabase.from('clinical_screenings' as never).insert({
         user_id: user.id,
         instrument: HEALTH_SURVEY_INSTRUMENT,
         responses: stored,
         score_internal: healthSurveyScore(stored),
+        completed_at: new Date().toISOString(),
       } as never);
       invalidateDeclaredUserContext(user.id);
       setSaving(false);
+      if (error) return;
+      markComplete();
       setPhase('thanks');
       void refresh();
     },
-    [refresh, user?.id],
+    [markComplete, refresh, user?.id],
   );
 
   const goNext = useCallback(() => {
     if (!answered || saving || !step) return;
+    let nextAnswers = answers;
+    if (step.key === 'trabalho_hours' && Number(answers.trabalho_hours) === 0) {
+      const { trabalho_productivity: _skipped, ...rest } = answers;
+      nextAnswers = rest;
+      setAnswers(rest);
+    }
     if (isLast) {
-      void persist(answers);
+      void persist(nextAnswers);
       return;
     }
-    setIndex((current) => current + 1);
-  }, [answered, answers, isLast, persist, saving, step]);
+    const nextSteps = visibleHealthSurveySteps(nextAnswers);
+    const currentPos = nextSteps.findIndex((item) => item.key === step.key);
+    setIndex(currentPos >= 0 ? currentPos + 1 : index + 1);
+  }, [answered, answers, index, isLast, persist, saving, step]);
 
   const choose = useCallback(
     (next: string) => {
@@ -194,7 +205,7 @@ export default function HealthSurveyScreen() {
           >
             <SurveyClockIcon color={metaIcon} />
             <Text style={{ fontFamily: fonts.sans, fontSize: 16, lineHeight: 25, color: colors.text }}>
-              Uns 4 minutos · 22 perguntas
+              Uns 4 minutos · 23 perguntas
             </Text>
           </View>
           <View
@@ -342,6 +353,19 @@ export default function HealthSurveyScreen() {
             >
               {g(step.title)}
             </Text>
+            {step.support ? (
+              <Text
+                style={{
+                  fontFamily: fonts.sans,
+                  fontSize: 15,
+                  lineHeight: 22,
+                  color: colors.text2,
+                  marginTop: 14,
+                }}
+              >
+                {g(step.support)}
+              </Text>
+            ) : null}
           </View>
 
           {step.input.type === 'number' ? (
@@ -357,7 +381,7 @@ export default function HealthSurveyScreen() {
           ) : null}
 
           {step.input.type === 'scale' ? (
-            <View style={{ marginTop: 62, paddingHorizontal: 24 }}>
+            <View style={{ marginTop: step.support ? 28 : 62, paddingHorizontal: 24 }}>
               <SurveyScale
                 value={value === undefined ? undefined : Number(value)}
                 min={step.input.min}

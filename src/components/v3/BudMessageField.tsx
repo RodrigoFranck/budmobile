@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { TextInput, TouchableOpacity, View } from 'react-native';
-import { Send } from 'lucide-react-native';
+import { ArrowUp, Mic, Plus } from 'lucide-react-native';
 
 import { fonts, useV3Colors } from '@/theme';
 
@@ -8,6 +8,8 @@ interface BudMessageFieldProps {
   value: string;
   onChangeText: (value: string) => void;
   onSend: () => void;
+  onAttach?: () => void;
+  onMicPress?: () => void;
   onVoice?: () => void;
   placeholder?: string;
   disabled?: boolean;
@@ -18,6 +20,8 @@ export function BudMessageField({
   value,
   onChangeText,
   onSend,
+  onAttach,
+  onMicPress,
   placeholder = 'Escreva pro Bud…',
   disabled,
   voiceSlot,
@@ -27,6 +31,24 @@ export function BudMessageField({
 
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <TouchableOpacity
+        onPress={onAttach}
+        disabled={disabled || !onAttach}
+        accessibilityRole="button"
+        accessibilityLabel="Compartilhar com o Bud"
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: 24,
+          backgroundColor: colors.surface2,
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: disabled || !onAttach ? 0.45 : 1,
+        }}
+      >
+        <Plus color={colors.text} size={22} strokeWidth={2} />
+      </TouchableOpacity>
+
       <View
         style={{
           flex: 1,
@@ -35,7 +57,9 @@ export function BudMessageField({
           backgroundColor: colors.surface2,
           flexDirection: 'row',
           alignItems: 'center',
-          paddingHorizontal: 18,
+          paddingLeft: 22,
+          paddingRight: 8,
+          gap: 8,
         }}
       >
         <TextInput
@@ -49,21 +73,46 @@ export function BudMessageField({
             flex: 1,
             fontFamily: fonts.sans,
             fontSize: 16,
+            lineHeight: 20,
             color: colors.text,
             paddingVertical: 14,
             maxHeight: 120,
           }}
         />
+        {onMicPress ? (
+          <TouchableOpacity
+            onPress={onMicPress}
+            disabled={disabled}
+            accessibilityRole="button"
+            accessibilityLabel="Falar no campo"
+            hitSlop={8}
+            style={{ opacity: disabled ? 0.35 : 1 }}
+          >
+            <Mic color={colors.text3} size={22} strokeWidth={2} />
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity
           onPress={onSend}
           disabled={!canSend}
           accessibilityRole="button"
           accessibilityLabel="Enviar"
-          style={{ marginLeft: 8, opacity: canSend ? 1 : 0.35 }}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: canSend ? colors.btn : colors.surface2,
+          }}
         >
-          <Send color={colors.text} size={20} />
+          <ArrowUp
+            color={canSend ? colors.onBtn : colors.text3}
+            size={20}
+            strokeWidth={2.25}
+          />
         </TouchableOpacity>
       </View>
+
       {voiceSlot ? <View style={{ justifyContent: 'center' }}>{voiceSlot}</View> : null}
     </View>
   );

@@ -2,15 +2,19 @@ import { useEffect, useRef, useState } from 'react';
 import { useIsFocused } from '@react-navigation/native';
 import { View, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { appAlert } from '@/contexts/AppAlertContext';
+import { pickChatGalleryImage } from '@/utils/pickChatGalleryImage';
 import {
   VoiceInterface,
 } from '@/voice/VoiceInterface';
 import type { VoiceInterfaceRef } from '@/voice/VoiceInterface.types';
 import { BudMessageField } from '@/components/v3';
 import type { UserContext } from '@/utils/chatStream';
+import type { ChatGalleryImage } from '@/utils/chatImageMessage';
 
 interface MessageInputBarProps {
   onSendMessage?: (message: string) => void;
+  onSendImage?: (image: ChatGalleryImage) => void;
   disabled?: boolean;
   voiceInterfaceRef?: React.RefObject<VoiceInterfaceRef | null>;
   onVoiceModeChange?: (active: boolean) => void;
@@ -37,6 +41,7 @@ interface MessageInputBarProps {
 
 export function MessageInputBar({
   onSendMessage,
+  onSendImage,
   disabled,
   voiceInterfaceRef,
   onVoiceModeChange,
@@ -75,6 +80,20 @@ export function MessageInputBar({
     }
   };
 
+  const pickFromGallery = async () => {
+    try {
+      const image = await pickChatGalleryImage();
+      if (!image) return;
+      if (!onSendImage) return;
+      onSendImage(image);
+    } catch (error) {
+      appAlert({
+        title: 'Galeria',
+        message: error instanceof Error ? error.message : 'Não foi possível abrir a galeria.',
+      });
+    }
+  };
+
   const isProminentVoice = voiceAppearance === 'prominent';
 
   const voiceSlotContent =
@@ -82,10 +101,8 @@ export function MessageInputBar({
       <VoiceInterface
         ref={voiceInterfaceRef}
         appearance={voiceAppearance ?? 'companion'}
-        prominentSize={isProminentVoice ? 56 : undefined}
+        prominentSize={isProminentVoice ? 48 : undefined}
         onTranscript={(text) => {
-          messageRef.current = text;
-          setMessage(text);
           onVoiceTranscript?.(text);
         }}
         onVoiceModeChange={onVoiceModeChange}
@@ -120,6 +137,7 @@ export function MessageInputBar({
           setMessage(text);
         }}
         onSend={handleSend}
+        onAttach={disabled ? undefined : () => void pickFromGallery()}
         disabled={disabled}
         voiceSlot={voiceSlotContent}
       />

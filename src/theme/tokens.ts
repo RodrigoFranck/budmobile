@@ -51,12 +51,15 @@ export const fonts = {
 } as const;
 
 export const motion = {
+  // M01 part 1 (gentle) + part 2 (standard) + M02 (enter); M03 exit
   letterFlapMs: 450,
   letterRiseMs: 800,
-  letterEnterMs: 1200,
+  letterEnterMs: 650,
   letterExitMs: 1100,
-  letterOpenMs: 2450,
-  letterDissolveMs: 600,
+  letterOpenMs: 1900,
+  letterDissolveMs: 650,
+  // TF-80 / R02: Reduce Motion → simple 300 ms dissolve (not a skipped jump)
+  letterReduceMs: 300,
   activitySheetMs: 420,
   questionStepMs: 450,
   sproutSpinMs: 550,
@@ -65,6 +68,7 @@ export const motion = {
   optionMs: 250,
   nextQuestionMs: 400,
   previousQuestionMs: 350,
+  toggleMs: 200,
   moodMs: 450,
   sheetMs: 300,
   fadeExitMs: 450,

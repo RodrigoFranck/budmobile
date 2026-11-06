@@ -17,8 +17,11 @@ export const CLICK_EVENTS = {
 
 export const ACTION_EVENTS = {
   MESSAGE_SENT: 'chat_message_send',
+  ATTACHMENT_SENT: 'anexo_enviado',
   VOICE_SESSION_STARTED: 'voice_session_start',
   VOICE_SESSION_ENDED: 'voice_session_end',
+  HELP_OPENED: 'ajuda_aberta',
+  HELP_CALL: 'ajuda_ligacao',
   CHECKIN_STARTED: 'checkin_start',
   CHECKIN_COMPLETED: 'checkin_complete',
   CHECKIN_ABANDONED: 'checkin_abandon',
@@ -30,5 +33,6 @@ export const ACTION_EVENTS = {
   ONBOARDING_ABANDONED: 'onboarding_abandon',
   EXPLORE_INSIGHT_VIEWED: 'explore_insight_view',
   EXPLORE_INSIGHT_BLOCKED: 'explore_insight_blocked',
+  NOTIFICATION_OPEN: 'notification_open',
   SIGN_OUT: 'auth_sign_out',
 } as const;

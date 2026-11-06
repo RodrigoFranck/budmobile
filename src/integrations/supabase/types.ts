@@ -39,6 +39,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      resumo_semana: {
+        Row: {
+          id: string
+          user_id: string
+          week_start: string
+          content_json: Json
+          released_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          week_start: string
+          content_json: Json
+          released_at: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          week_start?: string
+          content_json?: Json
+          released_at?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       daily_letters: {
         Row: {
           id: string
@@ -194,6 +221,72 @@ export type Database = {
           session_id?: string
           summary?: string | null
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          billing_interval: string | null
+          cancel_at_period_end: boolean
+          created_at: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          free_conversation_id: string | null
+          id: string
+          plan_id: string
+          status: string
+          store: string | null
+          store_original_transaction_id: string | null
+          store_product_id: string | null
+          store_purchase_token: string | null
+          store_transaction_id: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          trial_ends_at: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          billing_interval?: string | null
+          cancel_at_period_end?: boolean
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          free_conversation_id?: string | null
+          id?: string
+          plan_id?: string
+          status?: string
+          store?: string | null
+          store_original_transaction_id?: string | null
+          store_product_id?: string | null
+          store_purchase_token?: string | null
+          store_transaction_id?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          billing_interval?: string | null
+          cancel_at_period_end?: boolean
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          free_conversation_id?: string | null
+          id?: string
+          plan_id?: string
+          status?: string
+          store?: string | null
+          store_original_transaction_id?: string | null
+          store_product_id?: string | null
+          store_purchase_token?: string | null
+          store_transaction_id?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
@@ -533,6 +626,7 @@ export type Database = {
           timezone: string
           updated_at: string
           user_id: string
+          welcome_sent_at?: string | null
           app_mode?: string
           organization_id?: string | null
           selected_voice?: string | null

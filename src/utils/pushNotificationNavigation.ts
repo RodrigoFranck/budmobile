@@ -1,10 +1,12 @@
 import type { NavigationContainerRefWithCurrent, NavigatorScreenParams } from '@react-navigation/native';
 
+import { ACTION_EVENTS, logActionEvent } from '@/analytics';
 import { supabase } from '@/integrations/supabase/client';
 import type { PushNotificationData } from '@/services/pushNotifications';
 import type { Insight } from '@/hooks/useExploreInsights';
 import type { ChatInsightParam } from '@/types/chatInsight';
 import type { MainTabParamList, RootStackParamList } from '@/types/navigation';
+import { mondayFromIsoWeek, resolveBudDeepLink } from '@/utils/budDeepLink';
 import { buildExploreChatInsight } from '@/utils/buildExploreChatInsight';
 import { getTodayInBrasilia } from '@/utils/dateUtils';
 import { stashPendingChatInsight } from '@/utils/navigateToChat';
@@ -13,6 +15,10 @@ export type MainTabsPushNavigationParams = NavigatorScreenParams<MainTabParamLis
 
 export type PendingPushTarget =
   | { kind: 'mainTabs'; target: MainTabsPushNavigationParams }
+  | { kind: 'home'; letterDate?: string }
+  | { kind: 'weeklySummary'; weekKey?: string; weekStart?: string }
+  | { kind: 'screening' }
+  | { kind: 'emptyChat' }
   | { kind: 'checkIn'; checkInType: 'morning' | 'post_training' }
   | { kind: 'yesterdayJourney' }
   | { kind: 'weeklyInsight'; weekStart?: string };
@@ -52,6 +58,21 @@ function readCheckInType(data: PushNotificationData): 'morning' | 'post_training
   return null;
 }
 
+function trackNotificationOpen(data: PushNotificationData | undefined): void {
+  if (!data) {
+    return;
+  }
+  const type = readNotificationType(data);
+  if (!type) {
+    return;
+  }
+  void logActionEvent(ACTION_EVENTS.NOTIFICATION_OPEN, {
+    notification_type: type,
+    variation: readString(data.variation) ?? readString(data.variationId) ?? '',
+    deep_link: readString(data.deepLink) ?? readString(data.deep_link) ?? '',
+  });
+}
+
 export function resolvePushTargetFromData(
   data: PushNotificationData | undefined,
 ): PendingPushTarget | null {
@@ -59,8 +80,55 @@ export function resolvePushTargetFromData(
     return null;
   }
 
+  const deepLink = readString(data.deepLink) ?? readString(data.deep_link);
+  if (deepLink) {
+    const fromLink = resolveBudDeepLink(deepLink);
+    if (fromLink) {
+      return fromLink;
+    }
+  }
+
   const notificationType = readNotificationType(data);
   const checkInType = readCheckInType(data);
+
+  if (
+    notificationType === 'daily_letter' ||
+    notificationType === 'carta' ||
+    notificationType === 'letter'
+  ) {
+    return {
+      kind: 'home',
+      letterDate: readString(data.carta) ?? readString(data.letterDate) ?? readString(data.letter_date),
+    };
+  }
+
+  if (
+    notificationType === 'weekly_summary' ||
+    notificationType === 'resumo_semana' ||
+    notificationType === 'weekly_insight'
+  ) {
+    return {
+      kind: 'weeklySummary',
+      weekKey: readString(data.semana) ?? readString(data.weekKey),
+      weekStart: readString(data.weekStart) ?? readString(data.week_start),
+    };
+  }
+
+  if (
+    notificationType === 'health_survey' ||
+    notificationType === 'screening' ||
+    notificationType === 'pesquisa'
+  ) {
+    return { kind: 'screening' };
+  }
+
+  if (
+    notificationType === 'chat_reminder' ||
+    notificationType === 'reengagement' ||
+    notificationType === 'reminders'
+  ) {
+    return { kind: 'emptyChat' };
+  }
 
   if (checkInType) {
     return { kind: 'checkIn', checkInType };
@@ -70,11 +138,7 @@ export function resolvePushTargetFromData(
     return { kind: 'yesterdayJourney' };
   }
 
-  if (
-    notificationType === 'weekly_insight' ||
-    data.tab === 'History' ||
-    parseTruthy(data.openDeepInsight)
-  ) {
+  if (data.tab === 'History' || parseTruthy(data.openDeepInsight)) {
     return {
       kind: 'weeklyInsight',
       weekStart: readString(data.weekStart) ?? readString(data.week_start),
@@ -85,8 +149,8 @@ export function resolvePushTargetFromData(
     return { kind: 'mainTabs', target: { screen: 'Explore' } };
   }
 
-  if (notificationType === 'reengagement' || data.tab === 'Chat') {
-    return { kind: 'mainTabs', target: { screen: 'Chat' } };
+  if (data.tab === 'Chat') {
+    return { kind: 'emptyChat' };
   }
 
   if (data.tab === 'Activities') {
@@ -232,6 +296,16 @@ async function navigateToYesterdayJourney(
   });
 }
 
+function resolveWeekStart(target: Extract<PendingPushTarget, { kind: 'weeklySummary' }>): string | undefined {
+  if (target.weekStart) {
+    return target.weekStart;
+  }
+  if (target.weekKey) {
+    return mondayFromIsoWeek(target.weekKey);
+  }
+  return undefined;
+}
+
 export async function navigatePushTarget(
   navigationRef: NavigationContainerRefWithCurrent<RootStackParamList>,
   target: PendingPushTarget,
@@ -243,6 +317,38 @@ export async function navigatePushTarget(
 
   if (target.kind === 'yesterdayJourney') {
     return navigateToYesterdayJourney(navigationRef, userId);
+  }
+
+  if (target.kind === 'home') {
+    return navigateToMainTabs(navigationRef, { screen: 'Home' });
+  }
+
+  if (target.kind === 'emptyChat') {
+    return navigateToMainTabs(navigationRef, {
+      screen: 'Chat',
+      params: {
+        screen: 'TextChat',
+        chatInsight: undefined,
+      },
+    });
+  }
+
+  if (target.kind === 'screening') {
+    return navigateToMainTabs(navigationRef, {
+      screen: 'Institution',
+      params: { forced: true },
+    });
+  }
+
+  if (target.kind === 'weeklySummary') {
+    const weekStart = resolveWeekStart(target);
+    return navigateToMainTabs(navigationRef, {
+      screen: 'History',
+      params: {
+        openDeepInsight: true,
+        ...(weekStart ? { weekStart } : {}),
+      },
+    });
   }
 
   if (target.kind === 'weeklyInsight') {
@@ -263,6 +369,7 @@ export async function navigateFromPushNotification(
   data: PushNotificationData | undefined,
   userId?: string,
 ): Promise<boolean> {
+  trackNotificationOpen(data);
   const target = resolvePushTargetFromData(data);
   if (!target) {
     return false;
@@ -280,5 +387,17 @@ export async function flushPendingPushNavigation(
     return false;
   }
 
+  return navigatePushTarget(navigationRef, target, userId);
+}
+
+export async function navigateFromBudUrl(
+  navigationRef: NavigationContainerRefWithCurrent<RootStackParamList>,
+  url: string,
+  userId?: string,
+): Promise<boolean> {
+  const target = resolveBudDeepLink(url);
+  if (!target) {
+    return false;
+  }
   return navigatePushTarget(navigationRef, target, userId);
 }

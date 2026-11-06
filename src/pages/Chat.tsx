@@ -11,6 +11,16 @@ import {
 } from '@/contexts/TabScreenContext';
 import { countUserTurns, matchApproach } from '@/utils/approachMatcher';
 import { streamChat, type InsightContext, type UserContext } from '@/utils/chatStream';
+import {
+  buildChatImageApiContent,
+  chatMessageTextForModel,
+  CHAT_IMAGE_HISTORY_TEXT,
+  validateChatGalleryImage,
+  type ChatApiContent,
+  type ChatGalleryImage,
+} from '@/utils/chatImageMessage';
+import { storeChatImage } from '@/utils/uploadChatImage';
+import { appAlert } from '@/contexts/AppAlertContext';
 import { userContextFieldsFromProfile } from '@/utils/userContextFromProfile';
 import type { ChatInsightParam } from '@/types/chatInsight';
 import { takePendingChatInsight, clearPendingChatInsight } from '@/utils/navigateToChat';
@@ -191,7 +201,11 @@ export default function ChatScreen() {
   }, [profile, dbMessages, currentConversationId]);
 
   const messageHistory = useMemo(
-    () => dbMessages.map((msg) => ({ role: msg.role, content: msg.content })),
+    () =>
+      dbMessages.map((msg) => ({
+        role: msg.role,
+        content: chatMessageTextForModel(msg.content),
+      })),
     [dbMessages],
   );
 
@@ -212,7 +226,8 @@ export default function ChatScreen() {
   );
 
   const handleEndVoiceSession = useCallback(async () => {
-    await voiceInterfaceRef.current?.endConversation();
+    // force: always tear down audio + phase even if onDisconnect is late
+    await voiceInterfaceRef.current?.endConversation({ force: true });
   }, []);
 
   const handleToggleVoicePause = useCallback(() => {
@@ -234,10 +249,15 @@ export default function ChatScreen() {
   }, []);
 
   const handleSendMessage = useCallback(
-    async (message: string, contextOverride?: InsightContext | null) => {
+    async (
+      message: string,
+      contextOverride?: InsightContext | null,
+      options?: { imageUri?: string; apiContent?: ChatApiContent; skipLock?: boolean },
+    ) => {
       if (!currentConversationId || !user) return;
 
       const activeInsightContext = contextOverride ?? insightContext;
+      const attached = Boolean(options?.apiContent);
 
       const userMessageId = `user-${Date.now()}`;
       registerMessageClientId(messageClientIdsRef.current, 'user', message, userMessageId);
@@ -247,6 +267,7 @@ export default function ChatScreen() {
           id: userMessageId,
           role: 'user',
           content: message,
+          imageUri: options?.imageUri,
           createdAt: new Date().toISOString(),
         },
       ]);
@@ -258,9 +279,9 @@ export default function ChatScreen() {
           .filter((m) => m.role !== 'context' || !m.role)
           .map((m) => ({
             role: (m.role === 'context' ? 'user' : m.role) as 'user' | 'assistant',
-            content: m.content,
+            content: chatMessageTextForModel(m.content),
           })),
-        { role: 'user' as const, content: message },
+        { role: 'user' as const, content: options?.apiContent ?? message },
       ];
 
       setIsStreaming(true);
@@ -281,7 +302,7 @@ export default function ChatScreen() {
       let accumulatedContent = '';
 
       const approachDecision = matchApproach(
-        message,
+        attached ? CHAT_IMAGE_HISTORY_TEXT : message,
         memoryLoading ? null : internalProfile,
         countUserTurns(apiMessages),
       );
@@ -354,6 +375,36 @@ export default function ChatScreen() {
     ],
   );
 
+  const handleSendImage = useCallback(
+    async (image: ChatGalleryImage) => {
+      if (!currentConversationId || !user) return;
+      const validationError = validateChatGalleryImage(image);
+      if (validationError) {
+        appAlert({ title: 'Foto', message: validationError });
+        return;
+      }
+
+      const stored = await storeChatImage({
+        userId: user.id,
+        conversationId: currentConversationId,
+        base64: image.base64,
+      });
+      if (!stored) {
+        appAlert({
+          title: 'Foto',
+          message: 'Não foi possível enviar a foto. Tente outra imagem.',
+        });
+        return;
+      }
+
+      await handleSendMessage(stored, null, {
+        imageUri: image.uri,
+        apiContent: buildChatImageApiContent(image.base64),
+      });
+    },
+    [currentConversationId, handleSendMessage, user],
+  );
+
   const trySendPendingInsight = useCallback(() => {
     const pending = pendingChatInsightRef.current;
     if (!pending?.initialUserMessage?.trim()) return;
@@ -422,6 +473,7 @@ export default function ChatScreen() {
         />
         <MessageInputBar
           onSendMessage={handleSendMessage}
+          onSendImage={handleSendImage}
           disabled={isStreaming}
           voiceAppearance="prominent"
           voiceInterfaceRef={voiceInterfaceRef}

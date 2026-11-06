@@ -71,7 +71,7 @@ export function resolveInsightVisualCategory(params: {
     return 'inspired';
   }
 
-  if (raw === 'yesterday' || raw === 'yesterday_journey') {
+  if (raw === 'yesterday' || raw === 'yesterday_journey' || raw === 'daily_letter') {
     return 'yesterday_journey';
   }
   if (raw === 'frequency') {

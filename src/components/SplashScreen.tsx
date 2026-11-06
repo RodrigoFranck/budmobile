@@ -25,7 +25,7 @@ export function LaunchSplash({ showSubtitle = true }: LaunchSplashProps) {
           <Image source={v3Assets.wordmarkDark} style={styles.wordmark} resizeMode="contain" />
           {showSubtitle ? (
             <Text style={[styles.subtitle, { color: v3DarkColors.text2 }]}>
-              Inteligência artificial para saúde mental
+              IA para saúde mental
             </Text>
           ) : null}
         </View>
@@ -54,7 +54,7 @@ export function SplashScreen({
           <Image source={assets.wordmark} style={styles.wordmark} resizeMode="contain" />
           {showSubtitle ? (
             <Text style={[styles.subtitle, { color: colors.text2 }]}>
-              Inteligência artificial para saúde mental
+              IA para saúde mental
             </Text>
           ) : null}
         </View>

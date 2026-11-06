@@ -53,6 +53,29 @@ export function useConversationDetailStyles() {
       fontSize: 19,
       color: onboardingColors.white,
     },
+    activitiesBlock: {
+      marginBottom: 12,
+    },
+    activitiesTitle: {
+      fontFamily: instrumentSansFont,
+      fontSize: 14,
+      color: onboardingColors.textSecondary,
+      marginBottom: 12,
+    },
+    letterNote: {
+      marginBottom: 24,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderRadius: 14,
+      backgroundColor: onboardingColors.gradientIconSurface,
+      borderWidth: 1,
+      borderColor: onboardingColors.borderDark,
+    },
+    letterNoteText: {
+      fontFamily: instrumentSansFont,
+      fontSize: 14,
+      color: onboardingColors.textSecondary,
+    },
     scroll: {
       flex: 1,
     },

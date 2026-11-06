@@ -36,21 +36,13 @@ export function ProminentVoiceButton({
   const iconSize = Math.round(height * 0.42);
 
   const palette = useMemo(() => {
-    if (isDark) {
-      return {
-        circleBg: '#FFFFFF',
-        waveColor: '#373737',
-        connectedBg: 'rgba(239, 68, 68, 0.16)',
-        connectedBorder: colors.destructive,
-      };
-    }
     return {
-      circleBg: '#FFFFFF',
-      waveColor: '#373737',
+      circleBg: isDark ? '#F1E6DA' : '#35302B',
+      waveColor: isDark ? '#171312' : '#F1E6DB',
       connectedBg: 'rgba(239, 68, 68, 0.16)',
       connectedBorder: colors.destructive,
     };
-  }, [colors, isDark]);
+  }, [colors.destructive, isDark]);
 
   if (isConnected) {
     return (
