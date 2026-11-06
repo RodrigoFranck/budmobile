@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  Keyboard,
+  Platform,
   Pressable,
   ScrollView,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
   type ImageSourcePropType,
 } from 'react-native';
@@ -23,7 +26,6 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
-import { BudChip } from '@/components/v3';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import {
@@ -44,6 +46,7 @@ import {
   type ActivityFeedbackValue,
 } from '@/pages/activitiesV3/activityChrome';
 import { createActivityPersister } from '@/pages/activitiesV3/persistActivity';
+import { useActivityKeyboard } from '@/pages/activitiesV3/useActivityKeyboard';
 import { useGenderedCopy } from '@/hooks/useGenderedCopy';
 import {
   classifyFieeWord,
@@ -79,7 +82,7 @@ const CHIPS_PAD_TOP = 28;
 const PAGE_ENTER = 20;
 const RESULT_LABELS = ['Fisicamente', 'Na cabeça', 'Por dentro', 'Com as pessoas'] as const;
 
-const QUICK = Easing.bezier(0.25, 0, 0, 1);
+const QUICK = Easing.bezier(0.2, 0, 0, 1);
 const STANDARD = Easing.bezier(0.42, 0, 0.58, 1);
 
 const PHASE_ASK = 0;
@@ -95,6 +98,8 @@ export default function FieeScreen() {
   const colors = useV3Colors();
   const assets = useV3Asset();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  const { keyboardHeight, keyboardOpen, dismissKeyboard } = useActivityKeyboard();
   const navigation = useNavigation<MainTabNavigationProp>();
   const { user } = useAuth();
   const { profile } = useUserProfile();
@@ -159,8 +164,12 @@ export default function FieeScreen() {
     (customDraft.trim().length >= 2 ? customDraft.trim() : '');
 
   useEffect(() => {
-    if (!step || phase !== 'ask') return;
+    if (!step) return;
     setChipSet(shuffleFieeWords(step.words));
+  }, [step?.key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!step || phase !== 'ask') return;
     const existing = answersRef.current[step.key];
     setCustomDraft(existing ? displayFiee(existing.palavra) : '');
   }, [phase, step?.key]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -228,12 +237,12 @@ export default function FieeScreen() {
   const startSpin = (from: number) => {
     const next = from + 1;
     setPhase('spin');
-    setIndex(next);
     animPhase.value = PHASE_SPIN;
     enterProgress.value = 0;
     enterProgress.value = withTiming(1, { duration: M19_SPIN_MS, easing: STANDARD });
     outlines[next].value = withTiming(0.95, { duration: M19_SPIN_MS, easing: STANDARD });
     glowProgress.value = withTiming(0, { duration: M19_SPIN_MS, easing: STANDARD });
+    holdTimer.current = setTimeout(() => setIndex(next), M19_SPIN_MS * 0.5);
     spinDeg.value = withTiming(next * 90, { duration: M19_SPIN_MS, easing: STANDARD }, (finished) => {
       if (finished) runOnJS(finishSpin)();
     });
@@ -265,6 +274,7 @@ export default function FieeScreen() {
 
   const goNext = () => {
     if (!step || !asking || busy.current || !canAdvance) return;
+    Keyboard.dismiss();
     busy.current = true;
     const from = index;
     const draftWord = customDraft.trim();
@@ -411,54 +421,36 @@ export default function FieeScreen() {
       interpolate(loadProgress.value, [0, 1], [1, 0]),
   }));
   const askStyle = useAnimatedStyle(() => {
-    const p = animPhase.value;
-    if (p === PHASE_LOAD) {
-      return { opacity: 0, transform: [{ translateY: 0 }] };
-    }
-    if (p === PHASE_COMMIT) {
-      return {
-        opacity: interpolate(commitProgress.value, [0, 0.4], [1, 0], Extrapolation.CLAMP),
-        transform: [{ translateY: 0 }],
-      };
-    }
-    if (p === PHASE_SPIN) {
-      return {
-        opacity: interpolate(enterProgress.value, [0.5, 1], [0, 1], Extrapolation.CLAMP),
-        transform: [{ translateY: interpolate(enterProgress.value, [0.5, 1], [PAGE_ENTER, 0], Extrapolation.CLAMP) }],
-      };
-    }
-    return { opacity: 1, transform: [{ translateY: 0 }] };
+    const commitFade = interpolate(commitProgress.value, [0, 0.4], [1, 0], Extrapolation.CLAMP);
+    const enterOpacity = interpolate(enterProgress.value, [0.5, 1], [0, 1], Extrapolation.CLAMP);
+    const enterY = interpolate(enterProgress.value, [0.5, 1], [PAGE_ENTER, 0], Extrapolation.CLAMP);
+    const phase = animPhase.value;
+    const opacity =
+      phase === PHASE_COMMIT ? commitFade : phase === PHASE_SPIN ? enterOpacity : phase === PHASE_LOAD ? 0 : 1;
+    const translateY = phase === PHASE_SPIN ? enterY : 0;
+    return { opacity, transform: [{ translateY }] };
   });
   const wordStyle = useAnimatedStyle(() => {
     const size = interpolate(commitProgress.value, [0, 1], [34, 26]);
     const spinFade = interpolate(enterProgress.value, [0, 0.4], [1, 0], Extrapolation.CLAMP);
+    const loadFade = interpolate(loadProgress.value, [0, 1], [1, 0], Extrapolation.CLAMP);
+    const rise = interpolate(commitProgress.value, [0, 1], [0, WORD_RISE]);
+    const phase = animPhase.value;
     const opacity =
-      animPhase.value === PHASE_ASK
-        ? 0
-        : animPhase.value === PHASE_LOAD
-          ? interpolate(loadProgress.value, [0, 1], [1, 0])
-          : animPhase.value === PHASE_COMMIT
-            ? 1
-            : spinFade;
+      phase === PHASE_ASK ? 0 : phase === PHASE_LOAD ? loadFade : phase === PHASE_COMMIT ? 1 : spinFade;
     return {
       top: slotY.value,
       fontSize: size,
       lineHeight: interpolate(commitProgress.value, [0, 1], [40, 32]),
       color: interpolateColor(commitProgress.value, [0, 1], [colors.text, colors.text2]),
       opacity,
-      transform: [{ translateY: interpolate(commitProgress.value, [0, 1], [0, WORD_RISE]) }],
+      transform: [{ translateY: rise }],
     };
   });
   const lineFieldStyle = useAnimatedStyle(() => {
-    if (animPhase.value === PHASE_ASK) {
-      return { opacity: 1 };
-    }
-    if (animPhase.value === PHASE_COMMIT) {
-      return {
-        opacity: interpolate(commitProgress.value, [0, 0.35], [1, 0], Extrapolation.CLAMP),
-      };
-    }
-    return { opacity: 0 };
+    const commitFade = interpolate(commitProgress.value, [0, 0.35], [1, 0], Extrapolation.CLAMP);
+    const phase = animPhase.value;
+    return { opacity: phase === PHASE_ASK ? 1 : phase === PHASE_COMMIT ? commitFade : 0 };
   });
   const loadingCopyStyle = useAnimatedStyle(() => ({
     opacity: loadProgress.value,
@@ -544,8 +536,27 @@ export default function FieeScreen() {
     { key: 'social', fill: assets.fieeLeafSocial, x: 0, y: 64, rotate: '90deg', fillOp: fill3, outlineOp: outline3 },
   ] as const;
 
+  const keyboardPad = Platform.OS === 'ios' ? keyboardHeight : 0;
+  const headerBlock = insets.top + 56;
+  const slotPadTop = keyboardOpen ? 4 : WORD_SLOT_PAD_TOP;
+  const slotPadBottom = keyboardOpen ? 4 : WORD_SLOT_PAD_BOTTOM;
+  const slotHeight = keyboardOpen ? slotPadTop + WORD_LINE + slotPadBottom : WORD_SLOT_H;
+  const chipsPadTop = keyboardOpen ? 8 : CHIPS_PAD_TOP;
+  const dock = slotHeight + 40 + chipsPadTop + 58 + (keyboardOpen ? 8 : 28);
+  const questionBlock = keyboardOpen ? 96 : 160;
+  const sproutRoom = windowHeight - keyboardPad - headerBlock - dock - questionBlock;
+  const sproutBox = keyboardOpen ? Math.max(0, Math.min(compass, sproutRoom)) : compass;
+  const sproutScale = keyboardOpen && sproutBox > 0 ? Math.min(1, sproutBox / compass) : 1;
+
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg, overflow: 'hidden' }}>
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: colors.bg,
+        overflow: 'hidden',
+        paddingBottom: keyboardPad,
+      }}
+    >
       <Animated.View
         pointerEvents="none"
         style={[{ position: 'absolute', left: 0, right: 0, top: 0, alignItems: 'center' }, glowStyle]}
@@ -559,9 +570,26 @@ export default function FieeScreen() {
         onClose={() => navigation.goBack()}
       />
 
-      <View style={{ alignItems: 'center', paddingTop: 30 }}>
-        <Animated.View style={[{ width: compass, height: compass }, compassScaleStyle]}>
-          <Animated.View style={[{ width: compass, height: compass }, spinStyle]}>
+      <View
+        style={{
+          height: keyboardOpen ? sproutBox : undefined,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingTop: keyboardOpen ? 0 : 30,
+          overflow: 'hidden',
+        }}
+      >
+        <Animated.View
+          style={[
+            { width: compass, height: compass },
+            compassScaleStyle,
+            keyboardOpen ? { transform: [{ scale: sproutScale }] } : null,
+          ]}
+        >
+          <Animated.View
+            collapsable={false}
+            style={[{ width: compass, height: compass }, spinStyle]}
+          >
             {leaves.map((item) => (
               <CompassLeaf
                 key={item.key}
@@ -636,22 +664,39 @@ export default function FieeScreen() {
           pointerEvents={asking ? 'auto' : 'none'}
           style={[{ flex: 1 }, askStyle]}
         >
-          <View style={{ paddingTop: 48 }}>
-            <ActivityKicker label={step?.title ?? ''} />
-            <View style={{ paddingHorizontal: 40, paddingTop: 14 }}>
-              <ActivityPrompt>{step?.prompt ?? ''}</ActivityPrompt>
+          <Pressable onPress={dismissKeyboard} accessible={false}>
+            <View style={{ paddingTop: keyboardOpen ? 8 : 48 }}>
+              <ActivityKicker label={step?.title ?? ''} />
+              <View style={{ paddingHorizontal: 40, paddingTop: keyboardOpen ? 6 : 14 }}>
+                {keyboardOpen ? (
+                  <Text
+                    style={{
+                      fontFamily: fonts.display,
+                      fontSize: 20,
+                      lineHeight: 26,
+                      letterSpacing: -0.4,
+                      color: colors.text,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {g(step?.prompt ?? '')}
+                  </Text>
+                ) : (
+                  <ActivityPrompt>{step?.prompt ?? ''}</ActivityPrompt>
+                )}
+              </View>
             </View>
-          </View>
+          </Pressable>
 
           <View
             collapsable={false}
             onLayout={(event) => {
-              slotY.value = event.nativeEvent.layout.y + WORD_SLOT_PAD_TOP;
+              slotY.value = event.nativeEvent.layout.y + slotPadTop;
             }}
             style={{
-              height: WORD_SLOT_H,
+              height: slotHeight,
               justifyContent: 'flex-end',
-              paddingBottom: WORD_SLOT_PAD_BOTTOM,
+              paddingBottom: slotPadBottom,
               paddingHorizontal: 60,
             }}
           >
@@ -662,11 +707,14 @@ export default function FieeScreen() {
                 onChangeText={onChangeLine}
                 editable={asking}
                 placeholder=""
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={goNext}
                 accessibilityLabel="Escreva ou escolha uma palavra"
                 style={{
                   fontFamily: fonts.display,
-                  fontSize: 26,
-                  lineHeight: WORD_LINE,
+                  fontSize: keyboardOpen ? 22 : 26,
+                  lineHeight: keyboardOpen ? 28 : WORD_LINE,
                   letterSpacing: -0.4,
                   color: colors.text,
                   textAlign: 'center',
@@ -691,11 +739,13 @@ export default function FieeScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            onScrollBeginDrag={dismissKeyboard}
             contentContainerStyle={{
               gap: 8,
               paddingLeft: 24,
               paddingRight: 16,
-              paddingTop: CHIPS_PAD_TOP,
+              paddingTop: chipsPadTop,
               alignItems: 'center',
             }}
             style={{ flexGrow: 0 }}
@@ -705,19 +755,24 @@ export default function FieeScreen() {
                 key={word.label}
                 label={displayFiee(word.label)}
                 selected={selected?.palavra === word.label && !selected?.livre}
-                dimmed={
-                  Boolean(selected && !selected.livre) && selected?.palavra !== word.label
-                }
+                dimmed={Boolean(selected && !selected.livre) && selected?.palavra !== word.label}
                 color={step?.color ?? colors.accent}
                 labelColor={CHIP_LABEL}
+                restingColor={colors.surface2}
+                restingLabel={colors.text}
                 onPress={() => selectWord(word)}
               />
             ))}
           </ScrollView>
 
-          <View style={{ flex: 1 }} />
+          <View style={{ flex: keyboardOpen ? 0 : 1 }} />
 
-          <View style={{ paddingHorizontal: 24, paddingBottom: Math.max(insets.bottom, 16) + 12 }}>
+          <View
+            style={{
+              paddingHorizontal: 24,
+              paddingBottom: keyboardOpen ? 8 : Math.max(insets.bottom, 16) + 12,
+            }}
+          >
             <FieeNextButton enabled={canAdvance} onPress={goNext} />
           </View>
         </Animated.View>
@@ -732,6 +787,8 @@ function FieeChip({
   dimmed,
   color,
   labelColor,
+  restingColor,
+  restingLabel,
   onPress,
 }: {
   label: string;
@@ -739,25 +796,44 @@ function FieeChip({
   dimmed: boolean;
   color: string;
   labelColor: string;
+  restingColor: string;
+  restingLabel: string;
   onPress: () => void;
 }) {
   const dim = useSharedValue(dimmed ? 1 : 0);
+  const on = useSharedValue(selected ? 1 : 0);
   useEffect(() => {
     dim.value = withTiming(dimmed ? 1 : 0, { duration: M18_MS, easing: QUICK });
-  }, [dim, dimmed]);
+    on.value = withTiming(selected ? 1 : 0, { duration: M18_MS, easing: QUICK });
+  }, [dim, dimmed, on, selected]);
   const wrap = useAnimatedStyle(() => ({
     opacity: interpolate(dim.value, [0, 1], [1, 0.4]),
+    backgroundColor: interpolateColor(on.value, [0, 1], [restingColor, color]),
+  }));
+  const textStyle = useAnimatedStyle(() => ({
+    color: interpolateColor(on.value, [0, 1], [restingLabel, labelColor]),
   }));
   return (
-    <Animated.View style={wrap}>
-      <BudChip
-        label={label}
-        selected={selected}
-        selectedColor={color}
-        selectedLabelColor={labelColor}
-        onPress={onPress}
-      />
-    </Animated.View>
+    <AnimatedPressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      accessibilityLabel={label}
+      style={[
+        {
+          paddingHorizontal: 16,
+          height: 40,
+          borderRadius: 20,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        wrap,
+      ]}
+    >
+      <Animated.Text style={[{ fontFamily: fonts.sans, fontSize: 15, lineHeight: 15 }, textStyle]}>
+        {label}
+      </Animated.Text>
+    </AnimatedPressable>
   );
 }
 

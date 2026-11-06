@@ -278,19 +278,22 @@ export function ActivityComposer({
   onSend,
   placeholder = 'Escreva aqui…',
   disabled,
+  bottomInset,
 }: {
   value: string;
   onChangeText: (value: string) => void;
   onSend: () => void;
   placeholder?: string;
   disabled?: boolean;
+  bottomInset?: number;
 }) {
   const colors = useV3Colors();
   const canSend = Boolean(value.trim()) && !disabled;
   const insets = useSafeAreaInsets();
+  const pad = bottomInset ?? Math.max(insets.bottom, 12);
 
   return (
-    <View style={{ paddingHorizontal: 20, paddingBottom: Math.max(insets.bottom, 12) }}>
+    <View style={{ paddingHorizontal: 20, paddingBottom: pad }}>
       <View style={[styles.composer, { backgroundColor: colors.surface2 }]}>
         <TextInput
           value={value}
@@ -405,7 +408,7 @@ export function PreviousAnswerCard({
         styles.answerCard,
         {
           backgroundColor: colors.surface,
-          paddingVertical: compact ? 10 : 14,
+          paddingVertical: compact ? 10 : 16,
           opacity,
           transform: [{ scale }],
         },
@@ -414,7 +417,12 @@ export function PreviousAnswerCard({
       <Text
         style={[
           styles.answerCardQuestion,
-          { color: colors.text3, fontSize: compact ? 12 : 13, lineHeight: compact ? 16 : 18 },
+          {
+            color: colors.text3,
+            fontFamily: fonts.sansMedium,
+            fontSize: compact ? 12 : 13,
+            lineHeight: compact ? 16 : 18,
+          },
         ]}
         numberOfLines={compact ? 1 : 2}
       >
@@ -425,6 +433,7 @@ export function PreviousAnswerCard({
           styles.answerCardAnswer,
           {
             color: colors.text,
+            fontFamily: fonts.sansMedium,
             fontSize: compact ? 14 : 16,
             lineHeight: compact ? 20 : 23,
             paddingTop: compact ? 4 : 6,
@@ -787,6 +796,7 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 20,
     paddingHorizontal: 20,
+    paddingVertical: 16,
   },
   answerCardQuestion: {
     fontFamily: fonts.sans,

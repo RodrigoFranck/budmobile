@@ -121,8 +121,18 @@ function syncMessage(code: string, fallback: string): string {
   return fallback;
 }
 
-async function syncPurchase(purchase: Purchase): Promise<boolean> {
-  const purchaseToken = purchase.purchaseToken ?? null;
+async function purchaseTokenFor(iap: IapModule, purchase: Purchase): Promise<string | null> {
+  if (purchase.purchaseToken) return purchase.purchaseToken;
+  if (Platform.OS !== 'ios') return null;
+  try {
+    return await iap.getTransactionJwsIOS(purchase.productId);
+  } catch {
+    return null;
+  }
+}
+
+async function syncPurchase(iap: IapModule, purchase: Purchase): Promise<boolean> {
+  const purchaseToken = await purchaseTokenFor(iap, purchase);
   if (!purchaseToken) {
     throw new Error('A loja não enviou o comprovante da compra.');
   }
@@ -187,7 +197,7 @@ export async function restorePremiumPurchases(): Promise<boolean> {
   );
   let active = false;
   for (const purchase of premium) {
-    const restored = await syncPurchase(purchase);
+    const restored = await syncPurchase(iap, purchase);
     await finishPurchase(iap, purchase);
     active = active || restored;
   }
@@ -230,7 +240,7 @@ export async function purchasePremium(interval: BillingInterval, userId: string)
       throw new Error('A loja não confirmou a compra.');
     }
     for (const purchase of purchases) {
-      const active = await syncPurchase(purchase);
+      const active = await syncPurchase(iap, purchase);
       await finishPurchase(iap, purchase);
       if (!active) {
         throw new Error('A loja confirmou a compra, mas ela não está ativa.');

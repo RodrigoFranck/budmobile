@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
+import { DMSans_600SemiBold } from "@expo-google-fonts/dm-sans";
+import { useFonts } from "expo-font";
 import {
   View,
   Text,
@@ -180,6 +182,20 @@ export default function AuthScreen({ navigation }: Props) {
   };
 
   const showAppleButton = Platform.OS === "ios" && isAppleSignInAvailable;
+  const [labelFontReady] = useFonts({ DMSans_600SemiBold });
+
+  const renderSocialLabel = (label: string) => (
+    <Text
+      key={labelFontReady ? `${label}-ready` : `${label}-pending`}
+      style={styles.socialButtonText}
+      numberOfLines={1}
+      adjustsFontSizeToFit
+      minimumFontScale={0.85}
+      ellipsizeMode="clip"
+    >
+      {label}
+    </Text>
+  );
 
   const renderSocialButtons = () => (
     <View style={styles.socialSection}>
@@ -195,12 +211,12 @@ export default function AuthScreen({ navigation }: Props) {
           {isLoadingApple ? (
             <ActivityIndicator size="small" color={colors.text} />
           ) : (
-            <>
+            <View style={styles.socialButtonContent}>
               <View style={styles.socialIconContainer}>
                 <AppleLogo color={colors.text} />
               </View>
-              <Text style={styles.socialButtonText}>Continuar com Apple</Text>
-            </>
+              {renderSocialLabel("Continuar com Apple")}
+            </View>
           )}
         </TouchableOpacity>
       )}
@@ -216,12 +232,12 @@ export default function AuthScreen({ navigation }: Props) {
         {isLoadingGoogle ? (
           <ActivityIndicator size="small" color={colors.text} />
         ) : (
-          <>
+          <View style={styles.socialButtonContent}>
             <View style={styles.socialIconContainer}>
               <GoogleLogo />
             </View>
-            <Text style={styles.socialButtonText}>Continuar com Google</Text>
-          </>
+            {renderSocialLabel("Continuar com Google")}
+          </View>
         )}
       </TouchableOpacity>
     </View>

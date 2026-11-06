@@ -32,12 +32,14 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { BudButton, BudIconButton, BudRangePicker, BudToggle, VoicePicker } from '@/components/v3';
+import { TOGGLE_SAVE_FAILED_MESSAGE } from '@/components/v3/BudToggle';
 import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/constants/healthSafety';
 import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useOnboardingFlow } from '@/contexts/OnboardingFlowContext';
 import { useAppAudience } from '@/hooks/useAppAudience';
 import { useAppProfileQuery } from '@/hooks/useAppProfileQuery';
 import { useOnboardingComplete } from '@/hooks/useOnboardingComplete';
+import { useV3Preferences } from '@/hooks/useV3Preferences';
 import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
 import { useUserPlan } from '@/hooks/useUserPlan';
 import {
@@ -460,6 +462,7 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
   const showPaywall = can('paywall');
   const { startCheckout, restorePurchases, prices } = useUserPlan();
   const { showAlert } = useAppAlert();
+  const { persist } = useV3Preferences();
   const { setNotificationsEnabled } = useNotificationPreferences();
   const [index, setIndex] = useState(0);
   const [hubOpen, setHubOpen] = useState(replay);
@@ -567,6 +570,22 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
       flow.setAgeRange('30 a 34');
     }
   };
+
+  const commitShare = useCallback(
+    async (next: boolean) => {
+      const previous = flow.shareConversations;
+      if (previous === next) return;
+      flow.setShareConversations(next);
+      try {
+        const saved = await persist({ shareConversations: next });
+        if (!saved) throw new Error('save failed');
+      } catch {
+        flow.setShareConversations(previous);
+        showAlert({ title: TOGGLE_SAVE_FAILED_MESSAGE });
+      }
+    },
+    [flow, persist, showAlert],
+  );
 
   const clearExitLayer = useCallback(() => {
     animatingRef.current = false;
@@ -893,11 +912,11 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
           <View style={[styles.toggleCard, { backgroundColor: colors.surface }]}>
             <BudToggle
               value={flow.shareConversations}
-              onValueChange={flow.setShareConversations}
+              onValueChange={(next) => void commitShare(next)}
               accessibilityLabel="Compartilhar conversas de forma anônima"
             />
             <Pressable
-              onPress={() => flow.setShareConversations(!flow.shareConversations)}
+              onPress={() => void commitShare(!flow.shareConversations)}
               accessibilityRole="button"
               accessibilityLabel="Compartilhar conversas de forma anônima"
               style={styles.flex}

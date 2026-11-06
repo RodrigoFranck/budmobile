@@ -1,9 +1,11 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppProfileQuery, useSetAppProfileCache } from '@/hooks/useAppProfileQuery';
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
+import { queryKeys } from '@/lib/queryKeys';
 import { updateAppProfile, type AppProfile } from '@/services/profileQuery';
 import { isVoiceId, storedVoiceId, type VoiceId } from '@/theme';
 import {
@@ -171,8 +173,10 @@ export function mergeOnboardingPreferences(
 
 export function useV3Preferences() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { data: profile } = useAppProfileQuery();
   const setProfileCache = useSetAppProfileCache();
+  const persistQueue = useRef<Promise<unknown>>(Promise.resolve());
   const prefs = useMemo(() => parseV3Preferences(profile?.v3_preferences), [profile?.v3_preferences]);
 
   const values = useMemo(() => {
@@ -209,7 +213,7 @@ export function useV3Preferences() {
   );
 
   const persist = useCallback(
-    async (
+    (
       patch: Partial<V3Preferences> & {
         name?: string;
         age?: string;
@@ -217,56 +221,76 @@ export function useV3Preferences() {
         selectedVoice?: VoiceId;
         initialThoughts?: string;
       },
-    ) => {
-      if (!user?.id) return;
-      const { name, age, gender, selectedVoice, initialThoughts, ...prefPatch } = patch;
-      const nextPrefs: V3Preferences = {
-        ...prefs,
-        ...prefPatch,
-        notifications: prefPatch.notifications
-          ? { ...(prefs.notifications ?? DEFAULT_NOTIFICATIONS), ...prefPatch.notifications }
-          : prefs.notifications,
-        ...(selectedVoice ? { voice: selectedVoice } : {}),
+    ): Promise<boolean> => {
+      const run = async (): Promise<boolean> => {
+        if (!user?.id) return false;
+        const cached = queryClient.getQueryData<AppProfile | null>(queryKeys.profile(user.id));
+        const base = parseV3Preferences(cached?.v3_preferences ?? profile?.v3_preferences);
+        const { name, age, gender, selectedVoice, initialThoughts, ...prefPatch } = patch;
+        const nextPrefs: V3Preferences = {
+          ...base,
+          ...prefPatch,
+          notifications: prefPatch.notifications
+            ? { ...(base.notifications ?? DEFAULT_NOTIFICATIONS), ...prefPatch.notifications }
+            : base.notifications,
+          ...(selectedVoice ? { voice: selectedVoice } : {}),
+        };
+        const profilePatch: Partial<AppProfile> & { v3_preferences: Json } = {
+          v3_preferences: nextPrefs as Json,
+        };
+        if (name !== undefined) profilePatch.name = name;
+        if (age !== undefined) profilePatch.age = age;
+        if (gender !== undefined) profilePatch.gender = gender;
+        if (initialThoughts !== undefined) profilePatch.initial_thoughts = initialThoughts;
+        if (prefPatch.interests !== undefined) profilePatch.hobbies = prefPatch.interests;
+        if (prefPatch.focus !== undefined) {
+          profilePatch.conversation_goal = splitPrefList(prefPatch.focus).join(' · ') || null;
+        }
+        if (prefPatch.relationships !== undefined) {
+          profilePatch.relationship = splitPrefList(prefPatch.relationships).join(' · ') || null;
+        }
+        if (selectedVoice) profilePatch.selected_voice = selectedVoice;
+
+        await updateAppProfile(user.id, profilePatch);
+
+        if (selectedVoice || prefPatch.shareConversations !== undefined) {
+          const { error } = await supabase.auth.updateUser({
+            data: {
+              ...(selectedVoice ? { selected_voice: selectedVoice } : {}),
+              ...(prefPatch.shareConversations !== undefined
+                ? { share_conversations: prefPatch.shareConversations }
+                : {}),
+            },
+          });
+          if (error) {
+            const rollback: Partial<AppProfile> & { v3_preferences: Json } = {
+              v3_preferences: base as Json,
+            };
+            if (selectedVoice) rollback.selected_voice = cached?.selected_voice ?? null;
+            await updateAppProfile(user.id, rollback);
+            throw error;
+          }
+        }
+
+        setProfileCache((current) =>
+          current
+            ? {
+                ...current,
+                ...profilePatch,
+              }
+            : null,
+        );
+        return true;
       };
-      const profilePatch: Partial<AppProfile> & { v3_preferences: Json } = {
-        v3_preferences: nextPrefs as Json,
-      };
-      if (name !== undefined) profilePatch.name = name;
-      if (age !== undefined) profilePatch.age = age;
-      if (gender !== undefined) profilePatch.gender = gender;
-      if (initialThoughts !== undefined) profilePatch.initial_thoughts = initialThoughts;
-      if (prefPatch.interests !== undefined) profilePatch.hobbies = prefPatch.interests;
-      if (prefPatch.focus !== undefined) {
-        profilePatch.conversation_goal = splitPrefList(prefPatch.focus).join(' · ') || null;
-      }
-      if (prefPatch.relationships !== undefined) {
-        profilePatch.relationship = splitPrefList(prefPatch.relationships).join(' · ') || null;
-      }
-      if (selectedVoice) profilePatch.selected_voice = selectedVoice;
 
-      await updateAppProfile(user.id, profilePatch);
-
-      if (selectedVoice || prefPatch.shareConversations !== undefined) {
-        await supabase.auth.updateUser({
-          data: {
-            ...(selectedVoice ? { selected_voice: selectedVoice } : {}),
-            ...(prefPatch.shareConversations !== undefined
-              ? { share_conversations: prefPatch.shareConversations }
-              : {}),
-          },
-        });
-      }
-
-      setProfileCache((current) =>
-        current
-          ? {
-              ...current,
-              ...profilePatch,
-            }
-          : null,
+      const task = persistQueue.current.then(run, run);
+      persistQueue.current = task.then(
+        () => undefined,
+        () => undefined,
       );
+      return task;
     },
-    [prefs, setProfileCache, user?.id],
+    [profile?.v3_preferences, queryClient, setProfileCache, user?.id],
   );
 
   const saveField = useCallback(

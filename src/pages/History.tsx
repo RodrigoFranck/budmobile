@@ -16,6 +16,7 @@ import { CLICK_EVENTS, logClickEvent } from '@/analytics';
 import ConversationDetail from '@/components/history/ConversationDetail';
 import { BudIconButton } from '@/components/v3';
 import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTabScreenContext, useTabScreenLoading } from '@/contexts/TabScreenContext';
 import {
   daysUntilSunday,
@@ -27,6 +28,7 @@ import {
   type HistoryWeekSection,
   type HistoryWeekTitle,
 } from '@/hooks/useHistoryDays';
+import { useWeeklySummary } from '@/hooks/useWeeklySummary';
 import { clearMissingRelation } from '@/lib/schemaAvailability';
 import {
   HistoryChevronIcon,
@@ -36,9 +38,11 @@ import {
 } from '@/pages/history/historyIcons';
 import WeekRecapView from '@/pages/history/WeekRecapView';
 import { AccentTitle } from '@/pages/menu/menuUi';
+import { loadWeeklySummary, type WeeklySummarySnapshot } from '@/services/weeklySummaryQuery';
 import { fonts, useV3Asset, useV3Colors } from '@/theme';
 import type { MainTabNavigationProp, MainTabParamList } from '@/types/navigation';
 import { formatDateBrasilia } from '@/utils/dateUtils';
+import { WEEKLY_SUMMARY_MIN_COPY, weeklySummaryDots } from '@/utils/weeklySummary';
 
 type HistoryRouteProp = RouteProp<MainTabParamList, 'History'>;
 
@@ -142,6 +146,7 @@ export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainTabNavigationProp>();
   const route = useRoute<HistoryRouteProp>();
+  const { user } = useAuth();
   const colors = useV3Colors();
   const assets = useV3Asset();
   const tabLoading = useTabScreenLoading('History');
@@ -149,29 +154,28 @@ export default function HistoryScreen() {
     conversations,
     profile,
     internalProfile,
-    deepInsightProgress,
-    insightsLoading,
     refreshExploreInsights,
     refetchConversations,
   } = useTabScreenContext();
   const {
     days,
-    weekDots,
     weekStart,
     weekEnd,
-    conversationDaysThisWeek,
     refetch: refetchHistoryDays,
   } = useHistoryDays(conversations);
   const [refreshing, setRefreshing] = useState(false);
 
   const [selectedDay, setSelectedDay] = useState<HistoryDay | null>(null);
-  const [recapWeekStart, setRecapWeekStart] = useState<string | null>(null);
+  const [recap, setRecap] = useState<WeeklySummarySnapshot | null>(null);
 
   const firstName = profile?.name?.split(' ')[0] ?? 'você';
-  const recapUnlocked = !insightsLoading && !deepInsightProgress.locked;
   const remainingDays = daysUntilSunday();
   const weekRange = formatWeekRangeLong(weekStart, weekEnd);
   const currentWeekKey = formatDateBrasilia(weekStart);
+  const summaryQuery = useWeeklySummary(currentWeekKey);
+  const summary = summaryQuery.data;
+  const summaryPhase = summary?.phase ?? 'locked';
+  const summaryDots = summary?.dots ?? weeklySummaryDots([], currentWeekKey);
   const fallbackThemes = useMemo(
     () =>
       (internalProfile?.recurring_themes ?? [])
@@ -225,12 +229,13 @@ export default function HistoryScreen() {
       await Promise.all([
         refetchConversations(),
         refetchHistoryDays(),
+        summaryQuery.refetch(),
         refreshExploreInsights({ cacheOnly: true }),
       ]);
     } finally {
       setRefreshing(false);
     }
-  }, [refetchConversations, refetchHistoryDays, refreshExploreInsights]);
+  }, [refetchConversations, refetchHistoryDays, refreshExploreInsights, summaryQuery]);
 
   useFocusEffect(
     useCallback(() => {
@@ -238,14 +243,11 @@ export default function HistoryScreen() {
     }, [refreshExploreInsights]),
   );
 
-  const openRecap = useCallback(
-    (weekStartKey = currentWeekKey) => {
-      if (weekStartKey === currentWeekKey && !recapUnlocked) return;
-      void logClickEvent(CLICK_EVENTS.HISTORY_DEEP_INSIGHT_OPEN);
-      setRecapWeekStart(weekStartKey);
-    },
-    [currentWeekKey, recapUnlocked],
-  );
+  const openRecap = useCallback(() => {
+    if (summaryPhase !== 'ready' || !summary?.insight) return;
+    void logClickEvent(CLICK_EVENTS.HISTORY_DEEP_INSIGHT_OPEN);
+    setRecap(summary);
+  }, [summary, summaryPhase]);
 
   const openDay = useCallback((day: HistoryDay) => {
     if (!historyDayIsOpenable(day)) return;
@@ -256,9 +258,31 @@ export default function HistoryScreen() {
   useEffect(() => {
     if (!route.params?.openDeepInsight) return;
     const targetWeek = route.params.weekStart ?? currentWeekKey;
-    setRecapWeekStart(targetWeek);
+    if (targetWeek === currentWeekKey && summaryQuery.isLoading) return;
+
     navigation.setParams({ openDeepInsight: undefined, weekStart: undefined });
-  }, [currentWeekKey, navigation, route.params?.openDeepInsight, route.params?.weekStart]);
+
+    if (targetWeek === currentWeekKey) {
+      if (summary?.phase === 'ready' && summary.insight) {
+        setRecap(summary);
+      }
+      return;
+    }
+
+    if (!user?.id) return;
+    void loadWeeklySummary(user.id, targetWeek).then((loaded) => {
+      if (!loaded.insight) return;
+      setRecap(loaded);
+    });
+  }, [
+    currentWeekKey,
+    navigation,
+    route.params?.openDeepInsight,
+    route.params?.weekStart,
+    summary,
+    summaryQuery.isLoading,
+    user?.id,
+  ]);
 
   if (selectedDay) {
     return (
@@ -275,25 +299,26 @@ export default function HistoryScreen() {
     );
   }
 
-  if (recapWeekStart) {
+  if (recap?.insight) {
     return (
       <WeekRecapView
-        weekStart={recapWeekStart}
+        weekStart={recap.weekStartKey}
+        insight={recap.insight}
         firstName={firstName}
-        weekDots={weekDots}
-        conversationDays={conversationDaysThisWeek}
+        weekDots={recap.dots}
+        conversationDays={recap.qualifyingDays}
         fallbackThemes={fallbackThemes}
-        onBack={() => setRecapWeekStart(null)}
+        onBack={() => setRecap(null)}
       />
     );
   }
 
   const renderRecapCard = () =>
-    recapUnlocked ? (
+    summaryPhase === 'ready' && summary?.insight ? (
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Ver resumo da semana"
-        onPress={() => openRecap(currentWeekKey)}
+        onPress={openRecap}
         style={[
           styles.unlockedCard,
           { backgroundColor: colors.surface, borderColor: colors.accent },
@@ -324,15 +349,23 @@ export default function HistoryScreen() {
           <HistoryLockIcon color={colors.text3} />
           <Text style={[styles.lockedKicker, { color: colors.text3 }]}>Resumo da semana</Text>
         </View>
-        <Text style={[styles.lockedTitle, { color: colors.text }]}>
-          Chega domingo às{' '}
-          <Text style={{ fontFamily: fonts.displayItalic, color: colors.accent }}>17h</Text>
-        </Text>
-        <Text style={[styles.lockedBody, { color: colors.text2 }]}>
-          {remainingDaysCopy(remainingDays)}
-        </Text>
+        {summaryPhase === 'minimum' ? (
+          <Text style={[styles.minimumCopy, { color: colors.text }]}>
+            {WEEKLY_SUMMARY_MIN_COPY}
+          </Text>
+        ) : (
+          <>
+            <Text style={[styles.lockedTitle, { color: colors.text }]}>
+              Chega domingo às{' '}
+              <Text style={{ fontFamily: fonts.displayItalic, color: colors.accent }}>17h</Text>
+            </Text>
+            <Text style={[styles.lockedBody, { color: colors.text2 }]}>
+              {remainingDaysCopy(remainingDays)}
+            </Text>
+          </>
+        )}
         <View style={styles.dotsRow}>
-          {weekDots.map((dot, index) => (
+          {summaryDots.map((dot, index) => (
             <View key={`${dot.label}-${index}`} style={styles.dotCol}>
               <View
                 style={[
@@ -465,7 +498,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   lockedCard: {
-    height: 202,
+    minHeight: 202,
     borderRadius: 24,
     paddingHorizontal: 22,
     paddingVertical: 20,
@@ -496,6 +529,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginTop: 6,
+    maxWidth: 250,
+  },
+  minimumCopy: {
+    fontFamily: fonts.sans,
+    fontSize: 16,
+    lineHeight: 22,
+    marginTop: 12,
     maxWidth: 250,
   },
   dotsRow: {

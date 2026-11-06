@@ -2,13 +2,13 @@ import { type ReactNode } from 'react';
 import {
   Modal,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';

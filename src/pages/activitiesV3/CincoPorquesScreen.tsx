@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Animated,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -13,7 +11,9 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Reanimated, {
   Easing,
+  Extrapolation,
   cancelAnimation,
+  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -42,6 +42,7 @@ import {
   type ActivityFeedbackValue,
 } from '@/pages/activitiesV3/activityChrome';
 import { createActivityPersister } from '@/pages/activitiesV3/persistActivity';
+import { useActivityKeyboard } from '@/pages/activitiesV3/useActivityKeyboard';
 import {
   generateActivitySynthesis,
   generatePorquesQuestion,
@@ -49,7 +50,7 @@ import {
   type PorquesPair,
   type PorquesQuestionResult,
 } from '@/services/activityGeneration';
-import { activityColors, fonts, motion, useV3Asset, useV3Colors } from '@/theme';
+import { activityColors, fonts, useV3Asset, useV3Colors } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
 import { navigateToChatTab } from '@/utils/navigateToChat';
 
@@ -64,7 +65,11 @@ const LAYER_GLOW_COLORS = [
 const GIZ_SIZE = 140;
 const GIZ_SPIN_MS = 4800;
 const QUESTION_TIMEOUT_MS = 8000;
+const M17_MS = 500;
+const M17_BACK_MS = 400;
+const M17_ENTER = 28;
 const FIXED_FIRST = CINCO_PORQUES[0];
+const STANDARD = Easing.bezier(0.42, 0, 0.58, 1);
 
 function contentWordCount(text: string) {
   return text
@@ -83,7 +88,7 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
-      promise,
+      promise.catch(() => null),
       new Promise<null>((resolve) => {
         timer = setTimeout(() => resolve(null), ms);
       }),
@@ -194,10 +199,12 @@ export default function CincoPorquesScreen() {
   const [synthesis, setSynthesis] = useState<ActivitySynthesis | null>(null);
   const [synthesisFailed, setSynthesisFailed] = useState(false);
   const [feedback, setFeedback] = useState<ActivityFeedbackValue | null>(null);
-  const fade = useRef(new Animated.Value(1)).current;
-  const stackRef = useRef<ScrollView>(null);
+  const [freshIndex, setFreshIndex] = useState(-1);
   const requestIdRef = useRef(0);
   const saveActivity = useRef(createActivityPersister()).current;
+  const { keyboardHeight, keyboardOpen, dismissKeyboard } = useActivityKeyboard();
+  const promptShift = useSharedValue(1);
+  const promptFrom = useSharedValue(M17_ENTER);
   const intro = ACTIVITY_INTROS.cinco_porques;
   const done = index >= CINCO_PORQUES.length;
   const loading = done && !showResult;
@@ -205,14 +212,19 @@ export default function CincoPorquesScreen() {
   const layerLabel =
     index <= 0 ? FIXED_FIRST.kicker : `Camada ${Math.min(index + 1, 5)} de 5`;
 
-  useEffect(() => {
-    fade.setValue(0);
-    Animated.timing(fade, {
-      toValue: 1,
-      duration: motion.questionStepMs,
-      useNativeDriver: true,
-    }).start();
-  }, [fade, index, currentQuestion, generatingQuestion, questionError]);
+  const playLayer = (direction: 'forward' | 'back') => {
+    promptFrom.value = direction === 'back' ? -M17_ENTER : M17_ENTER;
+    promptShift.value = 0;
+    promptShift.value = withTiming(1, {
+      duration: direction === 'back' ? M17_BACK_MS : M17_MS,
+      easing: STANDARD,
+    });
+  };
+
+  const promptStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(promptShift.value, [0.35, 1], [0, 1], Extrapolation.CLAMP),
+    transform: [{ translateY: interpolate(promptShift.value, [0, 1], [promptFrom.value, 0]) }],
+  }));
 
   const buildAnswersPayload = useCallback(
     (nextPairs = pairs) => ({
@@ -299,56 +311,66 @@ export default function CincoPorquesScreen() {
     setQuestionError(false);
     setHelpOptions(null);
 
-    const attempt = () =>
-      withTimeout(
-        generatePorquesQuestion({
-          tema_inicial: nextPairs[0]?.resposta ?? '',
-          pares: nextPairs,
-          camada,
-          resposta_atual: help?.respostaAtual,
-          pedir_ajuda: Boolean(help),
-          gender: profile?.gender,
-        }),
-        QUESTION_TIMEOUT_MS,
-      );
+    const attempt = async () => {
+      try {
+        return await withTimeout(
+          generatePorquesQuestion({
+            tema_inicial: nextPairs[0]?.resposta ?? '',
+            pares: nextPairs,
+            camada,
+            resposta_atual: help?.respostaAtual,
+            pedir_ajuda: Boolean(help),
+            gender: profile?.gender,
+          }),
+          QUESTION_TIMEOUT_MS,
+        );
+      } catch {
+        return null;
+      }
+    };
 
-    let result = await attempt();
-    if (requestId !== requestIdRef.current) return;
+    const stale = () => requestId !== requestIdRef.current;
 
-    if (result?.risco) {
-      setGeneratingQuestion(false);
-      setPendingRequest(null);
-      navigation.goBack();
-      return;
+    try {
+      let result = await attempt();
+      if (stale()) return;
+
+      if (result?.risco) {
+        setPendingRequest(null);
+        navigation.goBack();
+        return;
+      }
+
+      if (result?.pergunta) {
+        setPendingRequest(null);
+        setQuestionError(false);
+        applyQuestionResult(result, help);
+        return;
+      }
+
+      result = await attempt();
+      if (stale()) return;
+
+      if (result?.risco) {
+        setPendingRequest(null);
+        navigation.goBack();
+        return;
+      }
+
+      if (result?.pergunta) {
+        setPendingRequest(null);
+        setQuestionError(false);
+        applyQuestionResult(result, help);
+        return;
+      }
+
+      setQuestionError(true);
+    } catch {
+      if (stale()) return;
+      setQuestionError(true);
+    } finally {
+      if (!stale()) setGeneratingQuestion(false);
     }
-
-    if (result?.pergunta) {
-      setGeneratingQuestion(false);
-      setPendingRequest(null);
-      setQuestionError(false);
-      applyQuestionResult(result, help);
-      return;
-    }
-
-    result = await attempt();
-    if (requestId !== requestIdRef.current) return;
-
-    setGeneratingQuestion(false);
-
-    if (result?.risco) {
-      setPendingRequest(null);
-      navigation.goBack();
-      return;
-    }
-
-    if (result?.pergunta) {
-      setPendingRequest(null);
-      setQuestionError(false);
-      applyQuestionResult(result, help);
-      return;
-    }
-
-    setQuestionError(true);
   };
 
   const retryQuestion = () => {
@@ -371,19 +393,21 @@ export default function CincoPorquesScreen() {
 
     if (index > 0 && isVagueAnswer(trimmed) && !helpUsed) {
       setHelpUsed(true);
-      setDraft('');
       setHelpOptions(null);
+      playLayer('forward');
       void requestNextQuestion(pairs, index + 1, { respostaAtual: trimmed });
       return;
     }
 
     const nextPairs = [...pairs, { pergunta: currentQuestion, resposta: trimmed }];
+    setFreshIndex(nextPairs.length - 1);
     setPairs(nextPairs);
     setDraft('');
     setHelpOptions(null);
     const nextIndex = index + 1;
     setIndex(nextIndex);
     setHelpUsed(false);
+    playLayer('forward');
 
     if (nextIndex >= CINCO_PORQUES.length) {
       return;
@@ -402,7 +426,7 @@ export default function CincoPorquesScreen() {
   };
 
   const goToPrevious = () => {
-    if (index <= 0 || generatingQuestion) return;
+    if (index <= 0) return;
     requestIdRef.current += 1;
     setGeneratingQuestion(false);
     setQuestionError(false);
@@ -410,11 +434,13 @@ export default function CincoPorquesScreen() {
     const previous = pairs[pairs.length - 1];
     const nextPairs = pairs.slice(0, -1);
     setPairs(nextPairs);
+    setFreshIndex(-1);
     setDraft(previous?.resposta ?? '');
     setCurrentQuestion(previous?.pergunta ?? FIXED_FIRST.title);
     setHelpOptions(null);
     setIndex((current) => current - 1);
     setHelpUsed(false);
+    playLayer('back');
   };
 
   const first = pairs[0]?.resposta ?? '';
@@ -514,16 +540,20 @@ export default function CincoPorquesScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.bg, overflow: 'hidden' }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: colors.bg,
+        overflow: 'hidden',
+        paddingBottom: Platform.OS === 'ios' ? keyboardHeight : 0,
+      }}
     >
       {LAYER_GLOW_TOPS.slice(0, glowCount).map((top, i) => (
         <LayerGlow key={`glow-${i}`} id={`porques-glow-${i}`} color={LAYER_GLOW_COLORS[i]} top={top} />
       ))}
       <ActivityFlowHeader
         title="Cinco Porquês"
-        onBack={index > 0 && !loading && !generatingQuestion ? goToPrevious : undefined}
+        onBack={index > 0 && !loading ? goToPrevious : undefined}
         onClose={() => navigation.goBack()}
       />
       {loading ? (
@@ -538,8 +568,6 @@ export default function CincoPorquesScreen() {
                 key={`${pair.pergunta}-load-${i}`}
                 question={i === 0 ? FIXED_FIRST.title : pair.pergunta}
                 answer={pair.resposta}
-                compact
-                age={pairs.length - 1 - i}
               />
             ))}
           </ScrollView>
@@ -565,87 +593,156 @@ export default function CincoPorquesScreen() {
         </>
       ) : (
         <>
-          <Animated.View style={{ flex: 1, opacity: fade }}>
-            <ScrollView
-              ref={stackRef}
-              style={{ flex: 1 }}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              onContentSizeChange={() => stackRef.current?.scrollToEnd({ animated: true })}
-              contentContainerStyle={{ flexGrow: 1, paddingBottom: 16 }}
-            >
-              {pairs.length ? (
-                <View style={{ paddingHorizontal: 20, paddingTop: 16, gap: 12 }}>
-                  {pairs.map((pair, originalIndex) => {
-                    const age = pairs.length - 1 - originalIndex;
-                    return (
-                      <PreviousAnswerCard
-                        key={`${pair.pergunta}-prev-${originalIndex}`}
-                        question={originalIndex === 0 ? FIXED_FIRST.title : pair.pergunta}
-                        answer={pair.resposta}
-                        compact={age > 0}
-                        age={age}
-                      />
-                    );
-                  })}
+          <ScrollView
+            style={{ flex: 1, minHeight: 0 }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            onScrollBeginDrag={dismissKeyboard}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingHorizontal: 20,
+              paddingTop: 16,
+              gap: 12,
+              paddingBottom: 12,
+              flexGrow: 1,
+            }}
+          >
+            {pairs.map((pair, originalIndex) => (
+              <PorquesStackCard
+                key={`${originalIndex}-${pair.pergunta}`}
+                question={originalIndex === 0 ? FIXED_FIRST.title : pair.pergunta}
+                answer={pair.resposta}
+                fresh={originalIndex === freshIndex}
+              />
+            ))}
+          </ScrollView>
+          <Pressable onPress={dismissKeyboard} accessible={false}>
+            <Reanimated.View style={[{ paddingTop: pairs.length ? 12 : 32, paddingBottom: 12 }, promptStyle]}>
+              <ActivityKicker label={layerLabel} />
+              <View style={{ paddingHorizontal: 36, paddingTop: keyboardOpen ? 12 : 20 }}>
+                {generatingQuestion ? (
+                  <LoadingDots color={colors.text3} />
+                ) : questionError ? (
+                  <View style={{ alignItems: 'center', gap: 14 }}>
+                    <Text
+                      style={{
+                        fontFamily: fonts.display,
+                        fontSize: 26,
+                        lineHeight: 32,
+                        letterSpacing: -0.4,
+                        color: colors.text,
+                        textAlign: 'center',
+                      }}
+                    >
+                      Não consegui continuar agora
+                    </Text>
+                    <Pressable
+                      onPress={retryQuestion}
+                      accessibilityRole="button"
+                      accessibilityLabel="Tentar de novo"
+                    >
+                      <Text style={{ fontFamily: fonts.sansSemi, fontSize: 16, color: colors.accent }}>
+                        Tentar de novo
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <ActivityPrompt>{currentQuestion}</ActivityPrompt>
+                )}
+              </View>
+              {helpOptions && !generatingQuestion && !questionError ? (
+                <View style={{ gap: 10, paddingHorizontal: 20, paddingTop: 20 }}>
+                  {helpOptions.map((option) => (
+                    <ActivityOptionRow
+                      key={option}
+                      label={option}
+                      onPress={() => chooseHelpOption(option)}
+                    />
+                  ))}
                 </View>
               ) : null}
-              <View style={{ paddingTop: pairs.length ? 28 : 32, paddingBottom: 12 }}>
-                <ActivityKicker label={layerLabel} />
-                <View style={{ paddingHorizontal: 36, paddingTop: 28 }}>
-                  {generatingQuestion ? (
-                    <LoadingDots color={colors.text3} />
-                  ) : questionError ? (
-                    <View style={{ alignItems: 'center', gap: 14 }}>
-                      <Text
-                        style={{
-                          fontFamily: fonts.display,
-                          fontSize: 26,
-                          lineHeight: 32,
-                          letterSpacing: -0.4,
-                          color: colors.text,
-                          textAlign: 'center',
-                        }}
-                      >
-                        Não consegui continuar agora
-                      </Text>
-                      <Pressable
-                        onPress={retryQuestion}
-                        accessibilityRole="button"
-                        accessibilityLabel="Tentar de novo"
-                      >
-                        <Text style={{ fontFamily: fonts.sansSemi, fontSize: 16, color: colors.accent }}>
-                          Tentar de novo
-                        </Text>
-                      </Pressable>
-                    </View>
-                  ) : (
-                    <ActivityPrompt>{currentQuestion}</ActivityPrompt>
-                  )}
-                </View>
-                {helpOptions && !generatingQuestion && !questionError ? (
-                  <View style={{ gap: 10, paddingHorizontal: 20, paddingTop: 28 }}>
-                    {helpOptions.map((option) => (
-                      <ActivityOptionRow
-                        key={option}
-                        label={option}
-                        onPress={() => chooseHelpOption(option)}
-                      />
-                    ))}
-                  </View>
-                ) : null}
-              </View>
-            </ScrollView>
-          </Animated.View>
+            </Reanimated.View>
+          </Pressable>
           <ActivityComposer
             value={draft}
             onChangeText={setDraft}
             onSend={submit}
             placeholder="Escreva aqui…"
             disabled={generatingQuestion || questionError}
+            bottomInset={keyboardOpen ? 12 : undefined}
           />
         </>
       )}
-    </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+function PorquesStackCard({
+  question,
+  answer,
+  fresh,
+}: {
+  question: string;
+  answer: string;
+  fresh: boolean;
+}) {
+  const colors = useV3Colors();
+  const progress = useSharedValue(fresh ? 0 : 1);
+
+  useEffect(() => {
+    if (!fresh) {
+      progress.value = 1;
+      return;
+    }
+    progress.value = 0;
+    progress.value = withTiming(1, { duration: M17_MS, easing: STANDARD });
+  }, [fresh, progress]);
+
+  const box = useAnimatedStyle(() => ({
+    transform: [{ scale: interpolate(progress.value, [0, 1], [0.5, 1]) }],
+  }));
+  const copy = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0.7, 1], [0, 1], Extrapolation.CLAMP),
+  }));
+
+  return (
+    <Reanimated.View style={box}>
+      <View
+        style={{
+          backgroundColor: colors.surface,
+          borderRadius: 20,
+          paddingHorizontal: 20,
+          paddingVertical: 16,
+        }}
+      >
+        <Reanimated.Text
+          style={[
+            {
+              fontFamily: fonts.sansMedium,
+              fontSize: 13,
+              lineHeight: 18,
+              color: colors.text3,
+            },
+            copy,
+          ]}
+        >
+          {question}
+        </Reanimated.Text>
+        <Reanimated.Text
+          style={[
+            {
+              fontFamily: fonts.sansMedium,
+              fontSize: 16,
+              lineHeight: 23,
+              color: colors.text,
+              paddingTop: 6,
+            },
+            copy,
+          ]}
+        >
+          {answer}
+        </Reanimated.Text>
+      </View>
+    </Reanimated.View>
   );
 }

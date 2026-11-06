@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import {
-  ActivityIndicator,
   ImageBackground,
   Pressable,
   ScrollView,
@@ -14,8 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 
 import { BudIconButton } from '@/components/v3';
-import { useTabScreenContext } from '@/contexts/TabScreenContext';
-import { useDeepInsight } from '@/hooks/useDeepInsight';
+import type { DeepInsight } from '@/hooks/useDeepInsight';
 import { formatWeekRangeLong, type HistoryWeekDot } from '@/hooks/useHistoryDays';
 import { HistoryMessageIcon, HistoryShareIcon } from '@/pages/history/historyIcons';
 import { AccentTitle } from '@/pages/menu/menuUi';
@@ -26,6 +24,7 @@ import { getWeekEndBrasilia, parseDateString } from '@/utils/dateUtils';
 
 type WeekRecapViewProps = {
   weekStart: string;
+  insight: DeepInsight;
   firstName: string;
   weekDots: HistoryWeekDot[];
   conversationDays: number;
@@ -51,6 +50,7 @@ function quoted(text: string) {
 
 export default function WeekRecapView({
   weekStart,
+  insight,
   firstName,
   weekDots,
   conversationDays,
@@ -61,30 +61,10 @@ export default function WeekRecapView({
   const assets = useV3Asset();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainTabNavigationProp>();
-  const { deepInsightContent, refreshExploreInsights } = useTabScreenContext();
-  const { loading, status, insight, generateDeepInsight, hydrateInsight, error } =
-    useDeepInsight();
 
   const weekStartDate = parseDateString(weekStart);
   const weekEndDate = getWeekEndBrasilia(weekStartDate);
   const rangeLabel = formatWeekRangeLong(weekStartDate, weekEndDate);
-
-  useEffect(() => {
-    if (!deepInsightContent) return;
-    hydrateInsight(deepInsightContent, weekStart);
-  }, [deepInsightContent, hydrateInsight, weekStart]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void generateDeepInsight(weekStart, { force: true }).then((generated) => {
-      if (cancelled || !generated) return;
-      void refreshExploreInsights({ cacheOnly: true });
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [generateDeepInsight, refreshExploreInsights, weekStart]);
 
   const themes = useMemo(() => {
     const fromInsight = insight?.themes?.map((theme) => theme.trim()).filter(Boolean) ?? [];
@@ -136,21 +116,7 @@ export default function WeekRecapView({
           </Pressable>
         </View>
 
-        {loading || (!insight && status === 'idle') ? (
-          <View style={styles.center}>
-            <ActivityIndicator color={colors.accent} />
-          </View>
-        ) : !insight ? (
-          <View style={styles.center}>
-            <Text style={[styles.errorTitle, { color: colors.text }]}>
-              {error || 'Ainda não geramos esse resumo.'}
-            </Text>
-            <Text style={[styles.errorBody, { color: colors.text2 }]}>
-              Continue conversando com o Bud nesta semana.
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.recap}>
+        <View style={styles.recap}>
             <ScrollView
               style={styles.scroll}
               contentContainerStyle={styles.bodyContent}
@@ -256,7 +222,6 @@ export default function WeekRecapView({
               </Pressable>
             </View>
           </View>
-        )}
       </View>
     </ImageBackground>
   );
@@ -308,25 +273,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 40,
-  },
-  errorTitle: {
-    fontFamily: fonts.display,
-    fontSize: 22,
-    lineHeight: 28,
-    textAlign: 'center',
-  },
-  errorBody: {
-    fontFamily: fonts.sans,
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-    marginTop: 10,
   },
   kicker: {
     fontFamily: fonts.sansSemi,

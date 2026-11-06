@@ -39,6 +39,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      resumo_semana: {
+        Row: {
+          id: string
+          user_id: string
+          week_start: string
+          content_json: Json
+          released_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          week_start: string
+          content_json: Json
+          released_at: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          week_start?: string
+          content_json?: Json
+          released_at?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       daily_letters: {
         Row: {
           id: string

@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Image, Linking, Platform, Pressable, Text, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import { Activity, Clock, Mail, MessageSquare } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 
+import { TOGGLE_SAVE_FAILED_MESSAGE } from '@/components/v3/BudToggle';
+import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useAppAudience } from '@/hooks/useAppAudience';
+import { useAppProfileQuery } from '@/hooks/useAppProfileQuery';
 import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
-import { useV3Preferences } from '@/hooks/useV3Preferences';
+import { useV3Preferences, type NotificationPrefs } from '@/hooks/useV3Preferences';
 import { NOTIFICATION_ROWS } from '@/pages/menu/menuCatalog';
 import { BudToggle, MenuHeader, PrefGroup, PrefRow, ScreenScaffold } from '@/pages/menu/menuUi';
 import { fonts, useV3Asset, useV3Colors } from '@/theme';
@@ -31,10 +34,16 @@ export default function NotificationsScreen() {
   const colors = useV3Colors();
   const assets = useV3Asset();
   const navigation = useNavigation();
+  const { showAlert } = useAppAlert();
   const { values, persist } = useV3Preferences();
+  const { data: profile } = useAppProfileQuery();
   const { setNotificationsEnabled } = useNotificationPreferences();
   const { can } = useAppAudience();
   const notifications = values.notifications;
+  const [draft, setDraft] = useState<NotificationPrefs>(notifications);
+  const draftRef = useRef(draft);
+  const pendingSaves = useRef(0);
+  draftRef.current = draft;
   const rows = NOTIFICATION_ROWS.filter((row) => !row.capability || can(row.capability));
   const [osGranted, setOsGranted] = useState(true);
 
@@ -60,18 +69,43 @@ export default function NotificationsScreen() {
 
   const togglesDisabled = !osGranted;
 
-  const toggle = async (key: keyof typeof notifications, next: boolean) => {
-    if (togglesDisabled) {
-      return;
-    }
-    const updated = { ...notifications, [key]: next };
-    await persist({ notifications: updated });
-    const anyOn = Object.values(updated).some(Boolean);
+  useEffect(() => {
+    if (pendingSaves.current > 0) return;
+    setDraft(notifications);
+  }, [notifications]);
+
+  const toggle = async (key: keyof NotificationPrefs, next: boolean) => {
+    if (togglesDisabled || draftRef.current[key] === next) return;
+    const previous = draftRef.current;
+    const updated = { ...previous, [key]: next };
+    draftRef.current = updated;
+    pendingSaves.current += 1;
+    setDraft(updated);
+    let saved = false;
     try {
-      await setNotificationsEnabled(anyOn);
+      const persisted = await persist({ notifications: updated });
+      if (!persisted) throw new Error('save failed');
+      saved = true;
+      const anyOn = Object.values(updated).some(Boolean);
+      const masterOn = profile?.push_notifications_enabled !== false;
+      if (anyOn !== masterOn) {
+        await setNotificationsEnabled(anyOn);
+      }
     } catch {
-      // permission denied: keep local category state; banner handles OS off
+      const rolledBack = { ...draftRef.current, [key]: previous[key] };
+      draftRef.current = rolledBack;
+      setDraft(rolledBack);
+      if (saved) {
+        try {
+          await persist({ notifications: rolledBack });
+        } catch {
+          setDraft(rolledBack);
+        }
+      }
+      showAlert({ title: TOGGLE_SAVE_FAILED_MESSAGE });
       void refreshPermission();
+    } finally {
+      pendingSaves.current -= 1;
     }
   };
 
@@ -148,7 +182,7 @@ export default function NotificationsScreen() {
             last={index === rows.length - 1}
             trailing={
               <BudToggle
-                value={notifications[row.key]}
+                value={draft[row.key]}
                 onValueChange={(next) => void toggle(row.key, next)}
                 accessibilityLabel={row.label}
                 disabled={togglesDisabled}

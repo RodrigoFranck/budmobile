@@ -13,6 +13,8 @@ import {
   Volume2,
 } from 'lucide-react-native';
 
+import { TOGGLE_SAVE_FAILED_MESSAGE } from '@/components/v3/BudToggle';
+import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useAppLock } from '@/contexts/AppLockContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useV3Preferences } from '@/hooks/useV3Preferences';
@@ -32,9 +34,12 @@ export default function PreferencesScreen() {
   const colors = useV3Colors();
   const assets = useV3Asset();
   const navigation = useNavigation<MainTabNavigationProp>();
+  const { showAlert } = useAppAlert();
   const { mode, setMode } = useTheme();
   const { values, profileIncomplete, persist } = useV3Preferences();
-  const { enabled: appLockEnabled, busy: appLockBusy, setEnabled: setAppLockEnabled } = useAppLock();
+  const { enabled: appLockEnabled, busy: appLockBusy, setEnabled: setAppLockEnabled, restoreEnabled } =
+    useAppLock();
+  const [lockPreview, setLockPreview] = useState<boolean | null>(null);
   const [micLabel, setMicLabel] = useState('Permitido');
   const [reduceMotion, setReduceMotion] = useState(false);
   const [themeLight, setThemeLight] = useState(mode === 'light');
@@ -81,12 +86,25 @@ export default function PreferencesScreen() {
 
   const toggleAppLock = useCallback(
     (next: boolean) => {
+      setLockPreview(next);
       void (async () => {
         const ok = await setAppLockEnabled(next);
-        if (ok) await persist({ appLock: next });
+        if (!ok) {
+          setLockPreview(null);
+          return;
+        }
+        try {
+          const saved = await persist({ appLock: next });
+          if (!saved) throw new Error('save failed');
+          setLockPreview(null);
+        } catch {
+          restoreEnabled(!next);
+          setLockPreview(null);
+          showAlert({ title: TOGGLE_SAVE_FAILED_MESSAGE });
+        }
       })();
     },
-    [persist, setAppLockEnabled],
+    [persist, restoreEnabled, setAppLockEnabled, showAlert],
   );
 
   return (
@@ -204,7 +222,7 @@ export default function PreferencesScreen() {
           last
           trailing={
             <BudToggle
-              value={appLockEnabled}
+              value={lockPreview ?? appLockEnabled}
               disabled={appLockBusy}
               onValueChange={toggleAppLock}
               accessibilityLabel="Bloqueio do app"

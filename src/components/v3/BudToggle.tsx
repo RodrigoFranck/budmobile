@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -21,6 +21,8 @@ const TOGGLE_THUMB = 26;
 const TOGGLE_PAD = 3;
 const TOGGLE_TRAVEL = 20;
 const STRETCH_PX = 2;
+
+export const TOGGLE_SAVE_FAILED_MESSAGE = 'Não consegui salvar agora. Tente de novo.';
 
 function clamp01(value: number) {
   'worklet';
@@ -46,8 +48,33 @@ export function BudToggle({
   const dragOrigin = useSharedValue(value ? 1 : 0);
   const dragging = useSharedValue(0);
   const reduceMotionSV = useSharedValue(0);
-  const disabledSV = useSharedValue(0);
+  const disabledSV = useSharedValue(disabled ? 1 : 0);
   const valueSV = useSharedValue(value ? 1 : 0);
+
+  const valueRef = useRef(value);
+  const disabledRef = useRef(Boolean(disabled));
+  const reduceMotionRef = useRef(reduceMotion);
+  const onChangeRef = useRef(onValueChange);
+  const commitLock = useRef(0);
+  valueRef.current = value;
+  disabledRef.current = Boolean(disabled);
+  reduceMotionRef.current = reduceMotion;
+  onChangeRef.current = onValueChange;
+
+  const commit = useCallback((next: boolean) => {
+    if (disabledRef.current) return;
+    if (next === valueRef.current) return;
+    const now = Date.now();
+    if (now - commitLock.current < 80) return;
+    commitLock.current = now;
+    onChangeRef.current(next);
+    const duration = reduceMotionRef.current ? 120 : motion.toggleMs;
+    setTimeout(() => {
+      if (valueRef.current === next) {
+        void Haptics.selectionAsync();
+      }
+    }, duration);
+  }, []);
 
   useEffect(() => {
     void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
@@ -67,71 +94,88 @@ export function BudToggle({
 
   useEffect(() => {
     valueSV.value = value ? 1 : 0;
-    if (dragging.value) return;
     movingTowardOn.value = value ? 1 : 0;
     progress.value = withTiming(value ? 1 : 0, {
       duration: reduceMotion ? 120 : motion.toggleMs,
       easing: TOGGLE_EASING,
     });
-  }, [dragging, movingTowardOn, progress, reduceMotion, value, valueSV]);
+  }, [movingTowardOn, progress, reduceMotion, value, valueSV]);
 
-  const finishToggle = (next: boolean) => {
-    const duration = reduceMotion ? 120 : motion.toggleMs;
-    onValueChange(next);
-    setTimeout(() => {
-      void Haptics.selectionAsync();
-    }, duration);
-  };
-
-  const snapTo = (next: boolean) => {
-    'worklet';
-    movingTowardOn.value = next ? 1 : 0;
-    const duration = reduceMotionSV.value ? 120 : motion.toggleMs;
-    progress.value = withTiming(next ? 1 : 0, {
-      duration,
-      easing: TOGGLE_EASING,
-    });
-    if ((valueSV.value >= 0.5) !== next) {
-      runOnJS(finishToggle)(next);
-    }
-  };
-
-  const gesture = Gesture.Pan()
-    .enabled(!disabled)
-    .activeOffsetX([-4, 4])
-    .failOffsetY([-12, 12])
-    .onBegin(() => {
-      if (disabledSV.value) return;
-      dragging.value = 1;
-      dragOrigin.value = progress.value;
-      movingTowardOn.value = progress.value >= 0.5 ? 0 : 1;
-      if (!reduceMotionSV.value) {
-        stretch.value = withTiming(1, { duration: 120, easing: TOGGLE_EASING });
-      }
-    })
-    .onUpdate((event) => {
-      if (disabledSV.value) return;
-      if (reduceMotionSV.value) {
-        progress.value = event.translationX >= 0 ? 1 : 0;
+  const gesture = useMemo(() => {
+    const settle = (next: boolean) => {
+      'worklet';
+      const current = valueSV.value >= 0.5;
+      movingTowardOn.value = next ? 1 : 0;
+      if (current === next) {
+        progress.value = withTiming(next ? 1 : 0, {
+          duration: reduceMotionSV.value ? 120 : motion.toggleMs,
+          easing: TOGGLE_EASING,
+        });
         return;
       }
-      progress.value = clamp01(dragOrigin.value + event.translationX / TOGGLE_TRAVEL);
-      movingTowardOn.value = event.translationX >= 0 ? 1 : 0;
-    })
-    .onFinalize((event) => {
-      if (disabledSV.value) {
+      runOnJS(commit)(next);
+    };
+
+    const pan = Gesture.Pan()
+      .manualActivation(true)
+      .maxPointers(1)
+      .hitSlop({ top: 10, bottom: 10, left: 6, right: 6 })
+      .onTouchesDown((_event, state) => {
+        if (disabledSV.value) {
+          state.fail();
+          return;
+        }
+        state.activate();
+      })
+      .onBegin(() => {
+        if (disabledSV.value) return;
+        dragging.value = 1;
+        dragOrigin.value = progress.value;
+        movingTowardOn.value = progress.value >= 0.5 ? 0 : 1;
+        if (!reduceMotionSV.value) {
+          stretch.value = withTiming(1, { duration: 120, easing: TOGGLE_EASING });
+        }
+      })
+      .onUpdate((event) => {
+        if (disabledSV.value || !dragging.value) return;
+        if (reduceMotionSV.value) {
+          progress.value = event.translationX >= 0 ? 1 : 0;
+          movingTowardOn.value = event.translationX >= 0 ? 1 : 0;
+          return;
+        }
+        progress.value = clamp01(dragOrigin.value + event.translationX / TOGGLE_TRAVEL);
+        movingTowardOn.value = event.translationX >= 0 ? 1 : 0;
+      })
+      .onFinalize((event, success) => {
+        stretch.value = withTiming(0, { duration: 120, easing: TOGGLE_EASING });
         dragging.value = 0;
-        return;
-      }
-      stretch.value = withTiming(0, { duration: 120, easing: TOGGLE_EASING });
-      dragging.value = 0;
-      const tapped = Math.abs(event.translationX) < 4 && Math.abs(event.translationY) < 4;
-      if (tapped) {
-        snapTo(!(valueSV.value >= 0.5));
-        return;
-      }
-      snapTo(progress.value >= 0.5);
-    });
+        if (disabledSV.value || !success) {
+          const current = valueSV.value >= 0.5;
+          movingTowardOn.value = current ? 1 : 0;
+          progress.value = withTiming(current ? 1 : 0, {
+            duration: reduceMotionSV.value ? 120 : motion.toggleMs,
+            easing: TOGGLE_EASING,
+          });
+          return;
+        }
+        const tapped = Math.abs(event.translationX) < 10 && Math.abs(event.translationY) < 10;
+        const next = tapped ? valueSV.value < 0.5 : progress.value >= 0.5;
+        settle(next);
+      });
+
+    const tap = Gesture.Tap()
+      .maxDistance(28)
+      .maxDuration(2500)
+      .hitSlop({ top: 10, bottom: 10, left: 6, right: 6 })
+      .onEnd((_event, success) => {
+        if (!success || disabledSV.value) return;
+        const next = valueSV.value < 0.5;
+        movingTowardOn.value = next ? 1 : 0;
+        runOnJS(commit)(next);
+      });
+
+    return Gesture.Exclusive(pan, tap);
+  }, [commit, disabledSV, dragOrigin, dragging, movingTowardOn, progress, reduceMotionSV, stretch, valueSV]);
 
   const trackStyle = useAnimatedStyle(() => ({
     backgroundColor: interpolateColor(progress.value, [0, 1], [colors.line, colors.accent]),
@@ -157,10 +201,18 @@ export function BudToggle({
   return (
     <GestureDetector gesture={gesture}>
       <View
+        collapsable={false}
         accessible
         accessibilityRole="switch"
         accessibilityState={{ checked: value, disabled: Boolean(disabled) }}
         accessibilityLabel={accessibilityLabel}
+        accessibilityActions={[{ name: 'activate' }]}
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName === 'activate') {
+            commit(!value);
+          }
+        }}
+        onAccessibilityTap={() => commit(!value)}
         style={{ opacity: disabled ? 0.55 : 1 }}
       >
         <Animated.View

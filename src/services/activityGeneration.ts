@@ -40,17 +40,24 @@ async function invokeJson<T>(
   name: string,
   body: Record<string, unknown>,
 ): Promise<T | null> {
-  const { data, error, response } = await supabase.functions.invoke(name, { body });
-  if (error || !data) {
-    const responseBody = response ? await response.text().catch(() => null) : null;
+  try {
+    const { data, error, response } = await supabase.functions.invoke(name, { body });
+    if (error || !data) {
+      const responseBody = response ? await response.text().catch(() => null) : null;
+      console.error(`${name} failed`, {
+        status: response?.status,
+        body: responseBody,
+        error: error?.message,
+      });
+      return null;
+    }
+    return data as T;
+  } catch (error) {
     console.error(`${name} failed`, {
-      status: response?.status,
-      body: responseBody,
-      error: error?.message,
+      error: error instanceof Error ? error.message : 'unknown',
     });
     return null;
   }
-  return data as T;
 }
 
 function genderPayload(gender?: string | null) {

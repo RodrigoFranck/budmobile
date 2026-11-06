@@ -3,6 +3,7 @@ import { Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Activity, CreditCard, KeyRound, Mail, MessageSquare, Trash2 } from 'lucide-react-native';
 
+import { TOGGLE_SAVE_FAILED_MESSAGE } from '@/components/v3/BudToggle';
 import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppAudience } from '@/hooks/useAppAudience';
@@ -55,10 +56,11 @@ export default function AccountScreen() {
       const setLocal = key === 'shareConversations' ? setShareConversations : setShareResearch;
       setLocal(next);
       try {
-        await persist({ [key]: next });
+        const saved = await persist({ [key]: next });
+        if (!saved) throw new Error('save failed');
       } catch {
         setLocal(!next);
-        showAlert({ title: 'Não consegui salvar', message: 'Tente novamente.' });
+        showAlert({ title: TOGGLE_SAVE_FAILED_MESSAGE });
       }
     },
     [persist, showAlert],
