@@ -66,8 +66,12 @@ type FieeAnswer = {
 
 const ASK_LEAF = 128;
 const LOAD_SCALE = 150 / ASK_LEAF;
-const LOADING_MS = 2200;
 const LOAD_SPIN_MS = 1800;
+const MIN_SPIN_MS = LOAD_SPIN_MS;
+const REVEAL_MS = 680;
+// Cubic ease-out starts at 3× its average speed. 45° matches the loading spin
+// (360° / 1800ms) at the handoff, then settles as the result arrives.
+const REVEAL_DRIFT = 45;
 const M18_MS = motion.optionMs;
 const M19_CENTER_MS = motion.questionStepMs;
 const M19_HOLD_MS = motion.fieeHoldMs;
@@ -109,6 +113,7 @@ export default function FieeScreen() {
   const [saving, setSaving] = useState(false);
   const [phase, setPhase] = useState<Phase>('ask');
   const [showResult, setShowResult] = useState(false);
+  const [resultReady, setResultReady] = useState(false);
   const [centeredWord, setCenteredWord] = useState('');
   const [chipSet, setChipSet] = useState<FieeWord[]>([]);
   const [customDraft, setCustomDraft] = useState('');
@@ -119,6 +124,8 @@ export default function FieeScreen() {
   const lineRef = useRef<TextInput>(null);
   const busy = useRef(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadGeneration = useRef(0);
+  const finishRevealRef = useRef(() => {});
   const answersRef = useRef(answers);
   answersRef.current = answers;
   const intro = ACTIVITY_INTROS.fiee;
@@ -138,6 +145,7 @@ export default function FieeScreen() {
   const animPhase = useSharedValue(PHASE_ASK);
   const spinDeg = useSharedValue(0);
   const loadSpin = useSharedValue(0);
+  const reveal = useSharedValue(0);
   const glowProgress = useSharedValue(0);
   const slotY = useSharedValue(156);
   const fill0 = useSharedValue(0);
@@ -154,6 +162,12 @@ export default function FieeScreen() {
   const displayFiee = (value: string | undefined) => {
     if (!value) return '';
     return g(value);
+  };
+  const draftForIndex = (stepIndex: number) => {
+    const dimension = FIEE_DIMENSIONS[stepIndex];
+    if (!dimension) return '';
+    const existing = answersRef.current[dimension.key];
+    return existing ? displayFiee(existing.palavra) : '';
   };
   const result = FIEE_DIMENSIONS.map((dimension) => displayFiee(answers[dimension.key]?.palavra))
     .filter(Boolean)
@@ -190,30 +204,51 @@ export default function FieeScreen() {
     });
   };
 
-  const loadSynthesis = async (nextAnswers: Record<string, FieeAnswer>) => {
-    setSynthesisFailed(false);
-    const generated = await generateActivitySynthesis({
-      activityId: 'fiee',
-      answers: nextAnswers as unknown as Record<string, unknown>,
-      userName: profile?.name,
-      gender: profile?.gender,
+  const waitRemaining = (ms: number) =>
+    new Promise<void>((resolve) => {
+      if (holdTimer.current) clearTimeout(holdTimer.current);
+      holdTimer.current = setTimeout(() => {
+        holdTimer.current = null;
+        resolve();
+      }, ms);
     });
+
+  const presentResult = async (nextAnswers: Record<string, FieeAnswer>) => {
+    const generation = ++loadGeneration.current;
+    const started = Date.now();
+    setSynthesisFailed(false);
+    let generated: ActivitySynthesis | null = null;
+    try {
+      generated = await generateActivitySynthesis({
+        activityId: 'fiee',
+        answers: nextAnswers as unknown as Record<string, unknown>,
+        userName: profile?.name,
+        gender: profile?.gender,
+      });
+    } catch {
+      generated = null;
+    }
+    if (generation !== loadGeneration.current) return;
+    const remaining = MIN_SPIN_MS - (Date.now() - started);
+    if (remaining > 0) await waitRemaining(remaining);
+    if (generation !== loadGeneration.current) return;
     if (!generated) {
       setSynthesisFailed(true);
-      setShowResult(true);
-      return;
+    } else {
+      setSynthesis(generated);
+      void persistOnce(nextAnswers, generated);
     }
-    setSynthesis(generated);
-    setShowResult(true);
-    void persistOnce(nextAnswers, generated);
+    setResultReady(true);
   };
 
   const clearHold = () => {
+    loadGeneration.current += 1;
     if (holdTimer.current) {
       clearTimeout(holdTimer.current);
       holdTimer.current = null;
     }
     cancelAnimation(loadSpin);
+    cancelAnimation(reveal);
   };
 
   useEffect(() => () => clearHold(), []);
@@ -237,6 +272,7 @@ export default function FieeScreen() {
   const startSpin = (from: number) => {
     const next = from + 1;
     setPhase('spin');
+    setCustomDraft(draftForIndex(next));
     animPhase.value = PHASE_SPIN;
     enterProgress.value = 0;
     enterProgress.value = withTiming(1, { duration: M19_SPIN_MS, easing: STANDARD });
@@ -246,6 +282,15 @@ export default function FieeScreen() {
     spinDeg.value = withTiming(next * 90, { duration: M19_SPIN_MS, easing: STANDARD }, (finished) => {
       if (finished) runOnJS(finishSpin)();
     });
+  };
+
+  const spinLoadingFlower = () => {
+    loadSpin.value = 0;
+    loadSpin.value = withRepeat(
+      withTiming(360, { duration: LOAD_SPIN_MS, easing: Easing.linear }),
+      -1,
+      false,
+    );
   };
 
   const startLoading = (nextAnswers: Record<string, FieeAnswer>) => {
@@ -259,18 +304,42 @@ export default function FieeScreen() {
     outlines.forEach((outline) => {
       outline.value = withTiming(0, { duration: M18_MS, easing: QUICK });
     });
-    loadSpin.value = 0;
-    loadSpin.value = withRepeat(
-      withTiming(360, { duration: LOAD_SPIN_MS, easing: Easing.linear }),
-      -1,
-      false,
-    );
-    holdTimer.current = setTimeout(() => {
-      cancelAnimation(loadSpin);
-      busy.current = false;
-      void loadSynthesis({ ...nextAnswers, ...answersRef.current });
-    }, LOADING_MS);
+    reveal.value = 0;
+    setResultReady(false);
+    setShowResult(false);
+    spinLoadingFlower();
+    void presentResult({ ...nextAnswers, ...answersRef.current });
   };
+
+  const replayLoading = () => {
+    reveal.value = 0;
+    setShowResult(false);
+    setResultReady(false);
+    setSynthesis(null);
+    setSynthesisFailed(false);
+    spinLoadingFlower();
+    void presentResult(answersRef.current);
+  };
+
+  finishRevealRef.current = () => {
+    cancelAnimation(loadSpin);
+    busy.current = false;
+    setShowResult(true);
+  };
+
+  useEffect(() => {
+    if (!resultReady || showResult) return;
+    const angle = loadSpin.value;
+    cancelAnimation(loadSpin);
+    loadSpin.value = angle;
+    loadSpin.value = withTiming(angle + REVEAL_DRIFT, {
+      duration: REVEAL_MS,
+      easing: Easing.out(Easing.cubic),
+    });
+    reveal.value = withTiming(1, { duration: REVEAL_MS, easing: QUICK }, (finished) => {
+      if (finished) runOnJS(finishRevealRef.current)();
+    });
+  }, [loadSpin, resultReady, reveal, showResult]);
 
   const goNext = () => {
     if (!step || !asking || busy.current || !canAdvance) return;
@@ -347,6 +416,7 @@ export default function FieeScreen() {
     busy.current = true;
     const from = index;
     const next = from - 1;
+    setCustomDraft(draftForIndex(next));
     setPhase('spin');
     animPhase.value = PHASE_SPIN;
     enterProgress.value = 1;
@@ -412,7 +482,13 @@ export default function FieeScreen() {
     transform: [{ rotate: `${spinDeg.value + loadSpin.value}deg` }],
   }));
   const compassScaleStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: interpolate(loadProgress.value, [0, 1], [1, LOAD_SCALE]) }],
+    transform: [
+      {
+        scale:
+          interpolate(loadProgress.value, [0, 1], [1, LOAD_SCALE]) *
+          interpolate(reveal.value, [0, 1], [1, 1.05]),
+      },
+    ],
   }));
   const glowStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: interpolate(glowProgress.value, [0, 1], [560, 40]) }],
@@ -453,7 +529,15 @@ export default function FieeScreen() {
     return { opacity: phase === PHASE_ASK ? 1 : phase === PHASE_COMMIT ? commitFade : 0 };
   });
   const loadingCopyStyle = useAnimatedStyle(() => ({
-    opacity: loadProgress.value,
+    opacity:
+      loadProgress.value * interpolate(reveal.value, [0, 0.55], [1, 0], Extrapolation.CLAMP),
+  }));
+  const flowerHandoffStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(reveal.value, [0.15, 1], [1, 0], Extrapolation.CLAMP),
+  }));
+  const resultRevealStyle = useAnimatedStyle(() => ({
+    opacity: reveal.value,
+    transform: [{ translateY: interpolate(reveal.value, [0, 1], [18, 0]) }],
   }));
 
   if (index < 0) {
@@ -468,66 +552,73 @@ export default function FieeScreen() {
     );
   }
 
-  if (showResult) {
-    const insight =
-      synthesis?.titulo ||
-      FIEE_DIMENSIONS.map((item) => displayFiee(answers[item.key]?.palavra))
-        .filter(Boolean)
-        .join(', ') ||
-      'Seu check-in';
-    return (
-      <ActivityResult
-        mist={assets.fieeMist}
-        giz={assets.fieeGiz}
-        insight={insight}
-        body={
-          synthesisFailed
-            ? 'Não consegui juntar agora. Suas respostas estão salvas — você pode tentar de novo.'
-            : synthesis?.paragrafo ||
-              (result
-                ? `${result} contam a história de como você está agora. Guarde o quadro inteiro, não só o que grita mais alto.`
-                : 'Você passou pelas quatro dimensões. Guarde o que apareceu.')
-        }
-        sectionLabel="Seu check-in"
-        followUps={[...followUps]}
-        feedback={feedback}
-        onFeedback={(value) => {
-          setFeedback(value);
-          void persistOnce(answers, synthesis);
-        }}
-        onBack={async () => {
-          await persistOnce();
-          navigation.goBack();
-        }}
-        onTalk={talk}
-        talking={saving}
+  const insight =
+    synthesis?.titulo ||
+    FIEE_DIMENSIONS.map((item) => displayFiee(answers[item.key]?.palavra))
+      .filter(Boolean)
+      .join(', ') ||
+    'Seu check-in';
+
+  const resultLayer =
+    showResult || resultReady ? (
+      <Animated.View
+        pointerEvents={showResult ? 'auto' : 'none'}
+        style={[
+          { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 4 },
+          resultRevealStyle,
+        ]}
       >
-        {synthesisFailed ? (
-          <View style={{ paddingTop: 18 }}>
-            <Text
-              onPress={() => {
-                setShowResult(false);
-                void loadSynthesis(answers);
-              }}
-              style={{ fontFamily: fonts.sansSemi, fontSize: 16, color: colors.accent }}
-            >
-              Tentar de novo
-            </Text>
-          </View>
-        ) : null}
-        {FIEE_DIMENSIONS.map((dimension, i) =>
-          answers[dimension.key] ? (
-            <ResultEntry
-              key={dimension.key}
-              label={RESULT_LABELS[i]}
-              value={displayFiee(answers[dimension.key]?.palavra)}
-              colors={colors}
-            />
-          ) : null,
-        )}
-      </ActivityResult>
-    );
-  }
+        <View style={{ flex: 1 }}>
+        <ActivityResult
+          mist={assets.fieeMist}
+          giz={assets.fieeGiz}
+          insight={insight}
+          body={
+            synthesisFailed
+              ? 'Não consegui juntar agora. Suas respostas estão salvas — você pode tentar de novo.'
+              : synthesis?.paragrafo ||
+                (result
+                  ? `${result} contam a história de como você está agora. Guarde o quadro inteiro, não só o que grita mais alto.`
+                  : 'Você passou pelas quatro dimensões. Guarde o que apareceu.')
+          }
+          sectionLabel="Seu check-in"
+          followUps={[...followUps]}
+          feedback={feedback}
+          onFeedback={(value) => {
+            setFeedback(value);
+            void persistOnce(answers, synthesis);
+          }}
+          onBack={async () => {
+            await persistOnce();
+            navigation.goBack();
+          }}
+          onTalk={talk}
+          talking={saving}
+        >
+          {synthesisFailed ? (
+            <View style={{ paddingTop: 18 }}>
+              <Text
+                onPress={replayLoading}
+                style={{ fontFamily: fonts.sansSemi, fontSize: 16, color: colors.accent }}
+              >
+                Tentar de novo
+              </Text>
+            </View>
+          ) : null}
+          {FIEE_DIMENSIONS.map((dimension, i) =>
+            answers[dimension.key] ? (
+              <ResultEntry
+                key={dimension.key}
+                label={RESULT_LABELS[i]}
+                value={displayFiee(answers[dimension.key]?.palavra)}
+                colors={colors}
+              />
+            ) : null,
+          )}
+        </ActivityResult>
+        </View>
+      </Animated.View>
+    ) : null;
 
   const leaves = [
     { key: 'fisico', fill: assets.fieeLeafFisico, x: 64, y: 128, rotate: '0deg', fillOp: fill0, outlineOp: outline0 },
@@ -557,6 +648,10 @@ export default function FieeScreen() {
         paddingBottom: keyboardPad,
       }}
     >
+      <Animated.View
+        pointerEvents={resultReady ? 'none' : 'auto'}
+        style={[{ flex: 1 }, flowerHandoffStyle]}
+      >
       <Animated.View
         pointerEvents="none"
         style={[{ position: 'absolute', left: 0, right: 0, top: 0, alignItems: 'center' }, glowStyle]}
@@ -702,6 +797,7 @@ export default function FieeScreen() {
           >
             <Animated.View style={lineFieldStyle}>
               <TextInput
+                key={step?.key}
                 ref={lineRef}
                 value={customDraft}
                 onChangeText={onChangeLine}
@@ -777,6 +873,8 @@ export default function FieeScreen() {
           </View>
         </Animated.View>
       </View>
+      </Animated.View>
+      {resultLayer}
     </View>
   );
 }

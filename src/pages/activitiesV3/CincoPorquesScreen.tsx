@@ -593,33 +593,44 @@ export default function CincoPorquesScreen() {
         </>
       ) : (
         <>
-          <ScrollView
-            style={{ flex: 1, minHeight: 0 }}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            onScrollBeginDrag={dismissKeyboard}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{
-              paddingHorizontal: 20,
-              paddingTop: 16,
-              gap: 12,
-              paddingBottom: 12,
-              flexGrow: 1,
-            }}
+          {pairs.length > 0 ? (
+            <ScrollView
+              style={{ flex: 1, minHeight: 0 }}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              onScrollBeginDrag={dismissKeyboard}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingHorizontal: 20,
+                paddingTop: 16,
+                gap: 12,
+                paddingBottom: 12,
+                flexGrow: 1,
+              }}
+            >
+              {pairs.map((pair, originalIndex) => (
+                <PorquesStackCard
+                  key={`${originalIndex}-${pair.pergunta}`}
+                  question={originalIndex === 0 ? FIXED_FIRST.title : pair.pergunta}
+                  answer={pair.resposta}
+                  fresh={originalIndex === freshIndex}
+                />
+              ))}
+            </ScrollView>
+          ) : null}
+          <Pressable
+            onPress={dismissKeyboard}
+            accessible={false}
+            style={pairs.length ? undefined : { flex: 1 }}
           >
-            {pairs.map((pair, originalIndex) => (
-              <PorquesStackCard
-                key={`${originalIndex}-${pair.pergunta}`}
-                question={originalIndex === 0 ? FIXED_FIRST.title : pair.pergunta}
-                answer={pair.resposta}
-                fresh={originalIndex === freshIndex}
-              />
-            ))}
-          </ScrollView>
-          <Pressable onPress={dismissKeyboard} accessible={false}>
             <Reanimated.View style={[{ paddingTop: pairs.length ? 12 : 32, paddingBottom: 12 }, promptStyle]}>
               <ActivityKicker label={layerLabel} />
-              <View style={{ paddingHorizontal: 36, paddingTop: keyboardOpen ? 12 : 20 }}>
+              <View
+                style={{
+                  paddingHorizontal: 36,
+                  paddingTop: pairs.length ? (keyboardOpen ? 12 : 20) : 28,
+                }}
+              >
                 {generatingQuestion ? (
                   <LoadingDots color={colors.text3} />
                 ) : questionError ? (

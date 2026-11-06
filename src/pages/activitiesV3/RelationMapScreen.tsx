@@ -120,6 +120,8 @@ export default function RelationMapScreen() {
   const intro = ACTIVITY_INTROS.mapa_relacoes;
   const [step, setStep] = useState<Step>('intro');
   const [exitStep, setExitStep] = useState<Step | null>(null);
+  const [slideDir, setSlideDir] = useState<1 | -1>(1);
+  const [awaitingKeyboard, setAwaitingKeyboard] = useState(false);
   const [tipo, setTipo] = useState('');
   const [nome, setNome] = useState('');
   const [idade, setIdade] = useState('');
@@ -141,6 +143,14 @@ export default function RelationMapScreen() {
   const partialRequestRef = useRef(0);
   const stepDir = useSharedValue(1);
   const stepProgress = useSharedValue(1);
+  const stepActive = useSharedValue(0);
+  const pageWidth = useSharedValue(windowWidth);
+  const textInputRef = useRef<TextInput>(null);
+  const fromStepRef = useRef<Step | null>(null);
+  const slidingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const keyboardSubRef = useRef<{ remove: () => void } | null>(null);
+  const keyboardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const personName = nome.trim();
   const person = personName || 'essa pessoa';
@@ -162,56 +172,108 @@ export default function RelationMapScreen() {
   }, [bond, g, person, ranking]);
 
   const clearExit = useCallback(() => {
+    slidingRef.current = false;
+    setAwaitingKeyboard(false);
     setExitStep(null);
     continuingRef.current = false;
     setContinuing(false);
   }, []);
 
-  const animateTo = (next: Step, direction: 1 | -1) => {
-    if (next === step || exitStep) return false;
-    if (isTextStep(step) && !isTextStep(next)) {
-      Keyboard.dismiss();
-    }
+  const beginSlide = (next: Step, direction: 1 | -1, from: Step) => {
+    if (!mountedRef.current) return;
+    fromStepRef.current = from;
+    slidingRef.current = true;
+    pageWidth.value = windowWidth;
     stepDir.value = direction;
     stepProgress.value = 0;
-    setExitStep(step);
+    setSlideDir(direction);
+    setExitStep(from);
     setStep(next);
+  };
+
+  const animateTo = (next: Step, direction: 1 | -1) => {
+    if (next === step || exitStep || slidingRef.current) return false;
+    const from = step;
+    if (isTextStep(from) && !isTextStep(next) && Keyboard.isVisible()) {
+      slidingRef.current = true;
+      setAwaitingKeyboard(true);
+      keyboardSubRef.current?.remove();
+      if (keyboardTimerRef.current) clearTimeout(keyboardTimerRef.current);
+      let started = false;
+      const start = () => {
+        if (started) return;
+        started = true;
+        keyboardSubRef.current?.remove();
+        keyboardSubRef.current = null;
+        if (keyboardTimerRef.current) clearTimeout(keyboardTimerRef.current);
+        keyboardTimerRef.current = null;
+        if (!mountedRef.current) return;
+        setAwaitingKeyboard(false);
+        beginSlide(next, direction, from);
+      };
+      keyboardSubRef.current = Keyboard.addListener('keyboardDidHide', start);
+      keyboardTimerRef.current = setTimeout(start, 420);
+      Keyboard.dismiss();
+      return true;
+    }
+    if (isTextStep(from) && !isTextStep(next)) Keyboard.dismiss();
+    beginSlide(next, direction, from);
     return true;
   };
 
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      keyboardSubRef.current?.remove();
+      if (keyboardTimerRef.current) clearTimeout(keyboardTimerRef.current);
+    };
+  }, []);
+
   useLayoutEffect(() => {
     if (!exitStep) return;
+    pageWidth.value = windowWidth;
+    stepProgress.value = 0;
+    stepActive.value = 1;
     const duration = stepDir.value > 0 ? activityMotion.nextMs : activityMotion.backMs;
-    stepProgress.value = withTiming(1, { duration, easing: activityEasing.standard }, (finished) => {
-      if (finished) runOnJS(clearExit)();
+    stepProgress.value = withTiming(1, { duration, easing: activityEasing.quick }, (finished) => {
+      if (!finished) return;
+      stepActive.value = 0;
+      stepProgress.value = 1;
+      runOnJS(clearExit)();
     });
-  }, [clearExit, exitStep, step, stepDir, stepProgress]);
+  }, [clearExit, exitStep, pageWidth, stepActive, stepDir, stepProgress, windowWidth]);
 
-  const outgoingStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateX: interpolate(stepProgress.value, [0, 1], [0, -windowWidth * stepDir.value]),
-      },
-    ],
-  }));
+  useLayoutEffect(() => {
+    if (!isTextStep(step) || exitStep) return;
+    textInputRef.current?.focus();
+  }, [exitStep, step]);
+
+  const outgoingStyle = useAnimatedStyle(() => {
+    if (stepActive.value === 0) return { transform: [{ translateX: 0 }] };
+    const travel = pageWidth.value * stepDir.value;
+    return {
+      transform: [{ translateX: interpolate(stepProgress.value, [0, 1], [0, -travel]) }],
+    };
+  });
   const incomingStyle = useAnimatedStyle(() => ({
     transform: [
       {
-        translateX: interpolate(stepProgress.value, [0, 1], [windowWidth * stepDir.value, 0]),
+        translateX: interpolate(stepProgress.value, [0, 1], [0, -pageWidth.value * stepDir.value]),
       },
     ],
   }));
 
   const goNext = () => {
-    if (continuingRef.current || exitStep || !canContinue()) return;
-    continuingRef.current = true;
-    setContinuing(true);
+    if (continuingRef.current || slidingRef.current || exitStep || !canContinue()) return;
 
     const next = STEPS[stepIndex + 1];
     if (step === 'nome') {
       setRanking(relationRankingItems(nome.trim() || 'essa pessoa', bond));
     }
     if (next === 'validacao') {
+      continuingRef.current = true;
+      setContinuing(true);
       const requestId = partialRequestRef.current + 1;
       partialRequestRef.current = requestId;
       void (async () => {
@@ -244,17 +306,14 @@ export default function RelationMapScreen() {
       return;
     }
     if (next) {
-      if (!animateTo(next, 1)) {
-        continuingRef.current = false;
-        setContinuing(false);
-      }
+      animateTo(next, 1);
       return;
     }
     setStep('loading');
   };
 
   const goBack = () => {
-    if (exitStep) return;
+    if (exitStep || slidingRef.current) return;
     if (continuingRef.current) {
       partialRequestRef.current += 1;
       continuingRef.current = false;
@@ -411,12 +470,12 @@ export default function RelationMapScreen() {
             {current === 'nome' ? 'Qual é o nome?' : `Quantos anos ${person} tem?`}
           </ActivityPrompt>
           <TextInput
+            ref={current === step ? textInputRef : undefined}
             value={current === 'nome' ? nome : idade}
             onChangeText={current === 'nome' ? setNome : setIdade}
             placeholder={current === 'nome' ? 'Nome' : 'Idade'}
             placeholderTextColor={colors.text3}
             keyboardType={current === 'idade' ? 'number-pad' : 'default'}
-            autoFocus={current === step && (!exitStep || isTextStep(exitStep))}
             style={{
               marginTop: 78,
               fontFamily: fonts.display,
@@ -630,23 +689,32 @@ export default function RelationMapScreen() {
         progress={progress}
       />
 
-      <View style={{ flex: 1, overflow: 'hidden' }}>
+      <View style={relationStyles.stage} pointerEvents={exitStep || awaitingKeyboard ? 'none' : 'auto'}>
+        <Animated.View style={[{ flex: 1, backgroundColor: colors.bg }, outgoingStyle]}>
+          {renderStep(exitStep ?? step)}
+        </Animated.View>
         {exitStep ? (
-          <>
-            <Animated.View style={[StyleSheet.absoluteFill, outgoingStyle]} pointerEvents="none">
-              {renderStep(exitStep)}
-            </Animated.View>
-            <Animated.View style={[StyleSheet.absoluteFill, incomingStyle]}>{renderStep(step)}</Animated.View>
-          </>
-        ) : (
-          <View style={{ flex: 1 }}>{renderStep(step)}</View>
-        )}
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              relationStyles.incoming,
+              {
+                width: windowWidth,
+                left: slideDir * windowWidth,
+                backgroundColor: colors.bg,
+              },
+              incomingStyle,
+            ]}
+          >
+            {renderStep(step)}
+          </Animated.View>
+        ) : null}
       </View>
 
       <View style={{ paddingHorizontal: 24, paddingBottom: Math.max(insets.bottom, 16) + 12 }}>
         <BudButton
           label="Continuar"
-          disabled={!canContinue() || Boolean(exitStep)}
+          disabled={!canContinue() || Boolean(exitStep) || awaitingKeyboard}
           loading={continuing}
           onPress={goNext}
         />
@@ -1128,6 +1196,19 @@ function RankNumber({ value }: { value: number }) {
     </View>
   );
 }
+
+const relationStyles = StyleSheet.create({
+  stage: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  incoming: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    zIndex: 2,
+  },
+});
 
 const rankNumberText = {
   fontFamily: fonts.display,
