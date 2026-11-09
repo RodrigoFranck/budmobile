@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { addMonths, format } from 'date-fns';
+import { addDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 import { BudButton } from '@/components/v3';
@@ -84,7 +84,7 @@ export default function HealthSurveyScreen() {
     : 0;
   const progress = Math.min(1, (catalogIndex + 1) / HEALTH_SURVEY_QUESTION_COUNT);
   const nextDate = useMemo(
-    () => format(addMonths(new Date(), 3), "d 'de' MMMM", { locale: ptBR }),
+    () => format(addDays(new Date(), 30), "d 'de' MMMM", { locale: ptBR }),
     [],
   );
 
@@ -192,7 +192,7 @@ export default function HealthSurveyScreen() {
               marginTop: 16,
             }}
           >
-            No primeiro acesso e depois a cada 3 meses, o Bud faz algumas perguntas sobre saúde,
+            No primeiro acesso e depois todo mês, o Bud faz algumas perguntas sobre saúde,
             rotina e trabalho. Assim dá para ver o que está mudando com o tempo.
           </Text>
           <View
@@ -265,7 +265,7 @@ export default function HealthSurveyScreen() {
               maxWidth: '100%',
             }}
           >
-            Suas respostas ajudam o Bud a cuidar melhor de você. A próxima pesquisa chega em 3 meses,
+            Suas respostas ajudam o Bud a cuidar melhor de você. A próxima pesquisa chega em 30 dias,
             no dia {nextDate}.
           </Text>
         </View>

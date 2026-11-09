@@ -45,7 +45,7 @@ const PHQ_KICKER =
   'Durante as últimas 2 semanas, com que frequência você foi incomodada por qualquer um dos problemas abaixo?';
 const GAD_KICKER =
   'Durante as últimas 2 semanas, com que frequência você foi incomodada pelos problemas abaixo?';
-const SERVICE_KICKER = 'Nos últimos 90 dias, quantas vezes você…';
+const SERVICE_KICKER = 'Nos últimos 30 dias, quantas vezes você…';
 const MOOD_OPTIONS = ['Nenhuma vez', 'Vários dias', 'Mais da metade dos dias', 'Quase todos os dias'];
 
 export const HEALTH_SURVEY_STEPS: HealthSurveyStep[] = [

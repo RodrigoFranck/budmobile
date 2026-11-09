@@ -150,7 +150,7 @@ export function useUserPlan() {
   const canAccess = useCallback(
     (feature: Feature): boolean => {
       if (developer || entitled) return true;
-      return feature !== 'voice_mode' && feature !== 'unlimited_messages' && feature !== 'unlimited_history';
+      return feature !== 'unlimited_messages' && feature !== 'unlimited_history';
     },
     [developer, entitled],
   );
@@ -194,7 +194,7 @@ export function useUserPlan() {
     trialDaysRemaining: null,
     canSendMessage: entitled || isLoading || !access.freeConversationId,
     canSendInConversation,
-    canUseVoice: entitled,
+    canUseVoice: true,
     remainingMessages: entitled ? Infinity : access.freeConversationId ? 0 : 1,
     isLastFreeConversation,
     incrementMessageCount: async () => {},

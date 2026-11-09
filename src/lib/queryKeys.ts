@@ -13,6 +13,8 @@ export const queryKeys = {
   recapBodiesGenerate: (userId: string, ids: string[]) =>
     ['recapBodiesGenerate', userId, ids] as const,
   historyDays: (userId: string) => ['historyDays', userId] as const,
+  historyDayMessages: (conversationId: string) =>
+    ['historyDayMessages', conversationId] as const,
   weeklySummary: (userId: string, weekStart: string) =>
     ['weeklySummary', userId, weekStart] as const,
 };

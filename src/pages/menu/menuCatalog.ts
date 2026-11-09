@@ -148,7 +148,7 @@ export const NOTIFICATION_ROWS: {
   {
     key: 'screening',
     label: 'Pesquisa de saúde',
-    hint: 'A cada 3 meses',
+    hint: 'Todo mês',
     icon: 'activity',
     capability: 'health_survey',
   },

@@ -1,12 +1,19 @@
 import React, { useMemo } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, MessageSquare } from 'lucide-react-native';
 
 import { InsightContextCard } from '@/components/chat/InsightContextCard';
-import { useMessages } from '@/hooks/useMessages';
+import { ChatPhoto } from '@/components/chat/ChatPhoto';
+import { useHistoryDayMessages } from '@/hooks/useHistoryDayMessages';
 import { useOnboardingColors } from '@/constants/onboardingTheme';
 import { useConversationDetailStyles } from '@/components/history/ConversationDetail.styles';
 import type { HistoryActivityChip } from '@/hooks/useHistoryDays';
@@ -16,6 +23,7 @@ import {
   isUserMessageAfterContext,
   parseInsightContextMessage,
 } from '@/utils/insightContextMessage';
+import { parseChatImageContent } from '@/utils/chatImageMessage';
 
 interface ConversationDetailProps {
   conversationId: string | null;
@@ -49,7 +57,8 @@ export default function ConversationDetail({
   hasLetter = false,
   onBack,
 }: ConversationDetailProps) {
-  const { messages, loading } = useMessages(conversationId);
+  const { messages, loading, isFetching, hasMore, loadMore, isFetchingMore } =
+    useHistoryDayMessages(conversationId);
   const insets = useSafeAreaInsets();
   const onboardingColors = useOnboardingColors();
   const styles = useConversationDetailStyles();
@@ -70,19 +79,10 @@ export default function ConversationDetail({
     [activities],
   );
 
-  if (loading) {
-    return (
-      <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <View style={styles.center}>
-          <Text style={styles.loadingText}>Carregando...</Text>
-        </View>
-      </View>
-    );
-  }
-
   const hasMessages = messages.length > 0;
   const showEmpty =
-    !hasMessages && activities.length === 0 && !hasLetter;
+    !loading && !hasMessages && activities.length === 0 && !hasLetter;
+  const showSoftLoading = loading || (isFetching && !hasMessages);
 
   return (
     <View style={styles.screen}>
@@ -100,13 +100,33 @@ export default function ConversationDetail({
 
       <View style={styles.headerDivider} />
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        onScroll={({ nativeEvent }) => {
+          if (!hasMore || isFetchingMore) return;
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          const nearBottom =
+            layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
+          if (nearBottom) {
+            loadMore();
+          }
+        }}
+        scrollEventThrottle={200}
+      >
         <View style={styles.titleBlock}>
           <Text style={styles.weekday} accessibilityRole="header">
             {weekdayLabel}
           </Text>
           <Text style={styles.dateLabel}>{dateLabel}</Text>
         </View>
+
+        {showSoftLoading ? (
+          <View style={styles.inlineLoading} accessibilityLabel="Carregando conversa">
+            <ActivityIndicator color={onboardingColors.accent} />
+            <Text style={styles.inlineLoadingText}>Carregando…</Text>
+          </View>
+        ) : null}
 
         {activities.length > 0 ? (
           <View style={styles.activitiesBlock}>
@@ -128,7 +148,7 @@ export default function ConversationDetail({
           </View>
         ) : null}
 
-        {hasLetter && !hasMessages ? (
+        {hasLetter && !hasMessages && !showSoftLoading ? (
           <View style={styles.letterNote}>
             <Text style={styles.letterNoteText}>Você abriu a carta deste dia.</Text>
           </View>
@@ -185,7 +205,25 @@ export default function ConversationDetail({
                   ) : message.role === 'user' ? (
                     <View style={styles.userWrap}>
                       <Text style={styles.roleLabelUser}>Você</Text>
-                      <Text style={styles.userBody}>{message.content}</Text>
+                      {(() => {
+                        const storagePath =
+                          parseChatImageContent(message.content)?.storagePath ?? null;
+                        const inlineUri = message.content.startsWith('data:image/')
+                          ? message.content
+                          : null;
+                        if (storagePath || inlineUri) {
+                          return (
+                            <View style={styles.userPhotoBubble}>
+                              <ChatPhoto
+                                uri={inlineUri}
+                                storagePath={inlineUri ? null : storagePath}
+                                style={styles.userPhoto}
+                              />
+                            </View>
+                          );
+                        }
+                        return <Text style={styles.userBody}>{message.content}</Text>;
+                      })()}
                     </View>
                   ) : message.role === 'assistant' ? (
                     <View style={styles.assistantWrap}>
@@ -196,6 +234,11 @@ export default function ConversationDetail({
                 </View>
               );
             })}
+            {isFetchingMore ? (
+              <View style={styles.inlineLoading}>
+                <ActivityIndicator color={onboardingColors.accent} />
+              </View>
+            ) : null}
           </View>
         ) : null}
       </ScrollView>

@@ -7,8 +7,9 @@ export const RECAP_LOOKBACK_DAYS = 14;
 const GREETING_PATTERN =
   /^(oi|ol[aá]|fala|e a[ií]|bom dia|boa tarde|boa noite|tudo bem|hey|hi|hello)\b/i;
 
+/** TF-64 / TF-100 · frases de gatilho do app, nunca fala da pessoa. */
 const APP_TALK_PATTERN =
-  /(quero continuar (nossa |a )?conversa|continuar (de onde|nossa conversa)|t[oô] aqui pra falar|estou aqui para falar|falar com (voc[eê]|o bud)|conversar com o bud)/i;
+  /(quero conversar sobre|quero continuar (nossa |a |essa )?conversa|continuar (de onde|nossa conversa)|quero trabalhar (no|nesse) h[aá]bito|t[oô] aqui pra falar|estou aqui para falar|falar com (voc[eê]|o bud)|conversar com o bud)/i;
 
 const FIXED_RECAP_TEMPLATE =
   /^isso ficou de .+\.\s*quer conversar sobre o que ainda est[aá] aberto nisso\??$/i;
@@ -53,6 +54,7 @@ export function recapCandidateIds(params: {
     .filter((conversation) => {
       if (excluded.has(conversation.id)) return false;
       if (!conversation.title?.trim()) return false;
+      if (looksLikeAppTriggerMessage(conversation.title)) return false;
       const day = conversationDayKey(conversation.conversation_date || conversation.created_at);
       if (day === params.today) return false;
       return day >= minDay;
@@ -87,7 +89,7 @@ export function nextRecapPile(params: {
   return [...additions, ...existing].slice(0, limit);
 }
 
-export function clipCardText(text: string, max = 220) {
+export function clipCardText(text: string, max = 220, options?: { ellipsis?: boolean }) {
   const trimmed = text.trim().replace(/\s+/g, ' ');
   if (!trimmed) return '';
   if (trimmed.length <= max) return trimmed;
@@ -95,8 +97,28 @@ export function clipCardText(text: string, max = 220) {
   const lastStop = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('? '), slice.lastIndexOf('! '));
   if (lastStop >= 80) return slice.slice(0, lastStop + 1).trim();
   const lastSpace = slice.lastIndexOf(' ');
-  const cut = lastSpace > 40 ? slice.slice(0, lastSpace) : slice;
-  return `${cut.trim()}…`;
+  const cut = (lastSpace > 40 ? slice.slice(0, lastSpace) : slice).trim();
+  if (options?.ellipsis === false) return cut;
+  return `${cut}…`;
+}
+
+/** TF-100 · trecho literal: sem aspas internas nem reticências. */
+export function normalizeLiteralFragment(text: string) {
+  return text
+    .trim()
+    .replace(/^[“”"']+|[“”"']+$/g, '')
+    .replace(/[“”"]/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/…+$/g, '')
+    .replace(/\.{3,}$/g, '')
+    .trim();
+}
+
+/** TF-64 / TF-100 · gatilho salvo como se fosse mensagem da pessoa. */
+export function looksLikeAppTriggerMessage(text?: string | null) {
+  const cleaned = normalizeLiteralFragment(text ?? '');
+  if (!cleaned) return false;
+  return APP_TALK_PATTERN.test(cleaned);
 }
 
 export function contentWordCount(text: string) {
@@ -115,10 +137,10 @@ export function looksLikeFixedRecapTemplate(text?: string | null) {
 
 /** FRAGMENTO_LITERAL client gate: skip greetings, app-talk, tiny phrases, and RISCO speech. */
 export function isUsableRecapFragment(text?: string | null) {
-  const cleaned = text?.trim().replace(/^[“”"']+|[“”"']+$/g, '') ?? '';
+  const cleaned = normalizeLiteralFragment(text ?? '');
   if (!cleaned) return false;
   if (looksLikeCrisisSpeech(cleaned)) return false;
-  if (APP_TALK_PATTERN.test(cleaned)) return false;
+  if (looksLikeAppTriggerMessage(cleaned)) return false;
   if (contentWordCount(cleaned) < 4) return false;
   if (GREETING_PATTERN.test(cleaned) && contentWordCount(cleaned) < 8) return false;
   return true;
@@ -134,13 +156,13 @@ export function isUsableRecapBody(text?: string | null) {
 }
 
 export function recapQuote(fragment?: string | null, fallback?: string | null) {
-  const fromFragment = fragment?.trim().replace(/^[“”"']+|[“”"']+$/g, '');
+  const fromFragment = normalizeLiteralFragment(fragment ?? '');
   if (fromFragment && isUsableRecapFragment(fromFragment)) {
-    return clipCardText(fromFragment, 88);
+    return clipCardText(fromFragment, 88, { ellipsis: false });
   }
-  const fromFallback = fallback?.trim().replace(/^[“”"']+|[“”"']+$/g, '') ?? '';
+  const fromFallback = normalizeLiteralFragment(fallback ?? '');
   if (fromFallback && isUsableRecapFragment(fromFallback)) {
-    return clipCardText(fromFallback, 88);
+    return clipCardText(fromFallback, 88, { ellipsis: false });
   }
   return '';
 }

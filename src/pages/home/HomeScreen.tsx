@@ -116,11 +116,10 @@ function RecapCard({
           fontSize: 11.5,
           lineHeight: 12,
           letterSpacing: 1.6,
-          textTransform: 'uppercase',
           color: colors.text3,
         }}
       >
-        {item.label}
+        {item.label.toLocaleUpperCase('pt-BR')}
       </Text>
       <View
         style={{
@@ -402,6 +401,11 @@ export default function HomeScreen() {
           onScroll={handleScroll}
         >
           <Text
+            accessibilityRole="header"
+            numberOfLines={2}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+            ellipsizeMode="tail"
             style={{
               fontFamily: fonts.display,
               fontSize: 46,
@@ -410,6 +414,7 @@ export default function HomeScreen() {
               color: colors.text,
               textAlign: 'center',
               marginTop: 18,
+              paddingHorizontal: 20,
             }}
           >
             {greetingLead}{' '}

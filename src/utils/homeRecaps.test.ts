@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import {
   isUsableRecapBody,
   isUsableRecapFragment,
+  looksLikeAppTriggerMessage,
   looksLikeFixedRecapTemplate,
   nextRecapPile,
   recapCandidateIds,
@@ -100,6 +101,25 @@ test('rejects greetings, app-talk, tiny phrases and crisis speech as fragments',
   assert.equal(isUsableRecapFragment('Só descanso quando a lista acaba.'), true);
   assert.equal(recapQuote('Fala, Bud. Tudo bem?', 'Só descanso quando a lista acaba.'), 'Só descanso quando a lista acaba.');
   assert.equal(recapQuote('Quero me matar', 'tema de risco'), '');
+});
+
+test('rejects trigger messages as fragments (TF-100)', () => {
+  assert.equal(
+    looksLikeAppTriggerMessage('Quero conversar sobre "Entre o peso da prova".'),
+    true,
+  );
+  assert.equal(
+    isUsableRecapFragment('Quero conversar sobre "Entre o peso da prova".'),
+    false,
+  );
+  assert.equal(
+    recapQuote('Quero conversar sobre "Entre o peso da…', 'Só descanso quando a lista acaba.'),
+    'Só descanso quando a lista acaba.',
+  );
+  assert.equal(
+    recapQuote('“Só descanso quando a lista acaba.”', 'título'),
+    'Só descanso quando a lista acaba.',
+  );
 });
 
 test('rejects the fixed Para começar template as card body (TF-67)', () => {

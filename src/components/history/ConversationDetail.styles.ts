@@ -94,6 +94,18 @@ export function useConversationDetailStyles() {
       textAlign: 'center',
       marginTop: 12,
     },
+    inlineLoading: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingVertical: 12,
+      marginBottom: 8,
+    },
+    inlineLoadingText: {
+      fontFamily: instrumentSansFont,
+      fontSize: 14,
+      color: onboardingColors.textSecondary,
+    },
     messages: {
       gap: 28,
     },
@@ -102,6 +114,16 @@ export function useConversationDetailStyles() {
     },
     userWrap: {
       alignItems: 'flex-end',
+    },
+    userPhotoBubble: {
+      maxWidth: '78%',
+      borderRadius: 18,
+      overflow: 'hidden',
+    },
+    userPhoto: {
+      width: 220,
+      height: 220,
+      borderRadius: 18,
     },
     assistantWrap: {
       alignItems: 'flex-start',

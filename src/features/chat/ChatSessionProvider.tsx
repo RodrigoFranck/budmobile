@@ -111,7 +111,7 @@ const ChatSessionContext = createContext<ChatSessionContextValue | undefined>(un
 
 export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const { canSendInConversation, canUseVoice, isSubscribed, refetch: refetchPlan } = useUserPlan();
+  const { canSendInConversation, isSubscribed, refetch: refetchPlan } = useUserPlan();
   const navigation = useNavigation<MainTabNavigationProp>();
   const route = useRoute();
   const isChatFocused = useIsFocused();
@@ -130,8 +130,6 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const canSendMessage = canSendInConversation(currentConversationId ?? null);
   const canSendMessageRef = useRef(canSendMessage);
   canSendMessageRef.current = canSendMessage;
-  const canUseVoiceRef = useRef(canUseVoice);
-  canUseVoiceRef.current = canUseVoice;
   const isSubscribedRef = useRef(isSubscribed);
   isSubscribedRef.current = isSubscribed;
   const refetchPlanRef = useRef(refetchPlan);
@@ -737,10 +735,6 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       currentConversationId &&
       !isVoiceAutoStartInFlightRef.current
     ) {
-      if (!canSendMessageRef.current || !canUseVoiceRef.current) {
-        navigation.navigate('Paywall');
-        return;
-      }
       if (!voiceInterfaceRef.current) {
         requestAnimationFrame(() => {
           bootstrapInsightSessionRef.current();

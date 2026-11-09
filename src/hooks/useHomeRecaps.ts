@@ -25,6 +25,7 @@ import {
   RECAP_LIMIT,
   type RecapPileItem,
 } from '@/utils/homeRecaps';
+import { cleanupTriggerUserMessages } from '@/utils/cleanupTriggerUserMessages';
 import { getTodayInBrasilia, getYesterdayInBrasilia } from '@/utils/dateUtils';
 
 export type HomeRecapItem =
@@ -62,6 +63,7 @@ function parseParaComecarCache(raw: string | null): CachedParaComecar {
         typeof row.fragmento === 'string' &&
         typeof row.paragrafo === 'string' &&
         typeof row.mensagem_id === 'string' &&
+        isUsableRecapFragment(row.fragmento) &&
         isUsableRecapBody(row.paragrafo)
       ) {
         out[id] = {
@@ -83,6 +85,7 @@ function mergeParaComecarCache(
 ): CachedParaComecar {
   const next = { ...current };
   for (const card of cards) {
+    if (!isUsableRecapFragment(card.fragmento)) continue;
     if (!isUsableRecapBody(card.paragrafo)) continue;
     next[card.conversation_id] = {
       fragmento: card.fragmento,
@@ -105,6 +108,15 @@ export function useHomeRecaps(params: {
   const queryClient = useQueryClient();
   const today = getTodayInBrasilia();
   const yesterday = getYesterdayInBrasilia();
+
+  useEffect(() => {
+    if (!userId) return;
+    void cleanupTriggerUserMessages(userId).then(() => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(userId) });
+      void queryClient.invalidateQueries({ queryKey: ['recapSnippets', userId] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.recapBodies(userId) });
+    });
+  }, [queryClient, userId]);
 
   const yesterdayIds = useMemo(
     () =>

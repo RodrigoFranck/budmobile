@@ -19,6 +19,7 @@ import {
   getWeekStartBrasilia,
   parseDateString,
 } from '@/utils/dateUtils';
+import { countDisplayableHistoryTurns } from '@/utils/historyMessages';
 
 const WEEK_DOT_LABELS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'] as const;
 const ACTIVITY_IDS: ActivityId[] = [
@@ -81,15 +82,16 @@ function dateLabel(date: Date) {
   return format(date, "d 'de' MMMM", { locale: ptBR });
 }
 
-function conversationDayKey(conversation: Conversation) {
-  const source = conversation.conversation_date || conversation.created_at;
-  return source.includes('T') ? source.split('T')[0] : source;
-}
-
 function brasiliaDayKey(iso: string | null | undefined) {
   if (!iso) return null;
   if (!iso.includes('T')) return iso.slice(0, 10);
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(iso));
+}
+
+/** Day key in America/Sao_Paulo — ISO timestamps must not use UTC `split('T')[0]` (breaks after 21h). */
+function conversationDayKey(conversation: Conversation) {
+  const source = conversation.conversation_date || conversation.created_at;
+  return brasiliaDayKey(source) ?? source.slice(0, 10);
 }
 
 export function formatWeekRangeLong(weekStart: Date, weekEnd: Date) {
@@ -202,16 +204,32 @@ async function fetchHistoryExtras(
       : Promise.resolve({ data: [] as Array<{ letter_date: string }>, error: null }),
     supabase.from('daily_checkins').select('checkin_date').eq('user_id', userId),
     conversationIds.length > 0
-      ? supabase.from('messages').select('conversation_id').in('conversation_id', conversationIds)
-      : Promise.resolve({ data: [] as { conversation_id: string }[], error: null }),
+      ? supabase
+          .from('messages')
+          .select('conversation_id, role, content')
+          .in('conversation_id', conversationIds)
+      : Promise.resolve({
+          data: [] as { conversation_id: string; role: string; content: string }[],
+          error: null,
+        }),
   ]);
 
   noteRelationError('activity_sessions', activitiesRes.error);
   noteRelationError('daily_letters', lettersRes.error);
 
-  const messageCounts: Record<string, number> = {};
+  const messagesByConversation = new Map<
+    string,
+    Array<{ role: string; content: string }>
+  >();
   for (const row of messagesRes.data ?? []) {
-    messageCounts[row.conversation_id] = (messageCounts[row.conversation_id] ?? 0) + 1;
+    const list = messagesByConversation.get(row.conversation_id) ?? [];
+    list.push({ role: row.role, content: row.content });
+    messagesByConversation.set(row.conversation_id, list);
+  }
+
+  const messageCounts: Record<string, number> = {};
+  for (const [conversationId, rows] of messagesByConversation) {
+    messageCounts[conversationId] = countDisplayableHistoryTurns(rows);
   }
 
   const activityByDay: Record<string, HistoryActivityChip[]> = {};
@@ -288,14 +306,19 @@ export function useHistoryDays(conversations: Conversation[]) {
 
     for (const conversation of conversations) {
       const dateKey = conversationDayKey(conversation);
+      const counted = extras?.messageCounts[conversation.id];
+      // After extras resolve, hide conversations with no displayable turns (empty voice stubs, etc.).
+      if (extras && typeof counted === 'number' && counted <= 0) {
+        continue;
+      }
+      const count = typeof counted === 'number' ? counted : 1;
       const day = ensureDay(dateKey);
-      const count = extras?.messageCounts[conversation.id];
-      if (!day.conversationId || (typeof count === 'number' && count >= day.messageCount)) {
+      if (!day.conversationId || count >= day.messageCount) {
         day.conversationId = conversation.id;
         day.conversationTitle = conversation.title ?? '';
         day.conversationDate = conversation.conversation_date || conversation.created_at;
       }
-      day.messageCount += typeof count === 'number' ? count : 1;
+      day.messageCount += count;
     }
 
     for (const [dateKey, chips] of Object.entries(extras?.activityByDay ?? {})) {
@@ -306,7 +329,11 @@ export function useHistoryDays(conversations: Conversation[]) {
       ensureDay(dateKey).hasLetter = true;
     }
 
-    return Array.from(byDay.values()).sort((a, b) => b.dateKey.localeCompare(a.dateKey));
+    return Array.from(byDay.values())
+      .filter(
+        (day) => day.messageCount > 0 || day.activities.length > 0 || day.hasLetter,
+      )
+      .sort((a, b) => b.dateKey.localeCompare(a.dateKey));
   }, [conversations, extras]);
 
   const weekDots = useMemo<HistoryWeekDot[]>(() => {

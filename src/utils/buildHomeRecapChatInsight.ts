@@ -102,7 +102,7 @@ export async function buildConversationRecapChatInsight(params: {
 
   return {
     insightType: HOME_CONVERSATION_RECAP_TYPE,
-    badge: params.dateLabel.toUpperCase(),
+    badge: params.dateLabel.toLocaleUpperCase('pt-BR'),
     title,
     contextSummary: params.cardDescription,
     internalContext,
