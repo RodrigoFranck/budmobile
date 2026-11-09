@@ -279,6 +279,9 @@ export function ActivityComposer({
   placeholder = 'Escreva aqui…',
   disabled,
   bottomInset,
+  inputKey,
+  minLength = 1,
+  hint,
 }: {
   value: string;
   onChangeText: (value: string) => void;
@@ -286,16 +289,35 @@ export function ActivityComposer({
   placeholder?: string;
   disabled?: boolean;
   bottomInset?: number;
+  inputKey?: string | number;
+  minLength?: number;
+  hint?: string | null;
 }) {
   const colors = useV3Colors();
-  const canSend = Boolean(value.trim()) && !disabled;
+  const canSend = value.trim().length >= minLength && !disabled;
   const insets = useSafeAreaInsets();
   const pad = bottomInset ?? Math.max(insets.bottom, 12);
 
   return (
     <View style={{ paddingHorizontal: 20, paddingBottom: pad }}>
+      {hint ? (
+        <Text
+          accessibilityLiveRegion="polite"
+          style={{
+            fontFamily: fonts.sans,
+            fontSize: 13,
+            lineHeight: 18,
+            color: '#C4785A',
+            paddingBottom: 8,
+            paddingHorizontal: 6,
+          }}
+        >
+          {hint}
+        </Text>
+      ) : null}
       <View style={[styles.composer, { backgroundColor: colors.surface2 }]}>
         <TextInput
+          key={inputKey}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}

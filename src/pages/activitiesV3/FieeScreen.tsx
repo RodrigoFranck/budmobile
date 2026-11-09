@@ -256,7 +256,13 @@ export default function FieeScreen() {
   useEffect(() => {
     if (phase !== 'ask') return;
     selectProgress.value = withTiming(selected ? 1 : 0, { duration: M18_MS, easing: QUICK });
-  }, [phase, selectProgress, selected]);
+    const target = Math.max(0, index) * 90;
+    cancelAnimation(loadSpin);
+    loadSpin.value = 0;
+    if (Math.abs(spinDeg.value - target) > 1) {
+      spinDeg.value = target;
+    }
+  }, [phase, selectProgress, selected, index, spinDeg, loadSpin]);
 
   const finishSpin = () => {
     busy.current = false;
@@ -267,10 +273,13 @@ export default function FieeScreen() {
     enterProgress.value = 0;
     glowProgress.value = 0;
     selectProgress.value = 0;
+    loadSpin.value = 0;
   };
 
   const startSpin = (from: number) => {
     const next = from + 1;
+    const fromDeg = from * 90;
+    const toDeg = next * 90;
     setPhase('spin');
     setCustomDraft(draftForIndex(next));
     animPhase.value = PHASE_SPIN;
@@ -279,7 +288,11 @@ export default function FieeScreen() {
     outlines[next].value = withTiming(0.95, { duration: M19_SPIN_MS, easing: STANDARD });
     glowProgress.value = withTiming(0, { duration: M19_SPIN_MS, easing: STANDARD });
     holdTimer.current = setTimeout(() => setIndex(next), M19_SPIN_MS * 0.5);
-    spinDeg.value = withTiming(next * 90, { duration: M19_SPIN_MS, easing: STANDARD }, (finished) => {
+    cancelAnimation(spinDeg);
+    cancelAnimation(loadSpin);
+    loadSpin.value = 0;
+    spinDeg.value = fromDeg;
+    spinDeg.value = withTiming(toDeg, { duration: M19_SPIN_MS, easing: STANDARD }, (finished) => {
       if (finished) runOnJS(finishSpin)();
     });
   };
@@ -389,6 +402,12 @@ export default function FieeScreen() {
     setCenteredWord(displayWord);
     setPhase('commit');
     animPhase.value = PHASE_COMMIT;
+    // Keep the sprout angle locked to this dimension so fill always lands on the
+    // leaf currently at the bottom, then M19 spins that leaf to the left.
+    cancelAnimation(spinDeg);
+    cancelAnimation(loadSpin);
+    loadSpin.value = 0;
+    spinDeg.value = from * 90;
     commitProgress.value = withTiming(1, { duration: M19_CENTER_MS, easing: STANDARD });
     glowProgress.value = withTiming(1, { duration: M19_CENTER_MS, easing: STANDARD });
     fills[from].value = withTiming(1, { duration: M19_CENTER_MS, easing: STANDARD });
@@ -424,6 +443,10 @@ export default function FieeScreen() {
     fills[next].value = withTiming(0, { duration: M19_SPIN_MS, easing: STANDARD });
     outlines[next].value = withTiming(0.95, { duration: M19_SPIN_MS, easing: STANDARD });
     outlines[from].value = withTiming(0.35, { duration: M19_SPIN_MS, easing: STANDARD });
+    cancelAnimation(spinDeg);
+    cancelAnimation(loadSpin);
+    loadSpin.value = 0;
+    spinDeg.value = from * 90;
     spinDeg.value = withTiming(next * 90, { duration: M19_SPIN_MS, easing: STANDARD }, (finished) => {
       if (finished) runOnJS(finishBack)(next);
     });
@@ -478,18 +501,17 @@ export default function FieeScreen() {
     });
   };
 
-  const spinStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${spinDeg.value + loadSpin.value}deg` }],
-  }));
-  const compassScaleStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        scale:
-          interpolate(loadProgress.value, [0, 1], [1, LOAD_SCALE]) *
-          interpolate(reveal.value, [0, 1], [1, 1.05]),
-      },
-    ],
-  }));
+  const sproutMotionStyle = useAnimatedStyle(() => {
+    const scale =
+      interpolate(loadProgress.value, [0, 1], [1, LOAD_SCALE]) *
+      interpolate(reveal.value, [0, 1], [1, 1.05]);
+    return {
+      transform: [
+        { scale },
+        { rotate: `${spinDeg.value + loadSpin.value}deg` },
+      ],
+    };
+  });
   const glowStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: interpolate(glowProgress.value, [0, 1], [560, 40]) }],
     opacity:
@@ -674,16 +696,17 @@ export default function FieeScreen() {
           overflow: 'hidden',
         }}
       >
-        <Animated.View
-          style={[
-            { width: compass, height: compass },
-            compassScaleStyle,
-            keyboardOpen ? { transform: [{ scale: sproutScale }] } : null,
-          ]}
+        <View
+          collapsable={false}
+          style={{
+            width: compass,
+            height: compass,
+            transform: keyboardOpen ? [{ scale: sproutScale }] : undefined,
+          }}
         >
           <Animated.View
             collapsable={false}
-            style={[{ width: compass, height: compass }, spinStyle]}
+            style={[{ width: compass, height: compass }, sproutMotionStyle]}
           >
             {leaves.map((item) => (
               <CompassLeaf
@@ -699,7 +722,7 @@ export default function FieeScreen() {
               />
             ))}
           </Animated.View>
-        </Animated.View>
+        </View>
       </View>
 
       <View style={{ flex: 1 }}>
@@ -994,7 +1017,8 @@ function CompassLeaf({
   const fillStyle = useAnimatedStyle(() => ({ opacity: fillOpacity.value }));
   const outlineStyle = useAnimatedStyle(() => ({ opacity: outlineOpacity.value }));
   return (
-    <View
+    <Animated.View
+      collapsable={false}
       style={{
         position: 'absolute',
         left,
@@ -1018,7 +1042,7 @@ function CompassLeaf({
           style={{ width: size, height: size }}
         />
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 

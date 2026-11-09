@@ -71,17 +71,17 @@ const M17_ENTER = 28;
 const FIXED_FIRST = CINCO_PORQUES[0];
 const STANDARD = Easing.bezier(0.42, 0, 0.58, 1);
 
-function contentWordCount(text: string) {
-  return text
-    .trim()
-    .split(/\s+/)
-    .filter((word) => word.replace(/[^\p{L}\p{N}]/gu, '').length > 0).length;
-}
-
+/** Non-answers that block the five-whys from going deeper — length is irrelevant. */
 function isVagueAnswer(text: string) {
-  const trimmed = text.trim().toLowerCase();
-  if (contentWordCount(trimmed) < 4) return true;
-  return /^(n[aã]o sei|n sei|sei l[aá]|como assim|nada|sei l[aá]\.?)$/i.test(trimmed);
+  const trimmed = text
+    .trim()
+    .toLowerCase()
+    .replace(/[.!?…]+$/g, '')
+    .trim();
+  if (!trimmed) return true;
+  return /^(n[aã]o\s*sei|n\s*sei|sei\s*l[aá]|idk|como assim|nada(\s+demais)?|tanto faz|n\/a|ok|blz|beleza|sim|n[aã]o|hmm+|h+m+|sei|whatever)$/i.test(
+    trimmed,
+  );
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
@@ -200,7 +200,11 @@ export default function CincoPorquesScreen() {
   const [synthesisFailed, setSynthesisFailed] = useState(false);
   const [feedback, setFeedback] = useState<ActivityFeedbackValue | null>(null);
   const [freshIndex, setFreshIndex] = useState(-1);
+  const [composerKey, setComposerKey] = useState(0);
+  const [vagueHint, setVagueHint] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+  const submittingRef = useRef(false);
+  const stackRef = useRef<ScrollView>(null);
   const saveActivity = useRef(createActivityPersister()).current;
   const { keyboardHeight, keyboardOpen, dismissKeyboard } = useActivityKeyboard();
   const promptShift = useSharedValue(1);
@@ -211,6 +215,9 @@ export default function CincoPorquesScreen() {
   const glowCount = Math.min((loading ? CINCO_PORQUES.length : pairs.length) + 1, LAYER_GLOW_TOPS.length);
   const layerLabel =
     index <= 0 ? FIXED_FIRST.kicker : `Camada ${Math.min(index + 1, 5)} de 5`;
+  const promptReady =
+    currentQuestion.trim().length > 0 && currentQuestion !== '…' && !generatingQuestion && !questionError;
+  const composerLocked = !promptReady;
 
   const playLayer = (direction: 'forward' | 'back') => {
     promptFrom.value = direction === 'back' ? -M17_ENTER : M17_ENTER;
@@ -291,13 +298,21 @@ export default function CincoPorquesScreen() {
     help?: { respostaAtual: string },
   ) => {
     setCurrentQuestion(result.pergunta);
-    if (help || result.mesma_camada) {
+    // Same-layer help is only decided by the client (one shot per layer).
+    // Never reopen help from API mesma_camada after a committed advance — that looped.
+    if (help) {
       setHelpUsed(true);
       setHelpOptions(result.opcoes ?? null);
     } else {
       setHelpUsed(false);
       setHelpOptions(null);
     }
+  };
+
+  const clearComposer = () => {
+    setDraft('');
+    setVagueHint(null);
+    setComposerKey((current) => current + 1);
   };
 
   const requestNextQuestion = async (
@@ -310,6 +325,8 @@ export default function CincoPorquesScreen() {
     setGeneratingQuestion(true);
     setQuestionError(false);
     setHelpOptions(null);
+    setCurrentQuestion('');
+    clearComposer();
 
     const attempt = async () => {
       try {
@@ -330,6 +347,16 @@ export default function CincoPorquesScreen() {
     };
 
     const stale = () => requestId !== requestIdRef.current;
+    const accept = (result: PorquesQuestionResult) => {
+      const pergunta = result.pergunta.trim();
+      if (!pergunta) return false;
+      setPendingRequest(null);
+      setQuestionError(false);
+      applyQuestionResult({ ...result, pergunta }, help);
+      setGeneratingQuestion(false);
+      playLayer('forward');
+      return true;
+    };
 
     try {
       let result = await attempt();
@@ -337,39 +364,31 @@ export default function CincoPorquesScreen() {
 
       if (result?.risco) {
         setPendingRequest(null);
+        setGeneratingQuestion(false);
         navigation.goBack();
         return;
       }
 
-      if (result?.pergunta) {
-        setPendingRequest(null);
-        setQuestionError(false);
-        applyQuestionResult(result, help);
-        return;
-      }
+      if (result && accept(result)) return;
 
       result = await attempt();
       if (stale()) return;
 
       if (result?.risco) {
         setPendingRequest(null);
+        setGeneratingQuestion(false);
         navigation.goBack();
         return;
       }
 
-      if (result?.pergunta) {
-        setPendingRequest(null);
-        setQuestionError(false);
-        applyQuestionResult(result, help);
-        return;
-      }
+      if (result && accept(result)) return;
 
       setQuestionError(true);
+      setGeneratingQuestion(false);
     } catch {
       if (stale()) return;
       setQuestionError(true);
-    } finally {
-      if (!stale()) setGeneratingQuestion(false);
+      setGeneratingQuestion(false);
     }
   };
 
@@ -382,27 +401,43 @@ export default function CincoPorquesScreen() {
     );
   };
 
-  const advanceWithAnswer = (answer: string) => {
+  const advanceWithAnswer = (answer: string, fromHelpOption = false) => {
     const trimmed = answer.trim();
-    if (!trimmed || generatingQuestion || questionError) {
+    if (submittingRef.current || !trimmed || composerLocked) {
       return;
     }
-    if (!currentQuestion || currentQuestion === '…') {
+    if (trimmed.length < 3) {
       return;
     }
-
-    if (index > 0 && isVagueAnswer(trimmed) && !helpUsed) {
-      setHelpUsed(true);
-      setHelpOptions(null);
-      playLayer('forward');
-      void requestNextQuestion(pairs, index + 1, { respostaAtual: trimmed });
+    if (!currentQuestion.trim() || currentQuestion === '…') {
       return;
     }
 
-    const nextPairs = [...pairs, { pergunta: currentQuestion, resposta: trimmed }];
+    // Layers 2–5: one system rephrase for vague answers; after that, inline hint.
+    if (!fromHelpOption && index > 0 && isVagueAnswer(trimmed)) {
+      if (!helpUsed) {
+        submittingRef.current = true;
+        setHelpUsed(true);
+        setHelpOptions(null);
+        setVagueHint(null);
+        playLayer('forward');
+        void requestNextQuestion(pairs, index + 1, { respostaAtual: trimmed }).finally(() => {
+          submittingRef.current = false;
+        });
+        return;
+      }
+      setVagueHint('Essa resposta ficou muito curta. Conta um pouco mais pra gente seguir.');
+      return;
+    }
+
+    setVagueHint(null);
+
+    submittingRef.current = true;
+    const answeredQuestion = currentQuestion.trim();
+    const nextPairs = [...pairs, { pergunta: answeredQuestion, resposta: trimmed }];
     setFreshIndex(nextPairs.length - 1);
     setPairs(nextPairs);
-    setDraft('');
+    clearComposer();
     setHelpOptions(null);
     const nextIndex = index + 1;
     setIndex(nextIndex);
@@ -410,24 +445,30 @@ export default function CincoPorquesScreen() {
     playLayer('forward');
 
     if (nextIndex >= CINCO_PORQUES.length) {
+      submittingRef.current = false;
       return;
     }
-    void requestNextQuestion(nextPairs, nextIndex + 1);
+    void requestNextQuestion(nextPairs, nextIndex + 1).finally(() => {
+      submittingRef.current = false;
+    });
   };
 
   const submit = () => {
+    if (composerLocked) return;
     const trimmed = draft.trim();
     if (trimmed.length < 3) return;
     advanceWithAnswer(trimmed);
   };
 
   const chooseHelpOption = (option: string) => {
-    advanceWithAnswer(option);
+    if (composerLocked) return;
+    advanceWithAnswer(option, true);
   };
 
   const goToPrevious = () => {
-    if (index <= 0) return;
+    if (index <= 0 || submittingRef.current) return;
     requestIdRef.current += 1;
+    submittingRef.current = false;
     setGeneratingQuestion(false);
     setQuestionError(false);
     setPendingRequest(null);
@@ -436,6 +477,8 @@ export default function CincoPorquesScreen() {
     setPairs(nextPairs);
     setFreshIndex(-1);
     setDraft(previous?.resposta ?? '');
+    setVagueHint(null);
+    setComposerKey((current) => current + 1);
     setCurrentQuestion(previous?.pergunta ?? FIXED_FIRST.title);
     setHelpOptions(null);
     setIndex((current) => current - 1);
@@ -592,97 +635,113 @@ export default function CincoPorquesScreen() {
           </View>
         </>
       ) : (
-        <>
-          {pairs.length > 0 ? (
-            <ScrollView
-              style={{ flex: 1, minHeight: 0 }}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              onScrollBeginDrag={dismissKeyboard}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{
-                paddingHorizontal: 20,
-                paddingTop: 16,
-                gap: 12,
-                paddingBottom: 12,
+        <View style={{ flex: 1 }}>
+          <ScrollView
+            ref={stackRef}
+            style={{ flex: 1, minHeight: 0 }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            onScrollBeginDrag={dismissKeyboard}
+            showsVerticalScrollIndicator={false}
+            onContentSizeChange={() => {
+              if (pairs.length === 0) return;
+              stackRef.current?.scrollToEnd({ animated: true });
+            }}
+            contentContainerStyle={{
+              flexGrow: 1,
+              paddingTop: pairs.length > 0 ? 16 : 0,
+              paddingBottom: 8,
+            }}
+          >
+            {pairs.length > 0 ? (
+              <Pressable onPress={dismissKeyboard} accessible={false} style={{ gap: 12, paddingHorizontal: 20 }}>
+                {pairs.map((pair, originalIndex) => (
+                  <PorquesStackCard
+                    key={`${originalIndex}-${pair.pergunta}`}
+                    question={originalIndex === 0 ? FIXED_FIRST.title : pair.pergunta}
+                    answer={pair.resposta}
+                    fresh={originalIndex === freshIndex}
+                  />
+                ))}
+              </Pressable>
+            ) : null}
+            <Pressable
+              onPress={dismissKeyboard}
+              accessible={false}
+              style={{
                 flexGrow: 1,
+                justifyContent: 'center',
+                minHeight: keyboardOpen ? 96 : 140,
+                paddingVertical: keyboardOpen ? 8 : 12,
               }}
             >
-              {pairs.map((pair, originalIndex) => (
-                <PorquesStackCard
-                  key={`${originalIndex}-${pair.pergunta}`}
-                  question={originalIndex === 0 ? FIXED_FIRST.title : pair.pergunta}
-                  answer={pair.resposta}
-                  fresh={originalIndex === freshIndex}
-                />
-              ))}
-            </ScrollView>
-          ) : null}
-          <Pressable
-            onPress={dismissKeyboard}
-            accessible={false}
-            style={pairs.length ? undefined : { flex: 1 }}
-          >
-            <Reanimated.View style={[{ paddingTop: pairs.length ? 12 : 32, paddingBottom: 12 }, promptStyle]}>
-              <ActivityKicker label={layerLabel} />
-              <View
-                style={{
-                  paddingHorizontal: 36,
-                  paddingTop: pairs.length ? (keyboardOpen ? 12 : 20) : 28,
-                }}
-              >
-                {generatingQuestion ? (
-                  <LoadingDots color={colors.text3} />
-                ) : questionError ? (
-                  <View style={{ alignItems: 'center', gap: 14 }}>
-                    <Text
-                      style={{
-                        fontFamily: fonts.display,
-                        fontSize: 26,
-                        lineHeight: 32,
-                        letterSpacing: -0.4,
-                        color: colors.text,
-                        textAlign: 'center',
-                      }}
-                    >
-                      Não consegui continuar agora
-                    </Text>
-                    <Pressable
-                      onPress={retryQuestion}
-                      accessibilityRole="button"
-                      accessibilityLabel="Tentar de novo"
-                    >
-                      <Text style={{ fontFamily: fonts.sansSemi, fontSize: 16, color: colors.accent }}>
-                        Tentar de novo
+              <Reanimated.View style={promptStyle}>
+                <ActivityKicker label={layerLabel} />
+                <View
+                  style={{
+                    paddingHorizontal: 36,
+                    paddingTop: keyboardOpen ? 8 : 14,
+                  }}
+                >
+                  {generatingQuestion || (!questionError && !currentQuestion.trim()) ? (
+                    <LoadingDots color={colors.text3} />
+                  ) : questionError ? (
+                    <View style={{ alignItems: 'center', gap: 14 }}>
+                      <Text
+                        style={{
+                          fontFamily: fonts.display,
+                          fontSize: 26,
+                          lineHeight: 32,
+                          letterSpacing: -0.4,
+                          color: colors.text,
+                          textAlign: 'center',
+                        }}
+                      >
+                        Não consegui continuar agora
                       </Text>
-                    </Pressable>
-                  </View>
-                ) : (
-                  <ActivityPrompt>{currentQuestion}</ActivityPrompt>
-                )}
-              </View>
-              {helpOptions && !generatingQuestion && !questionError ? (
-                <View style={{ gap: 10, paddingHorizontal: 20, paddingTop: 20 }}>
-                  {helpOptions.map((option) => (
-                    <ActivityOptionRow
-                      key={option}
-                      label={option}
-                      onPress={() => chooseHelpOption(option)}
-                    />
-                  ))}
+                      <Pressable
+                        onPress={retryQuestion}
+                        accessibilityRole="button"
+                        accessibilityLabel="Tentar de novo"
+                      >
+                        <Text style={{ fontFamily: fonts.sansSemi, fontSize: 16, color: colors.accent }}>
+                          Tentar de novo
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <ActivityPrompt>{currentQuestion}</ActivityPrompt>
+                  )}
                 </View>
-              ) : null}
-            </Reanimated.View>
-          </Pressable>
+                {helpOptions && promptReady ? (
+                  <View style={{ gap: 10, paddingHorizontal: 20, paddingTop: 20 }}>
+                    {helpOptions.map((option) => (
+                      <ActivityOptionRow
+                        key={option}
+                        label={option}
+                        onPress={() => chooseHelpOption(option)}
+                      />
+                    ))}
+                  </View>
+                ) : null}
+              </Reanimated.View>
+            </Pressable>
+          </ScrollView>
           <ActivityComposer
             value={draft}
-            onChangeText={setDraft}
+            onChangeText={(value) => {
+              setDraft(value);
+              if (vagueHint) setVagueHint(null);
+            }}
             onSend={submit}
             placeholder="Escreva aqui…"
-            disabled={generatingQuestion || questionError}
+            disabled={composerLocked}
+            inputKey={composerKey}
+            minLength={3}
+            hint={vagueHint}
             bottomInset={keyboardOpen ? 12 : undefined}
           />
-        </>
+        </View>
       )}
     </View>
   );
