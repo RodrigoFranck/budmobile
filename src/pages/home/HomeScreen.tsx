@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -17,22 +18,26 @@ import { Menu } from 'lucide-react-native';
 
 import { BudIconButton } from '@/components/v3';
 import { firstGivenName } from '@/copy/nameGender';
+import { useAuth } from '@/contexts/AuthContext';
 import { useBootSplash } from '@/contexts/BootSplashContext';
 import { useTabScreenContext, useTabScreenLoading } from '@/contexts/TabScreenContext';
 import { useDailyLetter } from '@/hooks/useDailyLetter';
 import { useGenderedCopy } from '@/hooks/useGenderedCopy';
 import { useHomeRecaps, type HomeRecapItem } from '@/hooks/useHomeRecaps';
-import { fonts, useV3Asset, useV3Colors, v3DarkColors, type V3Colors } from '@/theme';
+import { readHomeShellCache, writeHomeShellCache } from '@/services/homeShellCache';
+import { fonts, useV3Asset, useV3Colors, type V3Colors } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
 import LetterCeremony, { LETTER_HOME, type LetterOrigin } from '@/pages/letter/LetterCeremony';
 import { HomeArrowIcon, HomeChatFillIcon } from '@/pages/home/homeIcons';
 import { openHomeRecapChat } from '@/utils/buildHomeRecapChatInsight';
+import { bootMarkOnce } from '@/utils/bootTiming';
 import {
   getNowInBrasilia,
   getWeekStartBrasilia,
   getYesterdayInBrasilia,
   parseDateString,
 } from '@/utils/dateUtils';
+import { RECAP_LIMIT } from '@/utils/homeRecaps';
 import { navigateToChatTab } from '@/utils/navigateToChat';
 
 type RecapItem = HomeRecapItem;
@@ -195,18 +200,22 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const navigation = useNavigation<MainTabNavigationProp>();
+  const { user } = useAuth();
   const tabLoading = useTabScreenLoading('Home');
   const {
     profile,
     yesterdayInsight,
     conversations,
     conversationsLoading,
-    historyTitlesLoading,
   } = useTabScreenContext();
-  const { available: hasLetter, loading: letterLoading } = useDailyLetter();
-  const conversationsReady = !conversationsLoading && !historyTitlesLoading;
+  const {
+    available: hasLetterLive,
+    loading: letterLoading,
+    generating: letterGenerating,
+  } = useDailyLetter();
+  const conversationsReady = !conversationsLoading;
   const { g } = useGenderedCopy();
-  const firstName = firstGivenName(profile?.name ?? '') || 'você';
+  const liveFirstName = firstGivenName(profile?.name ?? '') || 'você';
   const greeting = greetingForHour();
   const [greetingLead, greetingAccent] = greeting.split(' ');
 
@@ -214,7 +223,9 @@ export default function HomeScreen() {
   const [letterOrigin, setLetterOrigin] = useState<LetterOrigin | null>(null);
   const [hideLetterEnvelope, setHideLetterEnvelope] = useState(false);
   const [recapStuck, setRecapStuck] = useState(false);
-  const [revealed, setRevealed] = useState(false);
+  const [cachedFirstName, setCachedFirstName] = useState<string | null>(null);
+  const [cachedHasLetter, setCachedHasLetter] = useState<boolean | null>(null);
+  const [cachedRecaps, setCachedRecaps] = useState<HomeRecapItem[] | null>(null);
   const { setMainTabsReady } = useBootSplash();
   const envelopeRef = useRef<View>(null);
   const homeRootRef = useRef<View>(null);
@@ -258,22 +269,86 @@ export default function HomeScreen() {
     });
   }, [envH, envW, insets.top, windowWidth]);
 
-  const { recaps, recapCountLabel, loading: recapsLoading } = useHomeRecaps({
+  const {
+    recaps: liveRecaps,
+    recapCountLabel: liveRecapCountLabel,
+    loading: recapsLoading,
+    generating: recapsGenerating,
+  } = useHomeRecaps({
     conversations,
     yesterdayInsight,
-    hasLetter,
+    hasLetter: hasLetterLive,
     conversationsReady,
     dateLabel: recapDateLabel,
   });
-  const contentReady = !tabLoading && !letterLoading && !recapsLoading;
-  if (contentReady && !revealed) {
-    setRevealed(true);
-  }
+
+  const firstName = cachedFirstName && liveFirstName === 'você' ? cachedFirstName : liveFirstName;
+  const hasLetter = letterLoading && cachedHasLetter != null ? cachedHasLetter : hasLetterLive;
+  const recaps = liveRecaps.length > 0 ? liveRecaps : cachedRecaps ?? [];
+  const recapCountLabel =
+    liveRecaps.length > 0 || !cachedRecaps
+      ? liveRecapCountLabel
+      : `${cachedRecaps.length} de ${RECAP_LIMIT}`;
+  const showLetterPending =
+    (letterLoading || letterGenerating) && cachedHasLetter == null && !hasLetterLive;
+  const showRecapsPending =
+    (recapsLoading || recapsGenerating) && recaps.length === 0 && !tabLoading;
 
   useEffect(() => {
-    if (!revealed) return;
+    // Dismiss splash as soon as the Home shell can paint — secondary sections load after.
+    bootMarkOnce('home_shell_mounted', { tabLoading });
     setMainTabsReady(true);
-  }, [revealed, setMainTabsReady]);
+  }, [setMainTabsReady, tabLoading]);
+
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId) return;
+    let cancelled = false;
+    void readHomeShellCache(userId).then((cached) => {
+      if (cancelled || !cached) return;
+      setCachedFirstName(cached.firstName);
+      setCachedHasLetter(cached.hasLetter);
+      setCachedRecaps(cached.recaps);
+      bootMarkOnce('home_shell_cache_hit', {
+        hasLetter: cached.hasLetter,
+        recaps: cached.recaps.length,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId || tabLoading || letterLoading || recapsLoading) return;
+    void writeHomeShellCache(userId, {
+      firstName: liveFirstName,
+      hasLetter: hasLetterLive,
+      recaps: liveRecaps,
+    });
+  }, [
+    hasLetterLive,
+    letterLoading,
+    liveFirstName,
+    liveRecaps,
+    recapsLoading,
+    tabLoading,
+    user?.id,
+  ]);
+
+  useEffect(() => {
+    if (letterLoading) return;
+    bootMarkOnce('home_letter_section_ready', { hasLetter: hasLetterLive });
+  }, [hasLetterLive, letterLoading]);
+
+  useEffect(() => {
+    if (recapsLoading) return;
+    bootMarkOnce('home_recaps_section_ready', {
+      count: liveRecaps.length,
+      generating: recapsGenerating,
+    });
+  }, [liveRecaps.length, recapsGenerating, recapsLoading]);
 
   const openRecap = useCallback(
     async (item: RecapItem) => {
@@ -328,16 +403,6 @@ export default function HomeScreen() {
     if (recapOffset == null) return;
     scrollRef.current?.scrollTo({ y: recapOffset, animated: true });
   }, []);
-
-  if (!revealed) {
-    return (
-      <View
-        style={{ flex: 1, backgroundColor: v3DarkColors.bg }}
-        accessibilityRole="progressbar"
-        accessibilityLabel="Carregando conteúdo"
-      />
-    );
-  }
 
   return (
     <View ref={homeRootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -441,7 +506,25 @@ export default function HomeScreen() {
             )}
           </Text>
 
-          {hasLetter ? (
+          {showLetterPending ? (
+          <View
+            accessibilityRole="progressbar"
+            accessibilityLabel="Carregando carta"
+            style={{ alignItems: 'center', marginTop: 28, gap: 10 }}
+          >
+            <ActivityIndicator color={colors.accent} />
+            <Text
+              style={{
+                fontFamily: fonts.sansMedium,
+                fontSize: 13,
+                lineHeight: 16,
+                color: colors.text3,
+              }}
+            >
+              Preparando sua carta…
+            </Text>
+          </View>
+          ) : hasLetter ? (
           <Pressable
             onPress={openLetter}
             accessibilityRole="button"
@@ -537,7 +620,7 @@ export default function HomeScreen() {
             onLayout={(event) => {
               recapOffsetRef.current = event.nativeEvent.layout.y;
             }}
-            style={{ marginTop: hasLetter ? 36 : 32 }}
+            style={{ marginTop: hasLetter || showLetterPending ? 36 : 32 }}
           >
             <View
               style={{
@@ -594,6 +677,54 @@ export default function HomeScreen() {
                   }}
                 />
               ))}
+              {recapsGenerating ? (
+                <View
+                  accessibilityRole="progressbar"
+                  accessibilityLabel="Atualizando sugestões"
+                  style={{ alignItems: 'center', paddingVertical: 8 }}
+                >
+                  <ActivityIndicator color={colors.text3} />
+                </View>
+              ) : null}
+            </View>
+          </View>
+          ) : showRecapsPending ? (
+          <View
+            onLayout={(event) => {
+              recapOffsetRef.current = event.nativeEvent.layout.y;
+            }}
+            accessibilityRole="progressbar"
+            accessibilityLabel="Carregando para começar"
+            style={{
+              marginTop: hasLetter || showLetterPending ? 36 : 32,
+              paddingHorizontal: 24,
+              gap: 12,
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: fonts.sansSemi,
+                fontSize: 11.5,
+                lineHeight: 12,
+                letterSpacing: 1.6,
+                textTransform: 'uppercase',
+                color: colors.text3,
+              }}
+            >
+              Para começar
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <ActivityIndicator color={colors.text3} />
+              <Text
+                style={{
+                  fontFamily: fonts.sansMedium,
+                  fontSize: 13,
+                  lineHeight: 16,
+                  color: colors.text3,
+                }}
+              >
+                Preparando sugestões…
+              </Text>
             </View>
           </View>
           ) : null}

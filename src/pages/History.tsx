@@ -22,6 +22,7 @@ import {
   daysUntilSunday,
   formatWeekRangeLong,
   groupHistoryDaysByWeek,
+  historyDayIsLetterOnly,
   historyDayIsOpenable,
   useHistoryDays,
   type HistoryDay,
@@ -41,6 +42,7 @@ import { AccentTitle } from '@/pages/menu/menuUi';
 import { loadWeeklySummary, type WeeklySummarySnapshot } from '@/services/weeklySummaryQuery';
 import { fonts, useV3Asset, useV3Colors } from '@/theme';
 import type { MainTabNavigationProp, MainTabParamList } from '@/types/navigation';
+import { cleanupEmptyConversations } from '@/utils/cleanupEmptyConversations';
 import { formatDateBrasilia } from '@/utils/dateUtils';
 import { WEEKLY_SUMMARY_MIN_COPY, weeklySummaryDots } from '@/utils/weeklySummary';
 
@@ -69,11 +71,16 @@ function dayAccessibilityLabel(day: HistoryDay) {
   if (day.messageCount > 0) {
     parts.push(`${day.messageCount} trocas`);
   }
-  if (day.hasLetter) {
+  if (historyDayIsLetterOnly(day)) {
+    parts.push('ler a carta do dia');
+  } else if (day.hasLetter) {
     parts.push('carta');
   }
   for (const activity of day.activities) {
     parts.push(activity.label);
+  }
+  if (!historyDayIsOpenable(day)) {
+    parts.push('sem conversa');
   }
   return parts.join(', ');
 }
@@ -107,13 +114,10 @@ function DayRow({
   onPress: () => void;
 }) {
   const colors = useV3Colors();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={dayAccessibilityLabel(day)}
-      onPress={onPress}
-      style={[styles.dayRow, { borderBottomColor: colors.line }]}
-    >
+  const openable = historyDayIsOpenable(day);
+
+  const content = (
+    <>
       <View style={styles.dayText}>
         <Text numberOfLines={1} style={[styles.dayWeekday, { color: colors.text }]}>
           {day.weekdayLabel}
@@ -135,9 +139,34 @@ function DayRow({
           </View>
         ) : null}
       </View>
-      <View style={styles.dayChevron}>
-        <HistoryChevronIcon color={colors.text3} />
+      {openable ? (
+        <View style={styles.dayChevron}>
+          <HistoryChevronIcon color={colors.text3} />
+        </View>
+      ) : null}
+    </>
+  );
+
+  if (!openable) {
+    return (
+      <View
+        accessible
+        accessibilityLabel={dayAccessibilityLabel(day)}
+        style={[styles.dayRow, { borderBottomColor: colors.line }]}
+      >
+        {content}
       </View>
+    );
+  }
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={dayAccessibilityLabel(day)}
+      onPress={onPress}
+      style={[styles.dayRow, { borderBottomColor: colors.line }]}
+    >
+      {content}
     </Pressable>
   );
 }
@@ -243,17 +272,34 @@ export default function HistoryScreen() {
     }, [refreshExploreInsights]),
   );
 
+  useEffect(() => {
+    if (!user?.id) return;
+    void cleanupEmptyConversations(user.id).then((deletedAny) => {
+      if (!deletedAny) return;
+      void refetchConversations();
+      void refetchHistoryDays();
+    });
+  }, [refetchConversations, refetchHistoryDays, user?.id]);
+
   const openRecap = useCallback(() => {
     if (summaryPhase !== 'ready' || !summary?.insight) return;
     void logClickEvent(CLICK_EVENTS.HISTORY_DEEP_INSIGHT_OPEN);
     setRecap(summary);
   }, [summary, summaryPhase]);
 
-  const openDay = useCallback((day: HistoryDay) => {
-    if (!historyDayIsOpenable(day)) return;
-    void logClickEvent(CLICK_EVENTS.HISTORY_CONVERSATION_OPEN);
-    setSelectedDay(day);
-  }, []);
+  const openDay = useCallback(
+    (day: HistoryDay) => {
+      if (!historyDayIsOpenable(day)) return;
+      if (historyDayIsLetterOnly(day)) {
+        void logClickEvent(CLICK_EVENTS.HISTORY_CONVERSATION_OPEN);
+        navigation.navigate('LetterOpen', { letterDate: day.dateKey });
+        return;
+      }
+      void logClickEvent(CLICK_EVENTS.HISTORY_CONVERSATION_OPEN);
+      setSelectedDay(day);
+    },
+    [navigation],
+  );
 
   useEffect(() => {
     if (!route.params?.openDeepInsight) return;
@@ -294,6 +340,7 @@ export default function HistoryScreen() {
         dateLabel={selectedDay.dateLabel}
         activities={selectedDay.activities}
         hasLetter={selectedDay.hasLetter}
+        letterDate={selectedDay.dateKey}
         onBack={() => setSelectedDay(null)}
       />
     );

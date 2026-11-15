@@ -106,6 +106,32 @@ export function useConversationDetailStyles() {
       fontSize: 14,
       color: onboardingColors.textSecondary,
     },
+    errorState: {
+      paddingVertical: 24,
+      alignItems: 'flex-start',
+      gap: 14,
+    },
+    errorText: {
+      fontFamily: instrumentSansFont,
+      fontSize: 16,
+      lineHeight: 22,
+      color: onboardingColors.textSecondary,
+    },
+    retryButton: {
+      height: 42,
+      borderRadius: 29,
+      paddingHorizontal: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: onboardingColors.gradientIconSurface,
+      borderWidth: 1,
+      borderColor: onboardingColors.borderDark,
+    },
+    retryLabel: {
+      fontFamily: instrumentSansFont,
+      fontSize: 15,
+      color: onboardingColors.white,
+    },
     messages: {
       gap: 28,
     },

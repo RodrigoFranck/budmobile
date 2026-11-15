@@ -57,15 +57,18 @@ export function useHistoryDayMessages(conversationId: string | null) {
     }
   }, [query]);
 
+  const hasConversation = Boolean(conversationId);
+
   return {
     messages,
-    /** True only on the first load with no cached pages. */
-    loading: query.isPending && !query.data,
+    /** True only on the first load with no cached pages. Disabled query never loads. */
+    loading: hasConversation && query.isPending && !query.data,
     /** Soft refresh while showing cached messages. */
-    isFetching: query.isFetching && !query.isFetchingNextPage,
+    isFetching: hasConversation && query.isFetching && !query.isFetchingNextPage,
     isFetchingMore: query.isFetchingNextPage,
     hasMore: Boolean(query.hasNextPage),
     loadMore,
-    error: query.error,
+    error: hasConversation ? query.error : null,
+    refetch: query.refetch,
   };
 }

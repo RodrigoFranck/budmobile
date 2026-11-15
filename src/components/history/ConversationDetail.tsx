@@ -1,11 +1,13 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -18,12 +20,15 @@ import { useOnboardingColors } from '@/constants/onboardingTheme';
 import { useConversationDetailStyles } from '@/components/history/ConversationDetail.styles';
 import type { HistoryActivityChip } from '@/hooks/useHistoryDays';
 import type { ActivityId } from '@/pages/activitiesV3/activityFlows';
+import type { MainTabNavigationProp } from '@/types/navigation';
 import type { InsightActivityType } from '@/utils/insightContextVariant';
 import {
   isUserMessageAfterContext,
   parseInsightContextMessage,
 } from '@/utils/insightContextMessage';
 import { parseChatImageContent } from '@/utils/chatImageMessage';
+
+const LOAD_TIMEOUT_MS = 10_000;
 
 interface ConversationDetailProps {
   conversationId: string | null;
@@ -33,6 +38,7 @@ interface ConversationDetailProps {
   dateLabel?: string;
   activities?: HistoryActivityChip[];
   hasLetter?: boolean;
+  letterDate?: string;
   onBack: () => void;
 }
 
@@ -55,13 +61,25 @@ export default function ConversationDetail({
   dateLabel: dateLabelProp,
   activities = [],
   hasLetter = false,
+  letterDate,
   onBack,
 }: ConversationDetailProps) {
-  const { messages, loading, isFetching, hasMore, loadMore, isFetchingMore } =
+  const { messages, loading, isFetching, hasMore, loadMore, isFetchingMore, error, refetch } =
     useHistoryDayMessages(conversationId);
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<MainTabNavigationProp>();
   const onboardingColors = useOnboardingColors();
   const styles = useConversationDetailStyles();
+  const [timedOut, setTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      setTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => setTimedOut(true), LOAD_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [loading, conversationId]);
 
   const weekdayLabel = useMemo(() => {
     if (weekdayLabelProp) return weekdayLabelProp;
@@ -80,9 +98,19 @@ export default function ConversationDetail({
   );
 
   const hasMessages = messages.length > 0;
+  const loadFailed = Boolean(error) || timedOut;
+  const showSoftLoading = !loadFailed && (loading || (isFetching && !hasMessages));
   const showEmpty =
-    !loading && !hasMessages && activities.length === 0 && !hasLetter;
-  const showSoftLoading = loading || (isFetching && !hasMessages);
+    !showSoftLoading &&
+    !loadFailed &&
+    !hasMessages &&
+    activities.length === 0 &&
+    !hasLetter;
+
+  const handleRetry = () => {
+    setTimedOut(false);
+    void refetch();
+  };
 
   return (
     <View style={styles.screen}>
@@ -104,7 +132,7 @@ export default function ConversationDetail({
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         onScroll={({ nativeEvent }) => {
-          if (!hasMore || isFetchingMore) return;
+          if (!hasMore || isFetchingMore || loadFailed) return;
           const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
           const nearBottom =
             layoutMeasurement.height + contentOffset.y >= contentSize.height - 120;
@@ -128,7 +156,21 @@ export default function ConversationDetail({
           </View>
         ) : null}
 
-        {activities.length > 0 ? (
+        {loadFailed ? (
+          <View style={styles.errorState} accessibilityLabel="Não foi possível carregar esse dia">
+            <Text style={styles.errorText}>Não foi possível carregar esse dia</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Tentar de novo"
+              onPress={handleRetry}
+              style={styles.retryButton}
+            >
+              <Text style={styles.retryLabel}>Tentar de novo</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {!loadFailed && activities.length > 0 ? (
           <View style={styles.activitiesBlock}>
             <Text style={styles.activitiesTitle}>Atividades</Text>
             {activities.map((activity) => (
@@ -148,10 +190,15 @@ export default function ConversationDetail({
           </View>
         ) : null}
 
-        {hasLetter && !hasMessages && !showSoftLoading ? (
-          <View style={styles.letterNote}>
-            <Text style={styles.letterNoteText}>Você abriu a carta deste dia.</Text>
-          </View>
+        {!loadFailed && hasLetter && letterDate && !showSoftLoading ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Ler a carta deste dia"
+            onPress={() => navigation.navigate('LetterOpen', { letterDate })}
+            style={styles.letterNote}
+          >
+            <Text style={styles.letterNoteText}>Ler a carta deste dia</Text>
+          </Pressable>
         ) : null}
 
         {showEmpty ? (
@@ -161,7 +208,7 @@ export default function ConversationDetail({
           </View>
         ) : null}
 
-        {hasMessages ? (
+        {!loadFailed && hasMessages ? (
           <View style={styles.messages}>
             {messages.map((message, index) => {
               if (isUserMessageAfterContext(messages, index)) {

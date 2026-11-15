@@ -7,6 +7,7 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
+import { InteractionManager } from 'react-native';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -18,6 +19,7 @@ import { useMessages } from '@/hooks/useMessages';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { clearPendingChatInsight } from '@/utils/navigateToChat';
 import { prepareHistoryConversationTitles } from '@/utils/generateConversationTitle';
+import { bootMarkOnce } from '@/utils/bootTiming';
 import type { MainTabParamList } from '@/types/navigation';
 import type { Tables } from '@/integrations/supabase/types';
 import type { ExploreInsightKey } from '@/constants/exploreInsights';
@@ -123,15 +125,21 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false;
     setChatConversationReady(false);
-
-    void getOrCreateTodayConversation().then((conversation) => {
+    // Chat bootstrap is not on the Home critical path — defer after first paint.
+    const task = InteractionManager.runAfterInteractions(() => {
       if (cancelled) return;
-      setChatConversationId(conversation?.id ?? null);
-      setChatConversationReady(true);
+      const started = Date.now();
+      void getOrCreateTodayConversation().then((conversation) => {
+        if (cancelled) return;
+        setChatConversationId(conversation?.id ?? null);
+        setChatConversationReady(true);
+        bootMarkOnce('chat_today_conversation_ready', { ms: Date.now() - started });
+      });
     });
 
     return () => {
       cancelled = true;
+      task.cancel();
     };
   }, [user?.id, getOrCreateTodayConversation]);
 
@@ -150,21 +158,45 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    let cancelled = false;
-    setHistoryTitlesLoading(true);
+    bootMarkOnce('home_conversations_ready', { count: conversations.length });
+    // Expose conversations immediately so Home can paint; title AI runs after.
+    setHistoryConversations(conversations);
+    setHistoryTitlesLoading(false);
 
-    void prepareHistoryConversationTitles(conversations).then((prepared) => {
-      if (cancelled) {
-        return;
-      }
-      setHistoryConversations(prepared);
-      setHistoryTitlesLoading(false);
+    let cancelled = false;
+    const started = Date.now();
+    const task = InteractionManager.runAfterInteractions(() => {
+      if (cancelled) return;
+      void prepareHistoryConversationTitles(conversations).then((prepared) => {
+        if (cancelled) {
+          return;
+        }
+        setHistoryConversations(prepared);
+        bootMarkOnce('history_titles_ready', {
+          ms: Date.now() - started,
+          count: prepared.length,
+        });
+      });
     });
 
     return () => {
       cancelled = true;
+      task.cancel();
     };
   }, [user?.id, conversations, conversationsLoading]);
+
+  useEffect(() => {
+    if (!conversationsLoading) return;
+    bootMarkOnce('home_conversations_loading');
+  }, [conversationsLoading]);
+
+  useEffect(() => {
+    if (insightsLoading) {
+      bootMarkOnce('explore_insights_loading');
+      return;
+    }
+    bootMarkOnce('explore_insights_ready');
+  }, [insightsLoading]);
 
   const chatReady =
     chatConversationReady &&
@@ -174,12 +206,9 @@ export function TabScreenProvider({ children }: { children: ReactNode }) {
 
   const exploreReady = !insightsLoading && themeLoaded;
   const historyReady = !conversationsLoading && !historyTitlesLoading && themeLoaded;
-  const homeReady =
-    themeLoaded &&
-    !profileLoading &&
-    !insightsLoading &&
-    !conversationsLoading &&
-    !historyTitlesLoading;
+  // Splash / Home shell only needs theme + profile (greeting). Letter, insights,
+  // history titles and Para começar load after Home is already visible.
+  const homeReady = themeLoaded && !profileLoading;
   const activitiesReady = themeLoaded;
 
   const [latchedReady, setLatchedReady] = useState<Record<TabScreenName, boolean>>({

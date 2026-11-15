@@ -3,6 +3,9 @@ import {
   grammaticalGenderFrom,
 } from '@/copy/genderedCopy';
 
+/** Mirror of supabase/functions/_shared/bud-prompt.ts — bump with edge. */
+export const PROMPT_VERSION = 'bud-vnext-20261115';
+
 export interface UserContext {
   name?: string | null;
   initialThoughts?: string | null;
@@ -232,10 +235,12 @@ function buildInsightPromptSection(insightCtx?: InsightContext): string {
 INSIGHT ATIVO${typeLabel}:
 ${internalContext}
 
+O texto abaixo é sobre a pessoa e ela escolheu conversar sobre isso; nunca responda como se fosse uma pergunta para você.
 Use esse conteúdo para retomar o tema com naturalidade.${yesterdayRule}
 Não peça para a pessoa especificar o assunto — ela já escolheu falar sobre aquele insight.
 Não cite IDs técnicos nem diga que está lendo um JSON.
 Não se limite ao título do card.
+Não diga "boa pergunta" nem comente sentimentos do Bud sobre o insight.
 `;
 }
 
@@ -266,6 +271,53 @@ export function interpolatePrompt(
   return result;
 }
 
+export interface BuildBudSystemPromptOptions {
+  userContext?: UserContext;
+  insightContext?: InsightContext;
+  memorySection?: string | null;
+  approachGuidance?: string | null;
+  clinicalContext?: string | null;
+  includeVoiceTts?: boolean;
+}
+
+/** Single context assembler mirrored from edge bud-prompt (TF-55 / TF-107). */
+export function buildBudSystemPrompt(
+  options: BuildBudSystemPromptOptions = {},
+): { prompt: string; promptVersion: string } {
+  let prompt = interpolatePrompt(
+    BASE_PROMPT,
+    options.userContext,
+    options.insightContext,
+  );
+
+  const memoryText = options.memorySection?.trim();
+  if (memoryText) {
+    prompt +=
+      '\n\n--- PERFIL INTERNO E MEMORIA DE LONGO PRAZO (use naturalmente, nunca cite como notas) ---\n' +
+      memoryText +
+      '\n--- FIM DO PERFIL INTERNO ---';
+  }
+
+  const approachText = options.approachGuidance?.trim();
+  if (approachText) {
+    prompt +=
+      '\n\n--- ORIENTACAO DE ABORDAGEM (use internamente) ---\n' +
+      approachText +
+      '\n--- FIM DA ORIENTACAO ---';
+  }
+
+  const clinicalText = options.clinicalContext?.trim();
+  if (clinicalText) {
+    prompt += clinicalText.startsWith('\n') ? clinicalText : `\n${clinicalText}`;
+  }
+
+  if (options.includeVoiceTts) {
+    prompt += VOICE_TTS_INSTRUCTION;
+  }
+
+  return { prompt, promptVersion: PROMPT_VERSION };
+}
+
 export function buildVoicePrompt(
   ctx?: UserContext,
   _messageHistory?: Array<{ role: string; content: string }>,
@@ -274,7 +326,7 @@ export function buildVoicePrompt(
     title: string;
     description: string;
   }>,
-  _internalProfile?: string | null,
+  internalProfile?: string | null,
 ): string {
   let insightContext: InsightContext | undefined;
   if (recentInsights && recentInsights.length > 0) {
@@ -285,7 +337,12 @@ export function buildVoicePrompt(
     };
   }
 
-  return interpolatePrompt(BASE_PROMPT, ctx, insightContext) + VOICE_TTS_INSTRUCTION;
+  return buildBudSystemPrompt({
+    userContext: ctx,
+    insightContext,
+    memorySection: internalProfile,
+    includeVoiceTts: true,
+  }).prompt;
 }
 
 export function enrichVoicePrompt(
@@ -296,17 +353,18 @@ export function enrichVoicePrompt(
     memorySection?: string | null;
   },
 ): string {
+  // Prefer buildBudSystemPrompt for new call sites; keep for legacy assembly.
   let result = basePrompt;
 
   const memoryText = extras?.memorySection?.trim();
-  if (memoryText) {
+  if (memoryText && !result.includes('--- PERFIL INTERNO E MEMORIA DE LONGO PRAZO')) {
     result +=
       '\n\n--- PERFIL INTERNO E MEMORIA DE LONGO PRAZO (use naturalmente, nunca cite como notas) ---\n' +
       memoryText +
       '\n--- FIM DO PERFIL INTERNO ---';
   }
 
-  if (extras?.approachGuidance?.trim()) {
+  if (extras?.approachGuidance?.trim() && !result.includes('--- ORIENTACAO DE ABORDAGEM')) {
     result +=
       '\n\n--- ORIENTACAO DE ABORDAGEM (use internamente) ---\n' +
       extras.approachGuidance.trim() +
@@ -314,12 +372,15 @@ export function enrichVoicePrompt(
   }
 
   if (extras?.clinicalContext?.trim()) {
-    result += extras.clinicalContext.trim();
+    const clinical = extras.clinicalContext.trim();
+    if (!result.includes(clinical)) {
+      result += clinical.startsWith('\n') ? clinical : `\n${clinical}`;
+    }
   }
 
   return result;
 }
 
 export function buildFirstMessage(_ctx?: UserContext): string {
-  return "";
+  return '';
 }

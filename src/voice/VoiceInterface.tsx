@@ -794,6 +794,11 @@ function VoiceInterfaceNativeInner(
       const serverContext = await fetchVoiceServerContext(
         sessionMessagesRef.current,
         'full',
+        {
+          userContext: userContextRef.current,
+          recentInsights: recentInsightsRef.current,
+          internalProfile: internalProfileRef.current,
+        },
       );
 
       if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {
@@ -1134,6 +1139,11 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
         const serverContext = await fetchVoiceServerContext(
           sessionMessagesRef.current,
           'full',
+          {
+            userContext: userContextRef.current,
+            recentInsights: recentInsightsRef.current,
+            internalProfile: internalProfileRef.current,
+          },
         );
 
         if (!voiceSessionActiveRef.current || generation !== startGenerationRef.current) {

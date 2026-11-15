@@ -121,6 +121,10 @@ function postChatXhr({
         },
         { flush: true },
       );
+      const promptVersion = xhr.getResponseHeader("x-bud-prompt-version");
+      if (promptVersion) {
+        console.log(`[prompt] version=${promptVersion} source=chat-text`);
+      }
       resolve({
         status: xhr.status,
         responseText: xhr.responseText,

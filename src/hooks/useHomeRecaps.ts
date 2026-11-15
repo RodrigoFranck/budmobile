@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { InteractionManager } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as SecureStore from 'expo-secure-store';
 
@@ -27,6 +28,7 @@ import {
 } from '@/utils/homeRecaps';
 import { cleanupTriggerUserMessages } from '@/utils/cleanupTriggerUserMessages';
 import { getTodayInBrasilia, getYesterdayInBrasilia } from '@/utils/dateUtils';
+import { bootMarkOnce } from '@/utils/bootTiming';
 
 export type HomeRecapItem =
   | { kind: 'yesterday'; id: 'yesterday'; label: string; quote: string; body: string }
@@ -111,11 +113,15 @@ export function useHomeRecaps(params: {
 
   useEffect(() => {
     if (!userId) return;
-    void cleanupTriggerUserMessages(userId).then(() => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(userId) });
-      void queryClient.invalidateQueries({ queryKey: ['recapSnippets', userId] });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.recapBodies(userId) });
+    // Cleanup + invalidations compete with cold-start Home fetches — defer.
+    const task = InteractionManager.runAfterInteractions(() => {
+      void cleanupTriggerUserMessages(userId).then(() => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(userId) });
+        void queryClient.invalidateQueries({ queryKey: ['recapSnippets', userId] });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.recapBodies(userId) });
+      });
     });
+    return () => task.cancel();
   }, [queryClient, userId]);
 
   const yesterdayIds = useMemo(
@@ -178,10 +184,16 @@ export function useHomeRecaps(params: {
   const generatedQuery = useQuery({
     queryKey: queryKeys.recapBodiesGenerate(userId ?? '', missingBodyIds),
     queryFn: async () => {
+      const started = Date.now();
+      bootMarkOnce('home_para_comecar_ai_start', { missing: missingBodyIds.length });
       const knownBodies = Object.values(cachedBodies).map((item) => item.paragrafo);
       const cards = await requestParaComecarCards({
         conversationIds: missingBodyIds,
         knownBodies,
+      });
+      bootMarkOnce('home_para_comecar_ai_done', {
+        ms: Date.now() - started,
+        generated: cards.length,
       });
       return mergeParaComecarCache(cachedBodies, cards);
     },
@@ -266,14 +278,35 @@ export function useHomeRecaps(params: {
   }, [bodiesById, nextPile, params, snippetQuery.data]);
 
   const snippetsReady = nextPile.length === 0 || snippetQuery.isFetched;
-  const bodiesReady =
-    missingBodyIds.length === 0 || generatedQuery.isFetched || generatedQuery.isError;
+  const bodiesGenerating =
+    missingBodyIds.length > 0 &&
+    !generatedQuery.isFetched &&
+    !generatedQuery.isError &&
+    generatedQuery.fetchStatus !== 'idle';
+
+  useEffect(() => {
+    if (!pileReady || !cacheReady || !params.conversationsReady) return;
+    bootMarkOnce('home_recaps_cache_ready', {
+      pile: nextPile.length,
+      cachedBodies: Object.keys(cachedBodies).length,
+      missingBodies: missingBodyIds.length,
+    });
+  }, [
+    cacheReady,
+    cachedBodies,
+    missingBodyIds.length,
+    nextPile.length,
+    params.conversationsReady,
+    pileReady,
+  ]);
 
   return {
     recaps,
     recapCountLabel: `${recaps.length} de ${RECAP_LIMIT}`,
+    // Essential local cache only — AI body generation continues after Home is visible.
     loading:
       Boolean(userId) &&
-      (!pileReady || !cacheReady || !params.conversationsReady || !snippetsReady || !bodiesReady),
+      (!pileReady || !cacheReady || !params.conversationsReady || !snippetsReady),
+    generating: Boolean(userId) && bodiesGenerating,
   };
 }

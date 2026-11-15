@@ -13,6 +13,13 @@ import { LaunchSplash } from '@/components/SplashScreen';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { v3DarkColors } from '@/theme';
+import {
+  bootMark,
+  bootMarkOnce,
+  isBootSplashDismissed,
+  markBootSplashDismissed,
+  shouldShowBootSplash,
+} from '@/utils/bootTiming';
 
 type BootSplashContextType = {
   mainTabsReady: boolean;
@@ -25,7 +32,13 @@ export function BootSplashProvider({ children }: { children: React.ReactNode }) 
   const { user } = useAuth();
   const [mainTabsReady, setMainTabsReadyState] = useState(false);
   const setMainTabsReady = useCallback((ready: boolean) => {
-    setMainTabsReadyState((current) => (current === ready ? current : ready));
+    setMainTabsReadyState((current) => {
+      if (current === ready) return current;
+      if (ready) {
+        bootMarkOnce('main_tabs_ready');
+      }
+      return ready;
+    });
   }, []);
 
   useEffect(() => {
@@ -61,9 +74,11 @@ export function BootSplashLayer({ fontsLoaded }: { fontsLoaded: boolean }) {
   const [minSplashElapsed, setMinSplashElapsed] = useState(false);
   const [interactionsDone, setInteractionsDone] = useState(false);
   const splashStartMsRef = useRef(Date.now());
+  const lastVisibleRef = useRef(true);
 
   useEffect(() => {
-    const minDurationMs = 700;
+    bootMarkOnce('splash_mounted');
+    const minDurationMs = 400;
     const remaining = Math.max(0, minDurationMs - (Date.now() - splashStartMsRef.current));
     const timer = setTimeout(() => setMinSplashElapsed(true), remaining);
     return () => clearTimeout(timer);
@@ -72,17 +87,100 @@ export function BootSplashLayer({ fontsLoaded }: { fontsLoaded: boolean }) {
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
       setInteractionsDone(true);
+      bootMarkOnce('interactions_idle');
     });
     return () => task.cancel();
   }, []);
+
+  useEffect(() => {
+    if (fontsLoaded) bootMarkOnce('fonts_loaded');
+  }, [fontsLoaded]);
+
+  useEffect(() => {
+    if (themeLoaded) bootMarkOnce('theme_loaded');
+  }, [themeLoaded]);
+
+  useEffect(() => {
+    if (!loading) bootMarkOnce('auth_session_ready', { hasUser: Boolean(user) });
+  }, [loading, user]);
+
+  useEffect(() => {
+    if (onboardingStatusLoaded) {
+      bootMarkOnce('onboarding_status_ready', {
+        completed: onboardingCompleted,
+      });
+    }
+  }, [onboardingCompleted, onboardingStatusLoaded]);
 
   const waitOnboarding = Boolean(user && !onboardingStatusLoaded && !passwordRecoveryPending);
   const showingMainTabs = Boolean(
     user && onboardingStatusLoaded && onboardingCompleted && !passwordRecoveryPending,
   );
   const bootstrapDone = fontsLoaded && themeLoaded && !loading && !waitOnboarding;
+  // Home shell signals ready as soon as it mounts; secondary Home sections load after.
   const destinationReady = !showingMainTabs || mainTabsReady;
-  const visible = !(bootstrapDone && minSplashElapsed && interactionsDone && destinationReady);
+  const gatesReady = bootstrapDone && minSplashElapsed && interactionsDone && destinationReady;
+  const visible = shouldShowBootSplash() && !gatesReady;
+
+  useEffect(() => {
+    if (visible === lastVisibleRef.current) return;
+    lastVisibleRef.current = visible;
+    if (visible) {
+      bootMark('splash_visible', {
+        fontsLoaded,
+        themeLoaded,
+        authLoading: loading,
+        waitOnboarding,
+        mainTabsReady,
+        showingMainTabs,
+      });
+      return;
+    }
+    markBootSplashDismissed({
+      fontsLoaded,
+      themeLoaded,
+      authLoading: loading,
+      waitOnboarding,
+      mainTabsReady,
+      showingMainTabs,
+    });
+  }, [
+    fontsLoaded,
+    loading,
+    mainTabsReady,
+    showingMainTabs,
+    themeLoaded,
+    visible,
+    waitOnboarding,
+  ]);
+
+  useEffect(() => {
+    if (!visible || isBootSplashDismissed()) return;
+    bootMark('splash_gate', {
+      fontsLoaded,
+      themeLoaded,
+      authLoading: loading,
+      waitOnboarding,
+      minSplashElapsed,
+      interactionsDone,
+      mainTabsReady,
+      showingMainTabs,
+      bootstrapDone,
+      destinationReady,
+    });
+  }, [
+    bootstrapDone,
+    destinationReady,
+    fontsLoaded,
+    interactionsDone,
+    loading,
+    mainTabsReady,
+    minSplashElapsed,
+    showingMainTabs,
+    themeLoaded,
+    visible,
+    waitOnboarding,
+  ]);
 
   if (!visible) return null;
 

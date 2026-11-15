@@ -19,7 +19,13 @@ import {
   getWeekStartBrasilia,
   parseDateString,
 } from '@/utils/dateUtils';
+import {
+  historyDayIsLetterOnly,
+  historyDayIsOpenable,
+} from '@/utils/historyDayOpenable';
 import { countDisplayableHistoryTurns } from '@/utils/historyMessages';
+
+export { historyDayIsLetterOnly, historyDayIsOpenable };
 
 const WEEK_DOT_LABELS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'] as const;
 const ACTIVITY_IDS: ActivityId[] = [
@@ -55,10 +61,6 @@ export type HistoryDay = {
   hasLetter: boolean;
   activities: HistoryActivityChip[];
 };
-
-export function historyDayIsOpenable(day: HistoryDay) {
-  return Boolean(day.conversationId) || day.activities.length > 0 || day.hasLetter;
-}
 
 export type HistoryWeekDot = {
   label: string;
@@ -200,8 +202,15 @@ async function fetchHistoryExtras(
       .eq('user_id', userId)
       .eq('status', 'completed'),
     relationAvailable('daily_letters')
-      ? supabase.from('daily_letters').select('letter_date').eq('user_id', userId)
-      : Promise.resolve({ data: [] as Array<{ letter_date: string }>, error: null }),
+      ? supabase
+          .from('daily_letters')
+          .select('letter_date, opened_at')
+          .eq('user_id', userId)
+          .not('opened_at', 'is', null)
+      : Promise.resolve({
+          data: [] as Array<{ letter_date: string; opened_at: string | null }>,
+          error: null,
+        }),
     supabase.from('daily_checkins').select('checkin_date').eq('user_id', userId),
     conversationIds.length > 0
       ? supabase
