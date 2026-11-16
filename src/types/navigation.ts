@@ -63,7 +63,7 @@ export type MainTabParamList = {
   Support: undefined;
   SupportSent: undefined;
   Letter: undefined;
-  LetterOpen: undefined;
+  LetterOpen: { letterDate?: string } | undefined;
   Paywall: { interval?: 'monthly' | 'annual' } | undefined;
   ActivityFlow: { activityId: ActivityId };
   Institution: { forced?: boolean } | undefined;

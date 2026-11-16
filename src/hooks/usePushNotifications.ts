@@ -8,6 +8,7 @@ import {
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import type { NavigationContainerRefWithCurrent } from '@react-navigation/native';
+import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -25,6 +26,7 @@ import {
 import type { RootStackParamList } from '@/types/navigation';
 import {
   flushPendingPushNavigation,
+  navigateFromBudUrl,
   navigateFromPushNotification,
 } from '@/utils/pushNotificationNavigation';
 
@@ -37,7 +39,9 @@ export function usePushNotifications(
   userIdRef.current = user?.id;
 
   useEffect(() => {
-    if (Platform.OS === 'web' || !user?.id || !isFetched) {
+    // TF-83: never prompt for permission here — only after onb_25 "Ativar lembretes"
+    // (or Preferências). Silent token refresh if already granted.
+    if (Platform.OS === 'web' || !user?.id || !isFetched || !onboardingCompleted) {
       return;
     }
 
@@ -48,7 +52,7 @@ export function usePushNotifications(
     let cancelled = false;
 
     const register = async () => {
-      const token = await registerForPushNotificationsAsync();
+      const token = await registerForPushNotificationsAsync({ request: false });
       if (cancelled || !token) {
         return;
       }
@@ -70,7 +74,7 @@ export function usePushNotifications(
       cancelled = true;
       tokenRefreshUnsubscribe();
     };
-  }, [user?.id, isFetched, profile?.push_notifications_enabled]);
+  }, [user?.id, isFetched, onboardingCompleted, profile?.push_notifications_enabled]);
 
   useEffect(() => {
     if (Platform.OS === 'web' || !user?.id || !onboardingCompleted) {
@@ -120,11 +124,26 @@ export function usePushNotifications(
       }
     );
 
+    const handleUrl = (url: string) => {
+      void navigateFromBudUrl(navigationRef, url, userIdRef.current);
+    };
+
+    const linkingSubscription = Linking.addEventListener('url', ({ url }) => {
+      handleUrl(url);
+    });
+
+    void Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleUrl(url);
+      }
+    });
+
     return () => {
       openedAppUnsubscribe();
       foregroundUnsubscribe();
       receivedSubscription.remove();
       responseSubscription.remove();
+      linkingSubscription.remove();
     };
   }, [navigationRef]);
 }

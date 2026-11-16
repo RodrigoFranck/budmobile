@@ -19,6 +19,13 @@ import {
   getWeekStartBrasilia,
   parseDateString,
 } from '@/utils/dateUtils';
+import {
+  historyDayIsLetterOnly,
+  historyDayIsOpenable,
+} from '@/utils/historyDayOpenable';
+import { countDisplayableHistoryTurns } from '@/utils/historyMessages';
+
+export { historyDayIsLetterOnly, historyDayIsOpenable };
 
 const WEEK_DOT_LABELS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'] as const;
 const ACTIVITY_IDS: ActivityId[] = [
@@ -39,6 +46,7 @@ export type HistoryActivityChip = {
   id: ActivityId;
   label: string;
   color: string;
+  resultText?: string | null;
 };
 
 export type HistoryDay = {
@@ -76,15 +84,16 @@ function dateLabel(date: Date) {
   return format(date, "d 'de' MMMM", { locale: ptBR });
 }
 
-function conversationDayKey(conversation: Conversation) {
-  const source = conversation.conversation_date || conversation.created_at;
-  return source.includes('T') ? source.split('T')[0] : source;
-}
-
 function brasiliaDayKey(iso: string | null | undefined) {
   if (!iso) return null;
   if (!iso.includes('T')) return iso.slice(0, 10);
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(iso));
+}
+
+/** Day key in America/Sao_Paulo — ISO timestamps must not use UTC `split('T')[0]` (breaks after 21h). */
+function conversationDayKey(conversation: Conversation) {
+  const source = conversation.conversation_date || conversation.created_at;
+  return brasiliaDayKey(source) ?? source.slice(0, 10);
 }
 
 export function formatWeekRangeLong(weekStart: Date, weekEnd: Date) {
@@ -101,12 +110,86 @@ export function daysUntilSunday(from = getNowInBrasilia()) {
   return day === 0 ? 0 : 7 - day;
 }
 
+export type HistoryWeekTitle =
+  | { kind: 'this_week' }
+  | { kind: 'last_week' }
+  | { kind: 'range'; label: string };
+
+export type HistoryWeekSection = {
+  key: string;
+  weekStart: Date;
+  weekEnd: Date;
+  title: HistoryWeekTitle;
+  days: HistoryDay[];
+};
+
+function addDays(date: Date, amount: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+/** Groups history days into Mon–Sun weeks (Brasília). Empty weeks are omitted. */
+export function groupHistoryDaysByWeek(
+  days: HistoryDay[],
+  reference = getNowInBrasilia(),
+): HistoryWeekSection[] {
+  const thisWeekStart = getWeekStartBrasilia(reference);
+  const thisWeekKey = formatDateBrasilia(thisWeekStart);
+  const lastWeekStart = addDays(thisWeekStart, -7);
+  const lastWeekKey = formatDateBrasilia(lastWeekStart);
+
+  const byWeek = new Map<string, HistoryDay[]>();
+  for (const day of days) {
+    const weekStart = getWeekStartBrasilia(day.date);
+    const key = formatDateBrasilia(weekStart);
+    const list = byWeek.get(key);
+    if (list) {
+      list.push(day);
+    } else {
+      byWeek.set(key, [day]);
+    }
+  }
+
+  const keys = Array.from(byWeek.keys()).sort((a, b) => b.localeCompare(a));
+  return keys.map((key) => {
+    const weekStart = parseDateString(key);
+    const weekEnd = getWeekEndBrasilia(weekStart);
+    const title: HistoryWeekTitle =
+      key === thisWeekKey
+        ? { kind: 'this_week' }
+        : key === lastWeekKey
+          ? { kind: 'last_week' }
+          : { kind: 'range', label: formatWeekRangeLong(weekStart, weekEnd) };
+
+    return {
+      key,
+      weekStart,
+      weekEnd,
+      title,
+      days: (byWeek.get(key) ?? []).sort((a, b) => b.dateKey.localeCompare(a.dateKey)),
+    };
+  });
+}
+
 type HistoryExtras = {
   messageCounts: Record<string, number>;
-  activityByDay: Record<string, ActivityId[]>;
+  activityByDay: Record<string, HistoryActivityChip[]>;
   letterDays: string[];
   checkInDays: string[];
 };
+
+function toActivityChip(
+  id: ActivityId,
+  resultText?: string | null,
+): HistoryActivityChip {
+  return {
+    id,
+    label: ACTIVITY_CHIP_META[id].label,
+    color: ACTIVITY_CHIP_META[id].color,
+    resultText: resultText ?? null,
+  };
+}
 
 async function fetchHistoryExtras(
   userId: string,
@@ -115,36 +198,65 @@ async function fetchHistoryExtras(
   const [activitiesRes, lettersRes, checkInsRes, messagesRes] = await Promise.all([
     supabase
       .from('activity_sessions')
-      .select('activity_type, completed_at, created_at')
+      .select('activity_type, completed_at, created_at, result_text')
       .eq('user_id', userId)
       .eq('status', 'completed'),
     relationAvailable('daily_letters')
-      ? supabase.from('daily_letters').select('letter_date').eq('user_id', userId)
-      : Promise.resolve({ data: [] as Array<{ letter_date: string }>, error: null }),
+      ? supabase
+          .from('daily_letters')
+          .select('letter_date, opened_at')
+          .eq('user_id', userId)
+          .not('opened_at', 'is', null)
+      : Promise.resolve({
+          data: [] as Array<{ letter_date: string; opened_at: string | null }>,
+          error: null,
+        }),
     supabase.from('daily_checkins').select('checkin_date').eq('user_id', userId),
     conversationIds.length > 0
-      ? supabase.from('messages').select('conversation_id').in('conversation_id', conversationIds)
-      : Promise.resolve({ data: [] as { conversation_id: string }[], error: null }),
+      ? supabase
+          .from('messages')
+          .select('conversation_id, role, content')
+          .in('conversation_id', conversationIds)
+      : Promise.resolve({
+          data: [] as { conversation_id: string; role: string; content: string }[],
+          error: null,
+        }),
   ]);
 
   noteRelationError('activity_sessions', activitiesRes.error);
   noteRelationError('daily_letters', lettersRes.error);
 
-  const messageCounts: Record<string, number> = {};
+  const messagesByConversation = new Map<
+    string,
+    Array<{ role: string; content: string }>
+  >();
   for (const row of messagesRes.data ?? []) {
-    messageCounts[row.conversation_id] = (messageCounts[row.conversation_id] ?? 0) + 1;
+    const list = messagesByConversation.get(row.conversation_id) ?? [];
+    list.push({ role: row.role, content: row.content });
+    messagesByConversation.set(row.conversation_id, list);
   }
 
-  const activityByDay: Record<string, ActivityId[]> = {};
+  const messageCounts: Record<string, number> = {};
+  for (const [conversationId, rows] of messagesByConversation) {
+    messageCounts[conversationId] = countDisplayableHistoryTurns(rows);
+  }
+
+  const activityByDay: Record<string, HistoryActivityChip[]> = {};
   for (const row of activitiesRes.data ?? []) {
     if (!isActivityId(row.activity_type)) continue;
     const key = brasiliaDayKey(row.completed_at ?? row.created_at);
     if (!key) continue;
     const list = activityByDay[key] ?? [];
-    if (!list.includes(row.activity_type)) {
-      list.push(row.activity_type);
+    if (!list.some((item) => item.id === row.activity_type)) {
+      list.push(toActivityChip(row.activity_type, row.result_text));
     }
     activityByDay[key] = list;
+  }
+
+  for (const key of Object.keys(activityByDay)) {
+    activityByDay[key] = ACTIVITY_IDS.filter((id) =>
+      (activityByDay[key] ?? []).some((item) => item.id === id),
+    ).map((id) => (activityByDay[key] ?? []).find((item) => item.id === id)!);
   }
 
   return {
@@ -203,30 +315,34 @@ export function useHistoryDays(conversations: Conversation[]) {
 
     for (const conversation of conversations) {
       const dateKey = conversationDayKey(conversation);
+      const counted = extras?.messageCounts[conversation.id];
+      // After extras resolve, hide conversations with no displayable turns (empty voice stubs, etc.).
+      if (extras && typeof counted === 'number' && counted <= 0) {
+        continue;
+      }
+      const count = typeof counted === 'number' ? counted : 1;
       const day = ensureDay(dateKey);
-      const count = extras?.messageCounts[conversation.id];
-      if (!day.conversationId || (typeof count === 'number' && count >= day.messageCount)) {
+      if (!day.conversationId || count >= day.messageCount) {
         day.conversationId = conversation.id;
         day.conversationTitle = conversation.title ?? '';
         day.conversationDate = conversation.conversation_date || conversation.created_at;
       }
-      day.messageCount += typeof count === 'number' ? count : 1;
+      day.messageCount += count;
     }
 
-    for (const [dateKey, ids] of Object.entries(extras?.activityByDay ?? {})) {
-      const day = ensureDay(dateKey);
-      day.activities = ACTIVITY_IDS.filter((id) => ids.includes(id)).map((id) => ({
-        id,
-        label: ACTIVITY_CHIP_META[id].label,
-        color: ACTIVITY_CHIP_META[id].color,
-      }));
+    for (const [dateKey, chips] of Object.entries(extras?.activityByDay ?? {})) {
+      ensureDay(dateKey).activities = chips;
     }
 
     for (const dateKey of extras?.letterDays ?? []) {
       ensureDay(dateKey).hasLetter = true;
     }
 
-    return Array.from(byDay.values()).sort((a, b) => b.dateKey.localeCompare(a.dateKey));
+    return Array.from(byDay.values())
+      .filter(
+        (day) => day.messageCount > 0 || day.activities.length > 0 || day.hasLetter,
+      )
+      .sort((a, b) => b.dateKey.localeCompare(a.dateKey));
   }, [conversations, extras]);
 
   const weekDots = useMemo<HistoryWeekDot[]>(() => {

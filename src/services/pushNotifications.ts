@@ -112,12 +112,26 @@ async function configureAndroidNotificationChannel(): Promise<void> {
   });
 }
 
-export async function registerForPushNotificationsAsync(): Promise<string | null> {
+export async function hasNotificationPermissionAsync(): Promise<boolean> {
+  if (Platform.OS === 'web') {
+    return false;
+  }
+  const { status } = await Notifications.getPermissionsAsync();
+  return status === 'granted';
+}
+
+/** Register for push. Pass `request: false` to never show the OS prompt (token only if already granted). */
+export async function registerForPushNotificationsAsync(
+  options?: { request?: boolean },
+): Promise<string | null> {
   if (Platform.OS === 'web') {
     return null;
   }
 
-  const granted = await requestNotificationPermissionAsync();
+  const shouldRequest = options?.request !== false;
+  const granted = shouldRequest
+    ? await requestNotificationPermissionAsync()
+    : await hasNotificationPermissionAsync();
   if (!granted) {
     return null;
   }
@@ -203,6 +217,15 @@ export type PushNotificationData = {
   insightType?: string;
   weekStart?: string;
   week_start?: string;
+  deepLink?: string;
+  deep_link?: string;
+  variation?: string;
+  variationId?: string;
+  carta?: string;
+  letterDate?: string;
+  letter_date?: string;
+  semana?: string;
+  weekKey?: string;
   [key: string]: unknown;
 };
 

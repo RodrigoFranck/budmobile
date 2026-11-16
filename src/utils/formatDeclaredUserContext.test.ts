@@ -27,6 +27,8 @@ test('declared context includes current preferences and skips blanks', () => {
 
   assert.match(text ?? '', /priorize isto/);
   assert.match(text ?? '', /Nome: Ana/);
+  assert.match(text ?? '', /Gênero gramatical: feminino/);
+  assert.match(text ?? '', /Concordância de gênero: Refira-se à pessoa no feminino\./);
   assert.match(text ?? '', /Terapia: Sim, faço agora/);
   assert.match(text ?? '', /No que vamos focar: Me entender melhor, Dormir melhor/);
   assert.doesNotMatch(text ?? '', /Neurodivergência/);

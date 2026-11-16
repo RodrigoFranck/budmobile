@@ -77,6 +77,7 @@ export function buildExploreChatInsight(
     internalContext: insight.internalContext ?? insight.description,
     cardDescription: content,
     backgroundType: config.backgroundType,
+    contextVariant: 'start',
     ...(insight.conversationId ? { conversationId: insight.conversationId } : {}),
     ...(mode === 'voice' ? { autoStartVoice: true } : {}),
     initialUserMessage: buildExploreInitialUserMessage(insightType, insight),

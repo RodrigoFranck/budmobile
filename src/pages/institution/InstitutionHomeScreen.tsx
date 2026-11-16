@@ -44,7 +44,7 @@ export default function InstitutionHomeScreen() {
         </Text>
         <Text style={{ fontFamily: fonts.sans, fontSize: 16, color: colors.text2, marginTop: 8 }}>
           {forced
-            ? 'Pedida no primeiro acesso e a cada três meses. As pontuações ficam só no servidor.'
+            ? 'Pedida no primeiro acesso e todo mês. As pontuações ficam só no servidor.'
             : 'Umas perguntas pedidas pela sua instituição. Nada de pontuação aparece aqui.'}
         </Text>
 

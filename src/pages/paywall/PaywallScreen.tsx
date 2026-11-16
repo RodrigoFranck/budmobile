@@ -20,7 +20,7 @@ export default function PaywallScreen() {
   const navigation = useNavigation();
   const route = useRoute<PaywallRoute>();
   const { showAlert } = useAppAlert();
-  const { startCheckout, restorePurchases } = useUserPlan();
+  const { startCheckout, restorePurchases, prices } = useUserPlan();
   const [interval, setInterval] = useState<PaywallInterval>(route.params?.interval ?? 'annual');
   const [submitting, setSubmitting] = useState(false);
   const annual = interval === 'annual';
@@ -30,23 +30,35 @@ export default function PaywallScreen() {
   const handleSubscribe = async () => {
     setSubmitting(true);
     try {
-      await startCheckout(interval);
-      dismiss();
+      const purchased = await startCheckout(interval);
+      if (purchased) dismiss();
+    } catch (error) {
+      showAlert({
+        title: 'Não foi possível assinar',
+        message: error instanceof Error ? error.message : 'Tente novamente.',
+      });
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleRestore = async () => {
-    const restored = await restorePurchases();
-    if (restored) {
-      dismiss();
-      return;
+    try {
+      const restored = await restorePurchases();
+      if (restored) {
+        dismiss();
+        return;
+      }
+      showAlert({
+        title: 'Nenhuma compra para restaurar',
+        message: 'Quando a assinatura estiver ativa na loja, ela volta para esta conta por aqui.',
+      });
+    } catch (error) {
+      showAlert({
+        title: 'Não foi possível restaurar',
+        message: error instanceof Error ? error.message : 'Tente novamente.',
+      });
     }
-    showAlert({
-      title: 'Nenhuma compra para restaurar',
-      message: 'Quando a cobrança estiver ativa, suas compras da loja voltam para esta conta por aqui.',
-    });
   };
 
   return (
@@ -86,7 +98,7 @@ export default function PaywallScreen() {
 
           <View style={styles.topSpacer} />
 
-          <PaywallOfferCard interval={interval} onChangeInterval={setInterval} />
+          <PaywallOfferCard interval={interval} onChangeInterval={setInterval} prices={prices} />
 
           <View style={styles.bottomSpacer} />
 
@@ -94,7 +106,7 @@ export default function PaywallScreen() {
             <Text style={[styles.renew, { color: colors.text2 }]}>
               {'Renova em '}
               <Text style={{ fontFamily: fonts.sansSemi, color: colors.text }}>
-                {annual ? 'R$ 999,90 por ano' : 'R$ 129,90 por mês'}
+                {annual ? `${prices.annualTotal} por ano` : `${prices.monthly} por mês`}
               </Text>
               {' · cancele quando quiser'}
             </Text>

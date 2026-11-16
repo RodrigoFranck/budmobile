@@ -146,7 +146,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           const revert = preferenceFromProfile(profile?.dark_mode);
           setPreferenceState(revert);
           void writeCachedThemePreference(revert);
-          appAlert({ title: 'Erro', message: 'Não foi possível salvar sua preferência de tema.' });
+          appAlert({ title: 'Não consegui salvar agora. Tente de novo.' });
           return;
         }
 
@@ -162,7 +162,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         const revert = preferenceFromProfile(profile?.dark_mode);
         setPreferenceState(revert);
         void writeCachedThemePreference(revert);
-        appAlert({ title: 'Erro', message: 'Não foi possível salvar sua preferência de tema.' });
+        appAlert({ title: 'Não consegui salvar agora. Tente de novo.' });
       }
     },
     [profile?.dark_mode, queryClient, user?.id],

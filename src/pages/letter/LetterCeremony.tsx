@@ -13,9 +13,12 @@ import {
   type StyleProp,
   type TextStyle,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   Extrapolation,
+  ReduceMotion,
+  cancelAnimation,
   interpolate,
   runOnJS,
   useAnimatedReaction,
@@ -41,6 +44,7 @@ import {
   parseDailyLetterBody,
 } from '@/utils/dailyLetter';
 import { getNowInBrasilia, getWeekStartBrasilia } from '@/utils/dateUtils';
+import { buildLetterChatInsight } from '@/utils/buildLetterChatInsight';
 import { navigateToChatTab } from '@/utils/navigateToChat';
 
 import { playLetterHaptic } from './letterSounds';
@@ -55,14 +59,20 @@ export type LetterOrigin = {
 const OPEN_MS = motion.letterFlapMs + motion.letterRiseMs + motion.letterEnterMs;
 const P1 = motion.letterFlapMs / OPEN_MS;
 const P2 = (motion.letterFlapMs + motion.letterRiseMs) / OPEN_MS;
-const GENTLE = Easing.bezier(0.25, 0.1, 0.25, 1);
-const STANDARD = Easing.bezier(0.4, 0, 0.2, 1);
-const ENTER = Easing.bezier(0.25, 0.1, 0.25, 1);
-const EXIT = Easing.bezier(0.32, 0, 0.67, 0);
+// Motion tokens: gentle / standard / enter / exit (Sistema de movimento)
+const GENTLE = Easing.bezier(0.22, 1, 0.36, 1);
+const STANDARD = Easing.bezier(0.42, 0, 0.58, 1);
+const ENTER = Easing.bezier(0, 0, 0.58, 1);
+const EXIT = Easing.bezier(0.42, 0, 1, 1);
 const OPEN_ASPECT = 542 / 510;
 const MOUTH = 0.384;
 const PAPER_WIDTH_RATIO = 0.46;
+const ENV_GROWTH = 1.3;
+const M03_TEXT_FADE_MS = 100;
+const M03_TEXT_FADE_P = 1 - M03_TEXT_FADE_MS / motion.letterExitMs;
 const WEEK_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+const TIMING = { reduceMotion: ReduceMotion.Never } as const;
+
 export const LETTER_HOME = {
   envW: 400,
   envH: 267,
@@ -123,9 +133,11 @@ function TitleAccent({
 type LetterCeremonyProps = {
   origin: LetterOrigin;
   onClose: () => void;
+  /** Called when close starts; `reduceMotion` means Home should reveal the envelope under the dissolve. */
+  onCloseStart?: (info: { reduceMotion: boolean }) => void;
 };
 
-export default function LetterCeremony({ origin, onClose }: LetterCeremonyProps) {
+export default function LetterCeremony({ origin, onClose, onCloseStart }: LetterCeremonyProps) {
   const colors = useV3Colors();
   const assets = useV3Asset();
   const insets = useSafeAreaInsets();
@@ -147,22 +159,25 @@ export default function LetterCeremony({ origin, onClose }: LetterCeremonyProps)
   const lastStyle = { fontFamily: fonts.displayItalic, color: colors.accent };
 
   const progress = useSharedValue(0);
+  const dissolve = useSharedValue(0);
+  const reduceMotionSV = useSharedValue(0);
   const closing = useSharedValue(0);
   const flapCued = useSharedValue(0);
   const riseCued = useSharedValue(0);
   const openedCued = useSharedValue(0);
   const finishedRef = useRef(false);
   const openingStartedRef = useRef(false);
+  const reduceMotionRef = useRef(false);
   const [opened, setOpened] = useState(false);
 
   const ox = origin.x;
   const oy = origin.y;
   const ow = Math.max(origin.width, 200);
   const oh = Math.max(origin.height, 130);
-  const sx = screenW / FIGMA.frameW;
   const sy = screenH / FIGMA.frameH;
 
-  const envHoldW = FIGMA.envW * sx;
+  // M01: envelope grows to 1.3× (video / Sistema de movimento)
+  const envHoldW = Math.min(ow * ENV_GROWTH, screenW - 16);
   const envHoldH = envHoldW * OPEN_ASPECT;
   const envHoldX = (screenW - envHoldW) / 2;
   const envHoldY = FIGMA.envY * sy;
@@ -207,13 +222,45 @@ export default function LetterCeremony({ origin, onClose }: LetterCeremonyProps)
     }
     closing.value = 1;
     setOpened(false);
-    const duration = Math.max(720, Math.round(Math.max(progress.value, 0.4) * motion.letterExitMs));
-    progress.value = withTiming(0, { duration, easing: EXIT }, (done) => {
-      if (done) {
-        runOnJS(onClose)();
-      }
-    });
-  }, [closing, onClose, progress]);
+    const isReduce = reduceMotionRef.current;
+    onCloseStart?.({ reduceMotion: isReduce });
+
+    cancelAnimation(progress);
+    cancelAnimation(dissolve);
+
+    if (isReduce) {
+      dissolve.value = withTiming(
+        0,
+        { duration: motion.letterReduceMs, easing: EXIT, ...TIMING },
+        (done) => {
+          if (done) {
+            runOnJS(onClose)();
+          }
+        },
+      );
+      return;
+    }
+
+    progress.value = withTiming(
+      0,
+      { duration: motion.letterExitMs, easing: EXIT, ...TIMING },
+      (done) => {
+        if (done) {
+          runOnJS(onClose)();
+        }
+      },
+    );
+  }, [closing, dissolve, onClose, onCloseStart, progress]);
+
+  useEffect(() => {
+    const sync = (enabled: boolean) => {
+      reduceMotionRef.current = enabled;
+      reduceMotionSV.value = enabled ? 1 : 0;
+    };
+    void AccessibilityInfo.isReduceMotionEnabled().then(sync);
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', sync);
+    return () => sub.remove();
+  }, [reduceMotionSV]);
 
   useEffect(() => {
     if (!letterLoading && !available) {
@@ -226,19 +273,46 @@ export default function LetterCeremony({ origin, onClose }: LetterCeremonyProps)
       return;
     }
     openingStartedRef.current = true;
-    playLetterHaptic('light');
-    progress.value = withSequence(
-      withTiming(P1, { duration: motion.letterFlapMs, easing: GENTLE }),
-      withTiming(P2, { duration: motion.letterRiseMs, easing: STANDARD }),
-      withTiming(1, { duration: motion.letterEnterMs, easing: ENTER }),
-    );
+    let cancelled = false;
+
     void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (enabled) {
-        progress.value = 1;
-        finishOpen();
+      if (cancelled) {
+        return;
       }
+      reduceMotionRef.current = enabled;
+      reduceMotionSV.value = enabled ? 1 : 0;
+
+      if (enabled) {
+        // TF-80: Reduce Motion → 300 ms dissolve (must use Never or Reanimated skips it)
+        progress.value = 1;
+        dissolve.value = 0;
+        dissolve.value = withTiming(
+          1,
+          { duration: motion.letterReduceMs, easing: ENTER, ...TIMING },
+          (done) => {
+            if (done) {
+              runOnJS(finishOpen)();
+            }
+          },
+        );
+        return;
+      }
+
+      dissolve.value = 1;
+      playLetterHaptic('light');
+      // M01 (450 gentle + 800 standard) → M02 (650 enter). ReduceMotion.Never so System RM
+      // cannot strip the choreography after we already branched off the dissolve path.
+      progress.value = withSequence(
+        withTiming(P1, { duration: motion.letterFlapMs, easing: GENTLE, ...TIMING }),
+        withTiming(P2, { duration: motion.letterRiseMs, easing: STANDARD, ...TIMING }),
+        withTiming(1, { duration: motion.letterEnterMs, easing: ENTER, ...TIMING }),
+      );
     });
-  }, [available, finishOpen, progress]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [available, dissolve, finishOpen, progress, reduceMotionSV]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -251,6 +325,9 @@ export default function LetterCeremony({ origin, onClose }: LetterCeremonyProps)
   useAnimatedReaction(
     () => progress.value,
     (value, previous) => {
+      if (reduceMotionSV.value === 1) {
+        return;
+      }
       const prev = previous ?? 0;
       if (flapCued.value === 0 && value >= P1 * 0.42 && prev < P1 * 0.42) {
         flapCued.value = 1;
@@ -267,9 +344,22 @@ export default function LetterCeremony({ origin, onClose }: LetterCeremonyProps)
     },
   );
 
-  const scrimStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0, P1, P2], [0, 0.88, 1], Extrapolation.CLAMP),
-  }));
+  const overlayStyle = useAnimatedStyle(() => {
+    if (reduceMotionSV.value === 1) {
+      return { opacity: dissolve.value };
+    }
+    return { opacity: 1 };
+  });
+
+  const scrimStyle = useAnimatedStyle(() => {
+    if (reduceMotionSV.value === 1) {
+      return { opacity: dissolve.value };
+    }
+    // Home stays faintly readable in M01 (title ~25%), then fully covered in M02
+    return {
+      opacity: interpolate(progress.value, [0, P1, P2], [0, 0.75, 1], Extrapolation.CLAMP),
+    };
+  });
 
   const envelopeStyle = useAnimatedStyle(() => ({
     left: interpolate(progress.value, [0, P1], [ox, envHoldX], Extrapolation.CLAMP),
@@ -325,7 +415,8 @@ export default function LetterCeremony({ origin, onClose }: LetterCeremonyProps)
       top: envTop + envH * ratio,
       width: size,
       height: size,
-      opacity: interpolate(progress.value, [0.72, 0.92], [1, 0], Extrapolation.CLAMP),
+      // Seal stays through M01 flap/rise; fades as the paper takes the screen (M02)
+      opacity: interpolate(progress.value, [P2, P2 + (1 - P2) * 0.55], [1, 0], Extrapolation.CLAMP),
       transform: [{ rotate: `${tilt}deg` }],
     };
   });
@@ -351,17 +442,33 @@ export default function LetterCeremony({ origin, onClose }: LetterCeremonyProps)
     opacity: interpolate(progress.value, [P1 + 0.04, P2, 0.82], [0, 1, 0], Extrapolation.CLAMP),
   }));
 
-  const readingStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0.8, 1], [0, 1], Extrapolation.CLAMP),
-  }));
+  const readingStyle = useAnimatedStyle(() => {
+    if (reduceMotionSV.value === 1) {
+      return { opacity: dissolve.value };
+    }
+    // M02: full text enters in the last 20%. M03: text gone in the first ~100 ms.
+    if (closing.value === 1) {
+      return {
+        opacity: interpolate(progress.value, [M03_TEXT_FADE_P, 1], [0, 1], Extrapolation.CLAMP),
+      };
+    }
+    return {
+      opacity: interpolate(progress.value, [0.8, 1], [0, 1], Extrapolation.CLAMP),
+    };
+  });
 
   const openingHeaderStyle = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0.72, 0.9], [1, 0], Extrapolation.CLAMP),
   }));
 
-  const readingHeaderStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0.82, 1], [0, 1], Extrapolation.CLAMP),
-  }));
+  const readingHeaderStyle = useAnimatedStyle(() => {
+    if (reduceMotionSV.value === 1) {
+      return { opacity: dissolve.value };
+    }
+    return {
+      opacity: interpolate(progress.value, [0.82, 1], [0, 1], Extrapolation.CLAMP),
+    };
+  });
 
   const shareLetter = useCallback(() => {
     void Share.share({ message: shareText });
@@ -369,164 +476,178 @@ export default function LetterCeremony({ origin, onClose }: LetterCeremonyProps)
 
   const openChat = useCallback(() => {
     navigateToChatTab(navigation, {
-      chatInsight: {
-        insightType: 'yesterday_journey',
+      chatInsight: buildLetterChatInsight({
+        letterId: letter?.id,
         title,
-        contextSummary: opening,
-        internalContext: shareText,
-        cardDescription: opening,
-        backgroundType: 'yesterday',
-      },
+        shareText,
+        opening,
+      }),
     });
-  }, [navigation, opening, shareText, title]);
+  }, [letter?.id, navigation, opening, shareText, title]);
+
+  const panClose = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(opened)
+        .activeOffsetY(16)
+        .failOffsetX([-28, 28])
+        .onEnd((event) => {
+          if (event.translationY > 72 || event.velocityY > 900) {
+            runOnJS(handleClose)();
+          }
+        }),
+    [handleClose, opened],
+  );
 
   return (
-    <View style={styles.overlay} pointerEvents="auto">
-      <Animated.View
-        pointerEvents="none"
-        style={[StyleSheet.absoluteFill, { backgroundColor: colors.bg }, scrimStyle]}
-      />
-
-      <Animated.View pointerEvents="none" style={[styles.envelope, envelopeStyle]}>
-        <Animated.Image
-          source={assets.envelopeClosed}
-          style={[styles.fill, closedStyle]}
-          resizeMode="contain"
+    <GestureDetector gesture={panClose}>
+      <Animated.View style={[styles.overlay, overlayStyle]} pointerEvents="auto">
+        <Animated.View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { backgroundColor: colors.bg }, scrimStyle]}
         />
-        <Animated.Image
-          source={assets.envelopeOpen}
-          style={[styles.fill, openStyle]}
-          resizeMode="contain"
-        />
-      </Animated.View>
 
-      <Animated.View pointerEvents="none" style={[styles.paperClip, paperClipStyle]}>
-        <Animated.View style={[styles.paper, paperStyle]}>
-          <Image source={assets.envelopePaper} style={styles.fill} resizeMode="cover" />
-          <Animated.View style={[styles.peekCopy, peekCopyStyle]}>
-            <TitleAccent
-              lead={lead}
-              last={last}
-              style={[styles.peekTitle, { color: colors.text }]}
-              lastStyle={lastStyle}
-            />
-            <View style={[styles.peekRule, { backgroundColor: colors.line }]} />
-            <View style={[styles.peekRuleShort, { backgroundColor: colors.line }]} />
+        <Animated.View pointerEvents="none" style={[styles.envelope, envelopeStyle]}>
+          <Animated.Image
+            source={assets.envelopeClosed}
+            style={[styles.fill, closedStyle]}
+            resizeMode="contain"
+          />
+          <Animated.Image
+            source={assets.envelopeOpen}
+            style={[styles.fill, openStyle]}
+            resizeMode="contain"
+          />
+        </Animated.View>
+
+        <Animated.View pointerEvents="none" style={[styles.paperClip, paperClipStyle]}>
+          <Animated.View style={[styles.paper, paperStyle]}>
+            <Image source={assets.envelopePaper} style={styles.fill} resizeMode="cover" />
+            <Animated.View style={[styles.peekCopy, peekCopyStyle]}>
+              <TitleAccent
+                lead={lead}
+                last={last}
+                style={[styles.peekTitle, { color: colors.text }]}
+                lastStyle={lastStyle}
+              />
+              <View style={[styles.peekRule, { backgroundColor: colors.line }]} />
+              <View style={[styles.peekRuleShort, { backgroundColor: colors.line }]} />
+            </Animated.View>
           </Animated.View>
         </Animated.View>
-      </Animated.View>
 
-      <Animated.View
-        collapsable={false}
-        pointerEvents="none"
-        style={[styles.envelopeFront, envelopeFrontStyle]}
-      >
+        <Animated.View
+          collapsable={false}
+          pointerEvents="none"
+          style={[styles.envelopeFront, envelopeFrontStyle]}
+        >
+          <Animated.Image
+            source={assets.envelopeOpen}
+            style={[styles.envelopeFrontImage, envelopeFrontImageStyle]}
+            resizeMode="stretch"
+          />
+        </Animated.View>
+
         <Animated.Image
-          source={assets.envelopeOpen}
-          style={[styles.envelopeFrontImage, envelopeFrontImageStyle]}
-          resizeMode="stretch"
+          pointerEvents="none"
+          source={assets.waxSeal}
+          style={[styles.seal, sealStyle]}
+          resizeMode="contain"
         />
-      </Animated.View>
 
-      <Animated.Image
-        pointerEvents="none"
-        source={assets.waxSeal}
-        style={[styles.seal, sealStyle]}
-        resizeMode="contain"
-      />
-
-      <Animated.View pointerEvents={opened ? 'auto' : 'none'} style={[styles.reading, readingStyle]}>
-        <View style={{ flex: 1, paddingTop: insets.top + 4 }}>
-          <View style={styles.headerSpace} />
-          <View style={styles.weekRow}>
-            {days.map((item) => (
-              <View key={item.label} style={styles.weekCell}>
-                <Text style={[styles.weekLabel, { color: item.active ? colors.accent : colors.text3 }]}>
-                  {item.label}
-                </Text>
-                <Text style={[styles.weekDay, { color: item.active ? colors.accent : colors.text2 }]}>
-                  {item.day}
-                </Text>
-              </View>
-            ))}
-          </View>
-          <ScrollView
-            contentContainerStyle={{
-              paddingHorizontal: 28,
-              paddingTop: 44,
-              paddingBottom: insets.bottom + 108,
-            }}
-            showsVerticalScrollIndicator={false}
-          >
-            <Text style={[styles.eyebrow, { color: colors.text3 }]}>Carta de hoje</Text>
-            <TitleAccent
-              lead={lead}
-              last={last}
-              style={[styles.readingTitle, { color: colors.text }]}
-              lastStyle={lastStyle}
-            />
-            {opening ? (
-              <Text style={[styles.body, { color: colors.text2 }]}>{opening}</Text>
-            ) : null}
-            {noticed ? (
-              <>
-                <View style={styles.noticedHeading}>
-                  <Image
-                    pointerEvents="none"
-                    source={assets.letterUnderline}
-                    style={styles.noticedUnderline}
-                    resizeMode="contain"
-                  />
-                  <Text style={[styles.sectionHeading, { color: colors.text }]}>
-                    {LETTER_NOTICED_HEADING}
+        <Animated.View pointerEvents={opened ? 'auto' : 'none'} style={[styles.reading, readingStyle]}>
+          <View style={{ flex: 1, paddingTop: insets.top + 4 }}>
+            <View style={styles.headerSpace} />
+            <View style={styles.weekRow}>
+              {days.map((item) => (
+                <View key={item.label} style={styles.weekCell}>
+                  <Text style={[styles.weekLabel, { color: item.active ? colors.accent : colors.text3 }]}>
+                    {item.label}
+                  </Text>
+                  <Text style={[styles.weekDay, { color: item.active ? colors.accent : colors.text2 }]}>
+                    {item.day}
                   </Text>
                 </View>
-                <Text style={[styles.sectionBody, { color: colors.text2 }]}>{noticed}</Text>
-              </>
-            ) : null}
-            {takeaway ? (
-              <>
-                <Text style={[styles.takeawayHeading, { color: colors.text }]}>
-                  {LETTER_TAKEAWAY_HEADING}
-                </Text>
-                <Text style={[styles.sectionBody, { color: colors.text2 }]}>{takeaway}</Text>
-              </>
-            ) : null}
-            <Text style={[styles.signoff, { color: colors.text2 }]}>{LETTER_SIGNOFF}</Text>
-          </ScrollView>
-        </View>
-        <View
-          pointerEvents="box-none"
-          style={[styles.talkWrap, { bottom: insets.bottom + 24 }]}
-        >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Conversar sobre isso"
-            onPress={openChat}
-            style={[styles.talkButton, { backgroundColor: colors.accent, shadowColor: colors.scrim }]}
+              ))}
+            </View>
+            <ScrollView
+              contentContainerStyle={{
+                paddingHorizontal: 28,
+                paddingTop: 44,
+                paddingBottom: insets.bottom + 108,
+              }}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={[styles.eyebrow, { color: colors.text3 }]}>Carta de hoje</Text>
+              <TitleAccent
+                lead={lead}
+                last={last}
+                style={[styles.readingTitle, { color: colors.text }]}
+                lastStyle={lastStyle}
+              />
+              {opening ? (
+                <Text style={[styles.body, { color: colors.text2 }]}>{opening}</Text>
+              ) : null}
+              {noticed ? (
+                <>
+                  <View style={styles.noticedHeading}>
+                    <Image
+                      pointerEvents="none"
+                      source={assets.letterUnderline}
+                      style={styles.noticedUnderline}
+                      resizeMode="contain"
+                    />
+                    <Text style={[styles.sectionHeading, { color: colors.text }]}>
+                      {LETTER_NOTICED_HEADING}
+                    </Text>
+                  </View>
+                  <Text style={[styles.sectionBody, { color: colors.text2 }]}>{noticed}</Text>
+                </>
+              ) : null}
+              {takeaway ? (
+                <>
+                  <Text style={[styles.takeawayHeading, { color: colors.text }]}>
+                    {LETTER_TAKEAWAY_HEADING}
+                  </Text>
+                  <Text style={[styles.sectionBody, { color: colors.text2 }]}>{takeaway}</Text>
+                </>
+              ) : null}
+              <Text style={[styles.signoff, { color: colors.text2 }]}>{LETTER_SIGNOFF}</Text>
+            </ScrollView>
+          </View>
+          <View
+            pointerEvents="box-none"
+            style={[styles.talkWrap, { bottom: insets.bottom + 24 }]}
           >
-            <MessageSquare color={colors.onAccent} size={22} />
-            <Text style={[styles.talkLabel, { color: colors.onAccent }]}>Conversar sobre isso</Text>
-          </Pressable>
-        </View>
-      </Animated.View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Conversar sobre isso"
+              onPress={openChat}
+              style={[styles.talkButton, { backgroundColor: colors.accent, shadowColor: colors.scrim }]}
+            >
+              <MessageSquare color={colors.onAccent} size={22} />
+              <Text style={[styles.talkLabel, { color: colors.onAccent }]}>Conversar sobre isso</Text>
+            </Pressable>
+          </View>
+        </Animated.View>
 
-      <Animated.View
-        pointerEvents={opened ? 'none' : 'auto'}
-        style={[styles.header, { top: insets.top + 4 }, openingHeaderStyle]}
-      >
-        <BudIconButton icon={Menu} accessibilityLabel="Menu" onPress={() => navigation.navigate('Menu')} />
-        <View style={styles.headerSpacer} />
-      </Animated.View>
+        <Animated.View
+          pointerEvents={opened ? 'none' : 'auto'}
+          style={[styles.header, { top: insets.top + 4 }, openingHeaderStyle]}
+        >
+          <BudIconButton icon={Menu} accessibilityLabel="Menu" onPress={() => navigation.navigate('Menu')} />
+          <View style={styles.headerSpacer} />
+        </Animated.View>
 
-      <Animated.View
-        pointerEvents={opened ? 'auto' : 'none'}
-        style={[styles.header, { top: insets.top + 4 }, readingHeaderStyle]}
-      >
-        <BudIconButton icon={ChevronLeft} accessibilityLabel="Guardar carta" onPress={handleClose} />
-        <BudIconButton icon={SquareArrowOutUpRight} accessibilityLabel="Compartilhar" onPress={shareLetter} />
+        <Animated.View
+          pointerEvents={opened ? 'auto' : 'none'}
+          style={[styles.header, { top: insets.top + 4 }, readingHeaderStyle]}
+        >
+          <BudIconButton icon={ChevronLeft} accessibilityLabel="Guardar carta" onPress={handleClose} />
+          <BudIconButton icon={SquareArrowOutUpRight} accessibilityLabel="Compartilhar" onPress={shareLetter} />
+        </Animated.View>
       </Animated.View>
-    </View>
+    </GestureDetector>
   );
 }
 

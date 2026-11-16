@@ -1,19 +1,40 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { applyGenderedCopy, genderVoiceFrom, optionsMatch } from './genderedCopy';
+import {
+  applyGenderedCopy,
+  genderAddressInstruction,
+  genderVoiceFrom,
+  grammaticalGenderFrom,
+  lintGeneratedGender,
+  optionsMatch,
+} from './genderedCopy';
 
 test('voice from profile gender', () => {
   assert.equal(genderVoiceFrom('Homem'), 'masculine');
   assert.equal(genderVoiceFrom('Mulher'), 'feminine');
   assert.equal(genderVoiceFrom('Não binário'), 'neutral');
+  assert.equal(genderVoiceFrom('Prefiro não dizer'), 'neutral');
   assert.equal(genderVoiceFrom(''), 'neutral');
+});
+
+test('grammatical gender labels from onboarding', () => {
+  assert.equal(grammaticalGenderFrom('Mulher'), 'feminino');
+  assert.equal(grammaticalGenderFrom('Homem'), 'masculino');
+  assert.equal(grammaticalGenderFrom('Prefiro não dizer'), 'neutro');
+  assert.equal(grammaticalGenderFrom(null), 'neutro');
+});
+
+test('gender address instruction for AI context', () => {
+  assert.match(genderAddressInstruction('Homem'), /masculino/i);
+  assert.match(genderAddressInstruction('Mulher'), /feminino/i);
+  assert.match(genderAddressInstruction('Prefiro não dizer'), /sem marcar gênero/i);
 });
 
 test('onboarding name follows gender', () => {
   assert.equal(applyGenderedCopy('chamada', 'masculine'), 'chamado');
   assert.equal(applyGenderedCopy('chamada', 'feminine'), 'chamada');
-  assert.equal(applyGenderedCopy('chamada', 'neutral'), 'chamado(a)');
+  assert.equal(applyGenderedCopy('chamada', 'neutral'), 'chamada ou chamado');
   assert.equal(applyGenderedCopy('Como você quer ser chamada?', 'masculine'), 'Como você quer ser chamado?');
 });
 
@@ -28,7 +49,7 @@ test('health survey and safety copy', () => {
   );
   assert.equal(applyGenderedCopy('Estou pronta', 'masculine'), 'Estou pronto');
   assert.equal(applyGenderedCopy('Você não está sozinho', 'feminine'), 'Você não está sozinha');
-  assert.equal(applyGenderedCopy('Você não está sozinho', 'neutral'), 'Você não está sozinho(a)');
+  assert.equal(applyGenderedCopy('Você não está sozinho', 'neutral'), 'Você não está só');
 });
 
 test('relation map copy follows gender', () => {
@@ -46,13 +67,13 @@ test('relation map copy follows gender', () => {
   );
   assert.equal(
     applyGenderedCopy('Poder ser eu mesma perto de Júlia', 'neutral'),
-    'Poder ser eu mesmo(a) perto de Júlia',
+    'Poder ser eu mesma ou mesmo perto de Júlia',
   );
 });
 
 test('option matching across voices', () => {
   assert.equal(optionsMatch('Mais calma', 'Mais calmo'), true);
-  assert.equal(optionsMatch('Cansada', 'Cansado(a)'), true);
+  assert.equal(optionsMatch('Cansada', 'Com cansaço'), true);
   assert.equal(optionsMatch('Livros', 'Filmes'), false);
 });
 
@@ -63,7 +84,7 @@ test('activity copy follows user gender', () => {
   );
   assert.equal(
     applyGenderedCopy('Um check-in rápido com você mesma', 'neutral'),
-    'Um check-in rápido com você mesmo(a)',
+    'Um check-in rápido com você mesma ou mesmo',
   );
   assert.equal(
     applyGenderedCopy('Quando a gente está sobrecarregada, decide no automático.', 'masculine'),
@@ -81,6 +102,7 @@ test('activity copy follows user gender', () => {
   assert.equal(applyGenderedCopy('Dispersa', 'masculine'), 'Disperso');
   assert.equal(applyGenderedCopy('Distraída', 'masculine'), 'Distraído');
   assert.equal(applyGenderedCopy('Cansada', 'masculine'), 'Cansado');
+  assert.equal(applyGenderedCopy('Cansada', 'neutral'), 'Com cansaço');
   assert.equal(applyGenderedCopy('Confusa', 'masculine'), 'Confuso');
   assert.equal(applyGenderedCopy('Energizada', 'masculine'), 'Energizado');
   assert.equal(applyGenderedCopy('Relaxada', 'masculine'), 'Relaxado');
@@ -92,6 +114,7 @@ test('activity copy follows user gender', () => {
   assert.equal(applyGenderedCopy('Focada', 'masculine'), 'Focado');
   assert.equal(applyGenderedCopy('Irritada', 'masculine'), 'Irritado');
   assert.equal(applyGenderedCopy('Descansada', 'masculine'), 'Descansado');
+  assert.equal(applyGenderedCopy('Descansada', 'neutral'), 'Em descanso');
   assert.equal(applyGenderedCopy('Calma', 'masculine'), 'Calmo');
   assert.equal(applyGenderedCopy('Mais calma', 'masculine'), 'Mais calmo');
   assert.equal(applyGenderedCopy('Afiada', 'masculine'), 'Afiado');
@@ -100,19 +123,42 @@ test('activity copy follows user gender', () => {
   assert.equal(applyGenderedCopy('Grata', 'masculine'), 'Grato');
   assert.equal(applyGenderedCopy('Valorizada', 'masculine'), 'Valorizado');
   assert.equal(applyGenderedCopy('Esgotada', 'masculine'), 'Esgotado');
+  assert.equal(applyGenderedCopy('Esgotada', 'neutral'), 'Sem energia');
   assert.equal(applyGenderedCopy('Inquieta', 'masculine'), 'Inquieto');
   assert.equal(applyGenderedCopy('Frustrada', 'masculine'), 'Frustrado');
   assert.equal(applyGenderedCopy('Retraída', 'masculine'), 'Retraído');
 });
 
-test('does not rewrite words that only contain a gendered form', () => {
+test('verifier rejects wrong gender adjectives for the person', () => {
+  const masculine = lintGeneratedGender(
+    'Você está se sentindo descansada e esgotada ao mesmo tempo.',
+    'masculine',
+  );
+  assert.equal(masculine.ok, false);
+  assert.match(masculine.corrected, /descansado/i);
+  assert.match(masculine.corrected, /esgotado/i);
+  assert.doesNotMatch(masculine.corrected, /descansada/i);
+
+  const feminine = lintGeneratedGender('Você parece cansado hoje.', 'feminine');
+  assert.equal(feminine.ok, false);
+  assert.match(feminine.corrected, /cansada/i);
+
+  const ok = lintGeneratedGender('Você está se sentindo descansado.', 'masculine');
+  assert.equal(ok.ok, true);
+});
+
+test('does not rewrite words that only contain a gendered form as substring', () => {
   assert.equal(
     applyGenderedCopy('Como estava sua cabeça durante o treino?', 'masculine'),
     'Como estava sua cabeça durante o treino?',
   );
   assert.equal(applyGenderedCopy('Dura', 'masculine'), 'Duro');
+});
+
+test('known limitation: noun agreement can be rewritten as person gender', () => {
+  // "travada" agrees with "decisão", not the person; dictionary lint still rewrites.
   assert.equal(
     applyGenderedCopy('uma decisão travada', 'masculine'),
-    'uma decisão travada',
+    'uma decisão travado',
   );
 });

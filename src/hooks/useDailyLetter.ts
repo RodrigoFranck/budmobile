@@ -6,12 +6,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTabScreenContext } from '@/contexts/TabScreenContext';
 import { queryKeys } from '@/lib/queryKeys';
 import {
-  loadDailyLetter,
+  fetchStoredDailyLetter,
   markStoredDailyLetterOpened,
+  requestGeneratedDailyLetter,
 } from '@/services/dailyLetterQuery';
 import { conversationDayKey } from '@/utils/homeRecaps';
 import { resolveDailyLetter, type StoredDailyLetter } from '@/utils/dailyLetter';
 import { getTodayInBrasilia, getYesterdayInBrasilia } from '@/utils/dateUtils';
+import { bootMarkOnce } from '@/utils/bootTiming';
 
 export type DailyLetter = StoredDailyLetter;
 
@@ -31,15 +33,14 @@ export function useDailyLetter() {
     yesterdayInsight,
     conversations,
     insightsLoading,
-    profileLoading,
     conversationsLoading,
-    historyTitlesLoading,
   } = useTabScreenContext();
   const queryClient = useQueryClient();
   const today = getTodayInBrasilia();
   const yesterday = getYesterdayInBrasilia();
   const userId = user?.id;
-  const conversationsReady = !conversationsLoading && !historyTitlesLoading;
+  // Do not wait for history title AI — only the conversations list matters here.
+  const conversationsReady = !conversationsLoading;
   const hadYesterdayConversation = hadConversationOn(conversations, yesterday);
   const queryKey = useMemo(
     () => [...queryKeys.dailyLetter(userId ?? '', today), hadYesterdayConversation] as const,
@@ -48,14 +49,42 @@ export function useDailyLetter() {
 
   const storedQuery = useQuery({
     queryKey,
-    queryFn: () =>
-      loadDailyLetter({
-        userId: userId!,
-        letterDate: today,
-        hadYesterdayConversation,
-      }),
+    queryFn: async () => {
+      const started = Date.now();
+      const letter = await fetchStoredDailyLetter(userId!, today);
+      bootMarkOnce('home_letter_stored_done', {
+        ms: Date.now() - started,
+        hasLetter: Boolean(letter),
+      });
+      return letter;
+    },
     enabled: Boolean(userId) && conversationsReady,
     staleTime: Infinity,
+  });
+
+  const generateQuery = useQuery({
+    queryKey: [...queryKey, 'generate'],
+    queryFn: async () => {
+      const started = Date.now();
+      bootMarkOnce('home_letter_ai_start');
+      const letter = await requestGeneratedDailyLetter();
+      bootMarkOnce('home_letter_ai_done', {
+        ms: Date.now() - started,
+        hasLetter: Boolean(letter),
+      });
+      if (letter) {
+        queryClient.setQueryData(queryKey, letter);
+      }
+      return letter;
+    },
+    enabled:
+      Boolean(userId) &&
+      conversationsReady &&
+      storedQuery.isFetched &&
+      !storedQuery.data &&
+      hadYesterdayConversation,
+    staleTime: Infinity,
+    retry: false,
   });
 
   const openedQuery = useQuery({
@@ -70,19 +99,21 @@ export function useDailyLetter() {
     enabled: Boolean(userId),
   });
 
+  const storedLetter = storedQuery.data ?? generateQuery.data ?? null;
+
   const resolved = useMemo(
     () =>
       resolveDailyLetter({
         today,
         hadYesterdayConversation,
-        stored: storedQuery.data ?? null,
-        insight: storedQuery.isFetched && !storedQuery.data ? yesterdayInsight : undefined,
-        openedAt: storedQuery.data?.opened_at ?? openedQuery.data ?? null,
+        stored: storedLetter,
+        insight: storedQuery.isFetched && !storedLetter ? yesterdayInsight : undefined,
+        openedAt: storedLetter?.opened_at ?? openedQuery.data ?? null,
       }),
     [
       hadYesterdayConversation,
       openedQuery.data,
-      storedQuery.data,
+      storedLetter,
       storedQuery.isFetched,
       today,
       yesterdayInsight,
@@ -113,16 +144,29 @@ export function useDailyLetter() {
     return queryClient.invalidateQueries({ queryKey });
   }, [queryClient, queryKey]);
 
+  const waitingInsightFallback =
+    storedQuery.isFetched &&
+    !storedLetter &&
+    hadYesterdayConversation &&
+    insightsLoading &&
+    !generateQuery.isFetching;
+
+  const generating =
+    Boolean(userId) &&
+    hadYesterdayConversation &&
+    storedQuery.isFetched &&
+    !storedQuery.data &&
+    (generateQuery.isPending || generateQuery.isFetching) &&
+    !generateQuery.isFetched;
+
   return {
     letter: resolved.letter,
     available: resolved.available,
     hadYesterdayConversation,
     loading:
       Boolean(userId) &&
-      (profileLoading ||
-        insightsLoading ||
-        !conversationsReady ||
-        !storedQuery.isFetched),
+      (!conversationsReady || !storedQuery.isFetched || waitingInsightFallback),
+    generating,
     markOpened,
     refetch,
   };

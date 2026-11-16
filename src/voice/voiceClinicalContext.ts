@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import {
-  buildVoicePrompt,
-  enrichVoicePrompt,
+  buildBudSystemPrompt,
+  PROMPT_VERSION,
   type UserContext,
 } from '@/voice/voicePrompt';
 
@@ -14,8 +14,21 @@ export interface VoiceServerContext {
   clinical_context?: string | null;
   approach_guidance?: string | null;
   internal_profile?: string | null;
+  system_prompt?: string | null;
+  prompt_version?: string | null;
   token?: string | null;
   signed_url?: string | null;
+}
+
+export interface VoicePromptExtras {
+  userContext?: UserContext;
+  recentInsights?: VoiceInterfaceInsight[];
+  internalProfile?: string | null;
+  approachGuidance?: string | null;
+  insightContext?: {
+    insightType?: string;
+    internalContext?: string;
+  };
 }
 
 async function resolveVoiceFunctionError(
@@ -45,9 +58,18 @@ async function resolveVoiceFunctionError(
 export async function fetchVoiceServerContext(
   messages: VoiceChatMessage[],
   mode: 'full' | 'context' = 'full',
+  extras?: VoicePromptExtras,
 ): Promise<VoiceServerContext> {
   const { data, error, response } = await supabase.functions.invoke('chat-voice', {
-    body: { messages, mode },
+    body: {
+      messages,
+      mode,
+      userContext: extras?.userContext,
+      insightContext: extras?.insightContext,
+      recentInsights: extras?.recentInsights,
+      internalProfile: extras?.internalProfile ?? null,
+      approachGuidance: extras?.approachGuidance ?? null,
+    },
   });
 
   if (error) {
@@ -85,20 +107,32 @@ export function assembleVoicePrompt(
   fallbackProfile: string | null | undefined,
   serverContext: VoiceServerContext,
 ): string {
+  const serverPrompt = serverContext.system_prompt?.trim();
+  if (serverPrompt) {
+    const version = serverContext.prompt_version?.trim() || PROMPT_VERSION;
+    console.log(`[prompt] version=${version} source=voice-server`);
+    return serverPrompt;
+  }
+
   const profileText = serverContext.internal_profile ?? fallbackProfile ?? null;
+  let insightContext: VoicePromptExtras['insightContext'];
+  if (recentInsights && recentInsights.length > 0) {
+    insightContext = {
+      insightType: recentInsights[0].insight_type,
+      internalContext: recentInsights[0].description,
+    };
+  }
 
-  const basePrompt = buildVoicePrompt(
+  const { prompt, promptVersion } = buildBudSystemPrompt({
     userContext,
-    undefined,
-    recentInsights,
-    profileText,
-  );
-
-  return enrichVoicePrompt(basePrompt, {
-    clinicalContext: serverContext.clinical_context,
-    approachGuidance: serverContext.approach_guidance,
+    insightContext,
     memorySection: profileText,
+    approachGuidance: serverContext.approach_guidance,
+    clinicalContext: serverContext.clinical_context,
+    includeVoiceTts: true,
   });
+  console.log(`[prompt] version=${promptVersion} source=voice-client-fallback`);
+  return prompt;
 }
 
 export interface VoiceInterfaceInsight {

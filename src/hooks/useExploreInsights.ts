@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { isDeveloperEmail } from '@/constants/developerAccess';
 import {
@@ -194,8 +193,6 @@ export function useExploreInsights(refreshToken = 0) {
     progress: 0,
     locked: true,
   });
-  const deepSyncInFlightRef = useRef(false);
-
   const applyInsightsFromDb = useCallback(async () => {
     if (!user?.id) {
       return null;
@@ -335,34 +332,6 @@ export function useExploreInsights(refreshToken = 0) {
     };
   }, [isDeveloper, queryClient, user?.id]);
 
-  const syncDeepInsightIfNeeded = useCallback(
-    async (weekStartStr: string) => {
-      if (deepSyncInFlightRef.current || !user?.id) {
-        return;
-      }
-
-      deepSyncInFlightRef.current = true;
-      try {
-        const { error } = await supabase.functions.invoke('generate-deep-insight', {
-          body: { week_start: weekStartStr },
-        });
-
-        if (error) {
-          console.warn('Deep insight sync failed:', error.message);
-          return;
-        }
-
-        await queryClient.invalidateQueries({ queryKey: queryKeys.userInsights(user.id) });
-        await applyInsightsFromDb();
-      } catch (error) {
-        console.warn('Deep insight sync failed:', error);
-      } finally {
-        deepSyncInFlightRef.current = false;
-      }
-    },
-    [applyInsightsFromDb, queryClient, user?.id],
-  );
-
   const loadInsights = useCallback(
     async (options: LoadExploreInsightsOptions = {}) => {
       if (!user?.id) {
@@ -398,10 +367,6 @@ export function useExploreInsights(refreshToken = 0) {
 
         if (!snapshot) {
           return;
-        }
-
-        if (snapshot.deepUnlocked && !snapshot.hasDeepContent) {
-          void syncDeepInsightIfNeeded(snapshot.weekStartStr);
         }
 
         if (options.cacheOnly) {
@@ -442,7 +407,7 @@ export function useExploreInsights(refreshToken = 0) {
         setDeepInsightContent(null);
       }
     },
-    [applyInsightsFromDb, queryClient, syncDeepInsightIfNeeded, user?.id],
+    [applyInsightsFromDb, queryClient, user?.id],
   );
 
   useEffect(() => {

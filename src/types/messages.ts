@@ -11,6 +11,7 @@ export interface StreamingMessage {
   id: string;
   role: MessageRole;
   content: string;
+  imageUri?: string;
   isStreaming?: boolean;
   isRevealing?: boolean;
   createdAt?: string;
@@ -23,6 +24,7 @@ export interface Message {
   id: string | number;
   role: MessageRole;
   content: string;
+  imageUri?: string;
   isStreaming?: boolean;
   isRevealing?: boolean;
   /** ISO date for dividers (from DB or client) */

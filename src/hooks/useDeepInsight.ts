@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { loadWeeklySummary } from "@/services/weeklySummaryQuery";
 import { formatDateBrasilia, getWeekStartBrasilia } from "@/utils/dateUtils";
 
 export interface DeepInsight {
@@ -78,49 +79,6 @@ function resolveWeekStartStr(weekStart?: Date | string): string {
   );
 }
 
-async function resolveFunctionsError(
-  error: { message?: string; context?: unknown } | null,
-  response?: Response | null,
-): Promise<string> {
-  const fallback = error?.message || 'Erro ao gerar insight aprofundado';
-  const errorContext =
-    response
-    ?? (
-      typeof error === 'object'
-      && error !== null
-      && 'context' in error
-      && error.context instanceof Response
-        ? error.context
-        : null
-    );
-
-  if (!errorContext) {
-    return fallback;
-  }
-
-  try {
-    const body = (await errorContext.clone().json()) as {
-      error?: string;
-      message?: string;
-      status?: string;
-    };
-    if (body.error) {
-      return body.error;
-    }
-    if (body.message) {
-      return body.message;
-    }
-  } catch {
-    // keep default message
-  }
-
-  if (fallback.includes('non-2xx')) {
-    return 'Não foi possível gerar o insight agora. Tente novamente em instantes.';
-  }
-
-  return fallback;
-}
-
 export function useDeepInsight() {
   const [state, setState] = useState<DeepInsightState>({
     status: 'idle',
@@ -155,18 +113,17 @@ export function useDeepInsight() {
 
   const generateDeepInsight = useCallback(async (
     weekStart?: Date | string,
-    options?: { force?: boolean },
   ): Promise<DeepInsight | null> => {
     const weekStartStr = resolveWeekStartStr(weekStart);
     const cached = cachedInsightsRef.current.get(weekStartStr);
 
-    if (cached && !options?.force) {
+    if (cached) {
       applyLoadedInsight(cached);
       return cached;
     }
 
     if (inFlightWeekRef.current === weekStartStr) {
-      return cached ?? null;
+      return null;
     }
 
     inFlightWeekRef.current = weekStartStr;
@@ -178,93 +135,44 @@ export function useDeepInsight() {
     });
 
     try {
-      const { data: functionData, error: functionError, response } = await supabase.functions.invoke(
-        'generate-deep-insight',
-        {
-          body: { week_start: weekStartStr },
-        }
-      );
-
-      if (functionError) {
-        const message = await resolveFunctionsError(functionError, response);
-        console.error('Error generating deep insight:', message);
-        setState(prev => ({
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData.user?.id;
+      if (!userId) {
+        setState((prev) => ({
           ...prev,
           status: 'error',
-          error: message,
+          error: 'Entre na sua conta para ver o resumo da semana.',
         }));
         return null;
       }
 
-      if (functionData?.status === 'insufficient_conversations') {
+      const snapshot = await loadWeeklySummary(userId, weekStartStr);
+      if (!snapshot.insight) {
+        const status = snapshot.phase === 'minimum'
+          ? 'insufficient_conversations'
+          : snapshot.phase === 'locked'
+            ? 'available_on_sunday'
+            : 'no_insight_for_week';
         setState({
-          status: 'insufficient_conversations',
+          status,
           insight: null,
-          weeklyConversationCount: functionData.current || 0,
-          requiredConversations: functionData.required || DEFAULT_REQUIRED_CONVERSATIONS,
-          message: functionData.message,
-          error: null,
-        });
-        return null;
-      }
-
-      if (functionData?.status === 'available_on_sunday') {
-        setState({
-          status: 'available_on_sunday',
-          insight: null,
-          weeklyConversationCount: functionData.current || 0,
-          requiredConversations: functionData.required || DEFAULT_REQUIRED_CONVERSATIONS,
-          message: functionData.message,
-          error: null,
-        });
-        return null;
-      }
-
-      if (functionData?.status === 'no_insight_for_week') {
-        setState({
-          status: 'no_insight_for_week',
-          insight: null,
-          weeklyConversationCount: 0,
+          weeklyConversationCount: snapshot.qualifyingDays,
           requiredConversations: DEFAULT_REQUIRED_CONVERSATIONS,
-          message: functionData.message,
+          message: null,
           error: null,
         });
         return null;
       }
 
-      if (functionData?.error) {
-        const message = functionData.message || 'Erro ao gerar insight';
-        setState(prev => ({
-          ...prev,
-          status: 'error',
-          error: message,
-        }));
-        return null;
-      }
-
-      const insight = functionData as DeepInsight;
-      if (!insight?.headline || !insight?.intro) {
-        setState(prev => ({
-          ...prev,
-          status: 'error',
-          error: 'Não foi possível gerar o insight agora. Tente novamente em instantes.',
-        }));
-        return null;
-      }
-
-      cachedInsightsRef.current.set(weekStartStr, insight);
-      applyLoadedInsight(insight);
-
-      return insight;
-
+      cachedInsightsRef.current.set(weekStartStr, snapshot.insight);
+      applyLoadedInsight(snapshot.insight);
+      return snapshot.insight;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         status: 'error',
-        error: errorMessage.includes('non-2xx')
-          ? 'Não foi possível gerar o insight agora. Tente novamente em instantes.'
-          : errorMessage,
+        error: errorMessage,
       }));
       return null;
     } finally {

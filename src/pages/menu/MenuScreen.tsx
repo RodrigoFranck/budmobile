@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { BackHandler, Image, Linking, Pressable, Text, View } from 'react-native';
-import { CommonActions, useNavigation } from '@react-navigation/native';
+import { CommonActions, useFocusEffect, useNavigation } from '@react-navigation/native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -15,7 +16,6 @@ import {
   Clock,
   Heart,
   Info,
-  Leaf,
   LogOut,
   MessageSquare,
   Copy,
@@ -30,7 +30,6 @@ import type { Capability } from '@/access';
 import { BudButton } from '@/components/v3';
 import { BUD_SHARE_DISPLAY } from '@/constants/preferences';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTabScreenContext } from '@/contexts/TabScreenContext';
 import { useAppAudience } from '@/hooks/useAppAudience';
 import { useScreeningCadence } from '@/hooks/useScreeningCadence';
 import { copyBudLink, shareBud } from '@/pages/menu/shareBud';
@@ -41,11 +40,10 @@ import type { MainTabNavigationProp, MainTabParamList } from '@/types/navigation
 
 type MenuDest = keyof Pick<
   MainTabParamList,
-  'Home' | 'History' | 'Activities' | 'Institution' | 'Preferences' | 'Account' | 'AboutBud' | 'Support'
+  'History' | 'Activities' | 'Institution' | 'Preferences' | 'Account' | 'AboutBud' | 'Support'
 >;
 
 const NAV_ITEMS: { label: string; icon: LucideIcon; dest: MenuDest; capability?: Capability }[] = [
-  { label: 'Início', icon: Leaf, dest: 'Home' },
   { label: 'Histórico', icon: Clock, dest: 'History' },
   { label: 'Atividades', icon: Sparkles, dest: 'Activities' },
   { label: 'Pesquisa de saúde', icon: Activity, dest: 'Institution', capability: 'health_survey' },
@@ -56,9 +54,12 @@ const NAV_ITEMS: { label: string; icon: LucideIcon; dest: MenuDest; capability?:
 ];
 
 const PANEL_WIDTH = 340;
-const MENU_OPEN_MS = 340;
-const MENU_CLOSE_MS = 280;
+const MENU_OPEN_MS = 350;
+const MENU_CLOSE_MS = 300;
 const MENU_EASE = Easing.bezier(0.25, 0.1, 0.25, 1);
+const SWIPE_CLOSE_X = -64;
+const SWIPE_CLOSE_VX = -650;
+const COPY_TOAST_MS = 1500;
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export default function MenuScreen() {
@@ -67,15 +68,22 @@ export default function MenuScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainTabNavigationProp>();
   const { signOut, user } = useAuth();
-  const { profile } = useTabScreenContext();
   const { can } = useAppAudience();
-  const screening = useScreeningCadence();
+  const screening = useScreeningCadence({ autoNavigate: false });
   const navItems = NAV_ITEMS.filter((item) => !item.capability || can(item.capability));
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const firstName = profile?.name?.split(' ')[0] ?? '';
+  const [copied, setCopied] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      void screening.refresh();
+    }, [screening.refresh]),
+  );
   const progress = useSharedValue(0);
+  const dragX = useSharedValue(0);
   const closingRef = useRef(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const goBack = useCallback(() => {
     if (navigation.canGoBack()) navigation.goBack();
@@ -84,10 +92,11 @@ export default function MenuScreen() {
   const dismiss = useCallback(() => {
     if (closingRef.current) return;
     closingRef.current = true;
+    dragX.value = 0;
     progress.value = withTiming(0, { duration: MENU_CLOSE_MS, easing: MENU_EASE }, (finished) => {
       if (finished) runOnJS(goBack)();
     });
-  }, [goBack, progress]);
+  }, [dragX, goBack, progress]);
 
   useLayoutEffect(() => {
     progress.value = withTiming(1, { duration: MENU_OPEN_MS, easing: MENU_EASE });
@@ -101,20 +110,42 @@ export default function MenuScreen() {
     return () => sub.remove();
   }, [dismiss]);
 
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
+
   const overlayStyle = useAnimatedStyle(() => ({
     opacity: progress.value * 0.55,
   }));
 
   const panelStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: interpolate(progress.value, [0, 1], [-PANEL_WIDTH, 0]) }],
+    transform: [
+      {
+        translateX:
+          interpolate(progress.value, [0, 1], [-PANEL_WIDTH, 0]) + Math.min(0, dragX.value),
+      },
+    ],
   }));
 
-  const go = (dest: MenuDest) => {
-    if (dest === 'Home') {
-      dismiss();
-      return;
-    }
+  const pan = Gesture.Pan()
+    .activeOffsetX([-12, 12])
+    .failOffsetY([-24, 24])
+    .onUpdate((event) => {
+      dragX.value = Math.min(0, event.translationX);
+    })
+    .onEnd((event) => {
+      const shouldClose = event.translationX < SWIPE_CLOSE_X || event.velocityX < SWIPE_CLOSE_VX;
+      if (shouldClose) {
+        dragX.value = 0;
+        runOnJS(dismiss)();
+        return;
+      }
+      dragX.value = withTiming(0, { duration: 180, easing: MENU_EASE });
+    });
 
+  const go = (dest: MenuDest) => {
     navigation.dispatch((state) => {
       const routes = state.routes.filter((route) => route.name !== 'Menu' && route.name !== dest);
       return CommonActions.reset({
@@ -123,6 +154,13 @@ export default function MenuScreen() {
         index: routes.length,
       });
     });
+  };
+
+  const handleCopy = async () => {
+    await copyBudLink();
+    setCopied(true);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopied(false), COPY_TOAST_MS);
   };
 
   return (
@@ -143,119 +181,116 @@ export default function MenuScreen() {
           overlayStyle,
         ]}
       />
-      <Animated.View
-        style={[
-          {
-            width: PANEL_WIDTH,
-            flex: 1,
-            backgroundColor: colors.surface,
-            paddingTop: insets.top + 50,
-            paddingHorizontal: 30,
-            paddingBottom: insets.bottom + 20,
-            transform: [{ translateX: -PANEL_WIDTH }],
-          },
-          panelStyle,
-        ]}
-      >
-        <Text
-          style={{
-            fontFamily: fonts.display,
-            fontSize: 40,
-            lineHeight: 40,
-            letterSpacing: -0.4,
-            color: colors.text,
-          }}
+      <GestureDetector gesture={pan}>
+        <Animated.View
+          style={[
+            {
+              width: PANEL_WIDTH,
+              flex: 1,
+              backgroundColor: colors.surface,
+              paddingTop: insets.top + 50,
+              paddingHorizontal: 30,
+              paddingBottom: insets.bottom + 20,
+              transform: [{ translateX: -PANEL_WIDTH }],
+            },
+            panelStyle,
+          ]}
         >
-          Bud
-          <Text style={{ color: colors.accent }}>.</Text>
-        </Text>
-        {firstName ? (
           <Text
             style={{
-              fontFamily: fonts.sans,
-              fontSize: 15,
-              lineHeight: 15,
-              color: colors.text3,
-              marginTop: 10,
+              fontFamily: fonts.display,
+              fontSize: 40,
+              lineHeight: 40,
+              letterSpacing: -0.4,
+              color: colors.text,
             }}
           >
-            {firstName}
+            Bud.
           </Text>
-        ) : null}
 
-        <View style={{ marginTop: 26, flex: 1 }}>
-          {navItems.map((item) => (
-            <Pressable
-              key={item.label}
-              onPress={() => go(item.dest)}
-              accessibilityRole="button"
-              accessibilityLabel={item.label}
-              style={{ height: 54, flexDirection: 'row', alignItems: 'center', gap: 14 }}
-            >
-              <item.icon color={colors.text} size={22} />
-              <Text style={{ fontFamily: fonts.sans, fontSize: 17, lineHeight: 17, color: colors.text }}>
-                {item.label}
-              </Text>
-              {item.dest === 'Institution' && screening.due ? (
-                <View
-                  style={{
-                    width: 9,
-                    height: 9,
-                    borderRadius: 5,
-                    backgroundColor: colors.accent,
-                    marginLeft: 4,
-                  }}
-                />
-              ) : null}
-            </Pressable>
-          ))}
-        </View>
+          <View style={{ marginTop: 26, flex: 1 }}>
+            {navItems.map((item) => (
+              <Pressable
+                key={item.label}
+                onPress={() => go(item.dest)}
+                accessibilityRole="button"
+                accessibilityLabel={item.label}
+                style={{ height: 54, flexDirection: 'row', alignItems: 'center', gap: 14 }}
+              >
+                <item.icon color={colors.text} size={22} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                  <Text
+                    style={{
+                      fontFamily: fonts.sans,
+                      fontSize: 17,
+                      lineHeight: 17,
+                      color: colors.text,
+                      includeFontPadding: false,
+                    }}
+                  >
+                    {item.label}
+                  </Text>
+                  {item.dest === 'Institution' && screening.due ? (
+                    <View
+                      style={{
+                        width: 9,
+                        height: 9,
+                        borderRadius: 4.5,
+                        backgroundColor: colors.accent,
+                      }}
+                    />
+                  ) : null}
+                </View>
+              </Pressable>
+            ))}
+          </View>
 
-        <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 10 }}>
-          {can('referral') ? (
+          <View style={{ borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 10 }}>
+            {can('referral') ? (
+              <Pressable
+                onPress={() => setShareOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Indicar o Bud"
+                style={{ height: 50, flexDirection: 'row', alignItems: 'center', gap: 14 }}
+              >
+                <Share2 color={colors.text} size={22} />
+                <Text style={{ fontFamily: fonts.sans, fontSize: 16, lineHeight: 16, color: colors.text }}>
+                  Indicar o Bud
+                </Text>
+              </Pressable>
+            ) : null}
             <Pressable
-              onPress={() => setShareOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Indicar o Bud"
+              onPress={() => void Linking.openURL('https://www.cvv.org.br')}
+              accessibilityRole="link"
+              accessibilityLabel="Preciso de ajuda agora"
               style={{ height: 50, flexDirection: 'row', alignItems: 'center', gap: 14 }}
             >
-              <Share2 color={colors.text} size={22} />
-              <Text style={{ fontFamily: fonts.sans, fontSize: 16, lineHeight: 16, color: colors.text }}>
-                Indicar o Bud
+              <Heart color={colors.accent} size={22} />
+              <Text
+                style={{
+                  fontFamily: fonts.sansSemi,
+                  fontSize: 16,
+                  lineHeight: 16,
+                  color: colors.accent,
+                }}
+              >
+                Preciso de ajuda agora
               </Text>
             </Pressable>
-          ) : null}
-          <Pressable
-            onPress={() => void Linking.openURL('https://www.cvv.org.br')}
-            accessibilityRole="link"
-            accessibilityLabel="Preciso de ajuda agora"
-            style={{ height: 50, flexDirection: 'row', alignItems: 'center', gap: 14 }}
-          >
-            <Heart color={colors.accent} size={22} />
-            <Text
-              style={{
-                fontFamily: fonts.sansSemi,
-                fontSize: 16,
-                lineHeight: 16,
-                color: colors.accent,
-              }}
+            <Pressable
+              onPress={() => setSignOutOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Sair"
+              style={{ height: 50, flexDirection: 'row', alignItems: 'center', gap: 14 }}
             >
-              Preciso de ajuda agora
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setSignOutOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Sair"
-            style={{ height: 50, flexDirection: 'row', alignItems: 'center', gap: 14 }}
-          >
-            <LogOut color={colors.text} size={22} />
-            <Text style={{ fontFamily: fonts.sans, fontSize: 16, lineHeight: 16, color: colors.text }}>
-              Sair
-            </Text>
-          </Pressable>
-        </View>
-      </Animated.View>
+              <LogOut color={colors.text} size={22} />
+              <Text style={{ fontFamily: fonts.sans, fontSize: 16, lineHeight: 16, color: colors.text }}>
+                Sair
+              </Text>
+            </Pressable>
+          </View>
+        </Animated.View>
+      </GestureDetector>
 
       <BottomSheet visible={signOutOpen} onClose={() => setSignOutOpen(false)} height={300}>
         <View style={{ paddingTop: 26 }}>
@@ -289,7 +324,14 @@ export default function MenuScreen() {
         </View>
       </BottomSheet>
 
-      <BottomSheet visible={shareOpen} onClose={() => setShareOpen(false)} height={340}>
+      <BottomSheet
+        visible={shareOpen}
+        onClose={() => {
+          setShareOpen(false);
+          setCopied(false);
+        }}
+        height={340}
+      >
         <View style={{ paddingTop: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <View style={{ flex: 1, paddingRight: 12 }}>
@@ -312,9 +354,9 @@ export default function MenuScreen() {
             <Image source={assets.shareHands} style={{ width: 100, height: 100 }} resizeMode="contain" />
           </View>
           <Pressable
-            onPress={() => void copyBudLink()}
+            onPress={() => void handleCopy()}
             accessibilityRole="button"
-            accessibilityLabel="Copiar link"
+            accessibilityLabel={copied ? 'Link copiado' : 'Copiar link'}
             style={{
               marginTop: 24,
               height: 56,
@@ -326,7 +368,7 @@ export default function MenuScreen() {
             }}
           >
             <Text style={{ flex: 1, fontFamily: fonts.sans, fontSize: 16, color: colors.text }}>
-              {BUD_SHARE_DISPLAY}
+              {copied ? 'Link copiado' : BUD_SHARE_DISPLAY}
             </Text>
             <Copy color={colors.text} size={22} />
           </Pressable>

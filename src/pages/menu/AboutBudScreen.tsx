@@ -95,18 +95,6 @@ export default function AboutBudScreen() {
           O Bud não substitui psicólogo nem atendimento de emergência. Em perigo, ligue 188 (CVV) ou 192 (SAMU).
         </Text>
       </View>
-      <Text
-        style={{
-          fontFamily: fonts.sans,
-          fontSize: 13,
-          lineHeight: 13,
-          color: colors.text3,
-          textAlign: 'center',
-          marginTop: 80,
-        }}
-      >
-        Feito com cuidado em São Paulo
-      </Text>
     </ScreenScaffold>
   );
 }

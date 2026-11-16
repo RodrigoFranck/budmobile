@@ -1,8 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Activity, CreditCard, KeyRound, Mail, MessageSquare, Trash2 } from 'lucide-react-native';
 
+import { TOGGLE_SAVE_FAILED_MESSAGE } from '@/components/v3/BudToggle';
 import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppAudience } from '@/hooks/useAppAudience';
@@ -34,11 +35,36 @@ export default function AccountScreen() {
   const { showAlert } = useAppAlert();
   const { user } = useAuth();
   const { values, persist } = useV3Preferences();
-  const { planId, status } = useUserPlan();
+  const { planId, status, isSubscribed, manageSubscription } = useUserPlan();
   const { can } = useAppAudience();
   const [sendingReset, setSendingReset] = useState(false);
+  const [shareConversations, setShareConversations] = useState(values.shareConversations);
+  const [shareResearch, setShareResearch] = useState(values.shareResearch);
   const planLabel = planId === 'free' || status === 'free' ? 'Grátis' : 'Premium';
   const showPaywall = can('paywall');
+
+  useEffect(() => {
+    setShareConversations(values.shareConversations);
+  }, [values.shareConversations]);
+
+  useEffect(() => {
+    setShareResearch(values.shareResearch);
+  }, [values.shareResearch]);
+
+  const persistConsent = useCallback(
+    async (key: 'shareConversations' | 'shareResearch', next: boolean) => {
+      const setLocal = key === 'shareConversations' ? setShareConversations : setShareResearch;
+      setLocal(next);
+      try {
+        const saved = await persist({ [key]: next });
+        if (!saved) throw new Error('save failed');
+      } catch {
+        setLocal(!next);
+        showAlert({ title: TOGGLE_SAVE_FAILED_MESSAGE });
+      }
+    },
+    [persist, showAlert],
+  );
 
   const handlePassword = useCallback(async () => {
     if (!user?.email) {
@@ -84,7 +110,18 @@ export default function AccountScreen() {
             label="Assinatura"
             value={planLabel}
             last
-            onPress={() => navigation.navigate('Paywall')}
+            onPress={() => {
+              if (isSubscribed) {
+                void manageSubscription().catch(() => {
+                  showAlert({
+                    title: 'Não foi possível abrir a assinatura',
+                    message: 'Tente de novo pela loja do celular.',
+                  });
+                });
+                return;
+              }
+              navigation.navigate('Paywall');
+            }}
           />
         ) : null}
       </PrefGroup>
@@ -97,8 +134,8 @@ export default function AccountScreen() {
           hint="De forma anônima, para melhorar o Bud"
           trailing={
             <BudToggle
-              value={values.shareConversations}
-              onValueChange={(next) => void persist({ shareConversations: next })}
+              value={shareConversations}
+              onValueChange={(next) => void persistConsent('shareConversations', next)}
               accessibilityLabel="Compartilhar conversas"
             />
           }
@@ -110,8 +147,8 @@ export default function AccountScreen() {
           last
           trailing={
             <BudToggle
-              value={values.shareResearch}
-              onValueChange={(next) => void persist({ shareResearch: next })}
+              value={shareResearch}
+              onValueChange={(next) => void persistConsent('shareResearch', next)}
               accessibilityLabel="Usar respostas em pesquisa"
             />
           }

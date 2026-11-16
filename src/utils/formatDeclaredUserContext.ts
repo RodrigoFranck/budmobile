@@ -1,4 +1,8 @@
 import { CHECKIN_LABELS } from '@/analytics/labels';
+import {
+  genderAddressInstruction,
+  grammaticalGenderFrom,
+} from '@/copy/genderedCopy';
 import { psychologicalAssessmentSteps } from '@/features/psychologicalAssessment/psychologicalAssessmentSteps';
 import {
   HEALTH_SURVEY_INSTRUMENT,
@@ -6,6 +10,7 @@ import {
 } from '@/pages/institution/healthSurvey';
 import { SCREENINGS } from '@/pages/institution/screeningCatalog';
 import type { V3Preferences } from '@/hooks/useV3Preferences';
+import { voiceFromValue, voiceOptions } from '@/theme';
 
 const DECLARED_CONTEXT_INTRO =
   'O QUE ESTA PESSOA CONTOU SOBRE SI (fonte atual do app. Se ela atualizar preferências ou refizer atividade/pesquisa, use a versão mais recente. Se isto contradisser memória antiga das conversas, priorize isto. Use naturalmente, nunca cite como ficha):';
@@ -212,6 +217,8 @@ export function formatDeclaredPreferences(
   add('Nome', input.name);
   add('Idade', input.age);
   add('Gênero', input.gender);
+  add('Gênero gramatical', grammaticalGenderFrom(input.gender));
+  add('Concordância de gênero', genderAddressInstruction(input.gender));
   add('Profissão', input.occupation);
   add(
     'Relacionamento',
@@ -229,6 +236,12 @@ export function formatDeclaredPreferences(
 
   for (const field of PREFERENCE_FIELDS) {
     add(field.label, joinPrefList(input.preferences[field.key] as string | string[] | undefined));
+  }
+
+  if (input.preferences.voice) {
+    const voiceId = voiceFromValue(input.preferences.voice);
+    const voiceLabel = voiceOptions.find((item) => item.id === voiceId)?.label ?? voiceId;
+    add('Voz do Bud', voiceLabel);
   }
 
   if (lines.length === 0) return null;

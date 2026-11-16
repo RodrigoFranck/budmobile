@@ -7,22 +7,39 @@ import { supabase } from '@/integrations/supabase/client';
 import { HEALTH_SURVEY_INSTRUMENT } from '@/pages/institution/healthSurvey';
 import type { MainTabNavigationProp } from '@/types/navigation';
 
-const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+const SURVEY_CADENCE_DAYS = 30;
+const SURVEY_CADENCE_MS = SURVEY_CADENCE_DAYS * 24 * 60 * 60 * 1000;
 
 let promptedThisSession = false;
+let sharedDue = false;
+const dueListeners = new Set<(due: boolean) => void>();
+
+function publishDue(next: boolean) {
+  sharedDue = next;
+  dueListeners.forEach((listener) => listener(next));
+}
 
 export function useScreeningCadence(options?: { autoNavigate?: boolean }) {
   const { user } = useAuth();
   const { can } = useAppAudience();
   const navigation = useNavigation<MainTabNavigationProp>();
-  const [due, setDue] = useState(false);
+  const [due, setDue] = useState(sharedDue);
   const checking = useRef(false);
   const autoNavigate = options?.autoNavigate ?? false;
   const enabled = can('health_survey');
 
+  useEffect(() => {
+    const listener = (next: boolean) => setDue(next);
+    dueListeners.add(listener);
+    setDue(sharedDue);
+    return () => {
+      dueListeners.delete(listener);
+    };
+  }, []);
+
   const refresh = useCallback(async () => {
     if (!enabled) {
-      setDue(false);
+      publishDue(false);
       return;
     }
     if (!user?.id || checking.current) return;
@@ -38,8 +55,8 @@ export function useScreeningCadence(options?: { autoNavigate?: boolean }) {
 
       const rows = (data as { instrument: string; completed_at: string }[] | null) ?? [];
       const latest = rows[0]?.completed_at ? new Date(rows[0].completed_at).getTime() : 0;
-      const isDue = !latest || Date.now() - latest > NINETY_DAYS_MS;
-      setDue(isDue);
+      const isDue = !latest || Date.now() - latest >= SURVEY_CADENCE_MS;
+      publishDue(isDue);
 
       if (autoNavigate && isDue && !promptedThisSession) {
         promptedThisSession = true;
@@ -58,5 +75,10 @@ export function useScreeningCadence(options?: { autoNavigate?: boolean }) {
     promptedThisSession = true;
   }, []);
 
-  return { due, snooze, refresh };
+  const markComplete = useCallback(() => {
+    promptedThisSession = true;
+    publishDue(false);
+  }, []);
+
+  return { due, snooze, refresh, markComplete };
 }

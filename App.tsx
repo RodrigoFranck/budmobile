@@ -23,6 +23,7 @@ import { AnalyticsUserSync, initAnalytics } from '@/analytics';
 import AppNavigator from '@/navigation/AppNavigator';
 import { AppQueryProvider } from '@/providers/AppQueryProvider';
 import { v3DarkColors } from '@/theme';
+import { bootMark, bootMarkOnce } from '@/utils/bootTiming';
 
 function ThemedStatusBar() {
   const { isDarkMode } = useTheme();
@@ -43,17 +44,34 @@ export default function App() {
   });
 
   useEffect(() => {
-    void initAnalytics();
+    bootMarkOnce('app_mount');
+  }, []);
+
+  useEffect(() => {
+    if (fontsLoaded) bootMarkOnce('app_fonts_loaded');
+  }, [fontsLoaded]);
+
+  useEffect(() => {
+    void initAnalytics().then(() => {
+      bootMarkOnce('analytics_init_done');
+    });
   }, []);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
+    const audioStarted = Date.now();
     Audio.setAudioModeAsync({
       allowsRecordingIOS: true,
       playsInSilentModeIOS: true,
       shouldDuckAndroid: true,
       playThroughEarpieceAndroid: false,
-    }).catch(() => {});
+    })
+      .then(() => {
+        bootMarkOnce('audio_mode_ready', { ms: Date.now() - audioStarted });
+      })
+      .catch(() => {
+        bootMark('audio_mode_failed', { ms: Date.now() - audioStarted });
+      });
   }, []);
 
   const tree = (

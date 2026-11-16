@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
+import { DMSans_600SemiBold } from "@expo-google-fonts/dm-sans";
+import { useFonts } from "expo-font";
 import {
   View,
   Text,
@@ -10,7 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { Eye, EyeOff } from "lucide-react-native";
+import { ChevronLeft, Eye, EyeOff } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppAlert } from "@/contexts/AppAlertContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +22,7 @@ import { PlatformConstants, SCREEN } from "@/constants/layout";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createAuthStyles } from "./Auth.styles";
 import { SITE_ORIGIN } from "@/constants/auth";
+import { sendWelcomeEmail } from "@/services/welcomeEmail";
 import {
   PRIVACY_POLICY_URL,
   TERMS_OF_SERVICE_URL,
@@ -33,7 +36,7 @@ import {
 } from "@/utils/auth/authMessages";
 import { AppleLogo } from "@/components/icons/AppleLogo";
 import { GoogleLogo } from "@/components/icons/GoogleLogo";
-import { BudButton } from "@/components/v3";
+import { BudButton, BudIconButton } from "@/components/v3";
 import { useV3Colors } from "@/theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Auth">;
@@ -131,6 +134,13 @@ export default function AuthScreen({ navigation }: Props) {
       },
     });
 
+    // TF-82: backup do gatilho DB (on_profile_created_welcome_email); idempotente via welcome_sent_at
+    void sendWelcomeEmail({
+      email: trimmedEmail,
+      name: signupName,
+      userId,
+    });
+
     setIsLoadingSignup(false);
     showAuthAlert(signupSuccessAlert(trimmedEmail));
   };
@@ -172,6 +182,20 @@ export default function AuthScreen({ navigation }: Props) {
   };
 
   const showAppleButton = Platform.OS === "ios" && isAppleSignInAvailable;
+  const [labelFontReady] = useFonts({ DMSans_600SemiBold });
+
+  const renderSocialLabel = (label: string) => (
+    <Text
+      key={labelFontReady ? `${label}-ready` : `${label}-pending`}
+      style={styles.socialButtonText}
+      numberOfLines={1}
+      adjustsFontSizeToFit
+      minimumFontScale={0.85}
+      ellipsizeMode="clip"
+    >
+      {label}
+    </Text>
+  );
 
   const renderSocialButtons = () => (
     <View style={styles.socialSection}>
@@ -187,12 +211,12 @@ export default function AuthScreen({ navigation }: Props) {
           {isLoadingApple ? (
             <ActivityIndicator size="small" color={colors.text} />
           ) : (
-            <>
+            <View style={styles.socialButtonContent}>
               <View style={styles.socialIconContainer}>
                 <AppleLogo color={colors.text} />
               </View>
-              <Text style={styles.socialButtonText}>Continuar com Apple</Text>
-            </>
+              {renderSocialLabel("Continuar com Apple")}
+            </View>
           )}
         </TouchableOpacity>
       )}
@@ -208,12 +232,12 @@ export default function AuthScreen({ navigation }: Props) {
         {isLoadingGoogle ? (
           <ActivityIndicator size="small" color={colors.text} />
         ) : (
-          <>
+          <View style={styles.socialButtonContent}>
             <View style={styles.socialIconContainer}>
               <GoogleLogo />
             </View>
-            <Text style={styles.socialButtonText}>Continuar com Google</Text>
-          </>
+            {renderSocialLabel("Continuar com Google")}
+          </View>
         )}
       </TouchableOpacity>
     </View>
@@ -347,18 +371,24 @@ export default function AuthScreen({ navigation }: Props) {
     </View>
   );
 
+  const canGoBack = navigation.canGoBack();
+  const scrollMinHeight =
+    SCREEN.height - (canGoBack ? 0 : insets.top + 24) - insets.bottom - 24;
+
   const renderAuth = () => (
-    <View
-      style={[
-        styles.content,
-        {
-          minHeight: SCREEN.height - insets.top - 24 - insets.bottom - 16,
-        },
-      ]}
-    >
+    <View style={[styles.content, { minHeight: scrollMinHeight }]}>
+      {canGoBack ? (
+        <View style={styles.navBar}>
+          <BudIconButton
+            icon={ChevronLeft}
+            accessibilityLabel="Voltar"
+            onPress={() => navigation.goBack()}
+          />
+        </View>
+      ) : null}
       <View style={styles.loginBody}>
         <View style={styles.loginTitleBlock}>
-          <Text style={styles.title}>
+          <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit>
             Que bom ter você <Text style={styles.titleAccent}>aqui</Text>
           </Text>
           <Text style={styles.subtitle}>
@@ -375,6 +405,7 @@ export default function AuthScreen({ navigation }: Props) {
           {activeTab === "signup" ? renderSignupForm() : renderLoginForm()}
         </View>
       </View>
+      <View style={{ flexGrow: 1, minHeight: 0 }} />
       <View style={styles.footerSection}>
         {activeTab === "login" ? (
           <BudButton
@@ -437,11 +468,12 @@ export default function AuthScreen({ navigation }: Props) {
             styles.scrollContent,
             {
               minHeight: SCREEN.height,
-              paddingTop: insets.top + 24,
-              paddingBottom: insets.bottom + 16,
+              paddingTop: canGoBack ? insets.top + 8 : insets.top + 24,
+              paddingBottom: insets.bottom + 24,
             },
           ]}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
           {renderAuth()}

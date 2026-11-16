@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
+import type { PlanPrices } from '@/billing/prices';
 import { fonts, useV3Colors } from '@/theme';
 import {
   PaywallLeafIcon,
@@ -24,9 +25,11 @@ const SUFFIX_AND_BADGE = 8 + 50 + 12 + 108;
 export function PaywallOfferCard({
   interval,
   onChangeInterval,
+  prices,
 }: {
   interval: PaywallInterval;
   onChangeInterval: (interval: PaywallInterval) => void;
+  prices: PlanPrices;
 }) {
   const colors = useV3Colors();
   const { width: screenWidth } = useWindowDimensions();
@@ -74,7 +77,7 @@ export function PaywallOfferCard({
       <View style={styles.priceRow}>
         <View style={styles.priceGroup}>
           <Text style={[styles.price, { color: colors.text, fontSize: priceSize, lineHeight: priceSize }]}>
-            {annual ? 'R$ 83,33' : 'R$ 129,90'}
+            {annual ? prices.annualPerMonth : prices.monthly}
           </Text>
           <Text style={[styles.priceSuffix, { color: colors.text2 }]}>/ mês</Text>
         </View>
@@ -88,7 +91,7 @@ export function PaywallOfferCard({
       </View>
 
       <Text style={[styles.billedHint, { color: colors.text3 }]}>
-        {annual ? 'Cobrado R$ 999,90 por ano' : 'Cobrado todo mês'}
+        {annual ? `Cobrado ${prices.annualTotal} por ano` : 'Cobrado todo mês'}
       </Text>
 
       <View style={[styles.rule, { backgroundColor: colors.line }]} />

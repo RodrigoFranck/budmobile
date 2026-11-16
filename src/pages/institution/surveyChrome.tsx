@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   PanResponder,
   Pressable,
@@ -8,6 +8,12 @@ import {
   type GestureResponderEvent,
   type LayoutChangeEvent,
 } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { ChevronLeft, X } from 'lucide-react-native';
@@ -15,6 +21,8 @@ import { ChevronLeft, X } from 'lucide-react-native';
 import { BudIconButton } from '@/components/v3';
 import { useGenderedCopy } from '@/hooks/useGenderedCopy';
 import { fonts, useV3Colors } from '@/theme';
+
+const PROGRESS_EASE = Easing.out(Easing.cubic);
 
 const ICON_STROKE = {
   strokeWidth: 1.55833,
@@ -57,20 +65,36 @@ export function SurveyHeader({
   onBack,
   onClose,
   progress,
+  progressDurationMs = 350,
   titleAlign = 'center',
 }: {
   title: string;
   onBack?: () => void;
   onClose?: () => void;
   progress?: number;
+  progressDurationMs?: number;
   titleAlign?: 'center' | 'left';
 }) {
   const colors = useV3Colors();
   const insets = useSafeAreaInsets();
   const { g } = useGenderedCopy();
+  const clamped = Math.max(0, Math.min(1, progress ?? 0));
+  const fill = useSharedValue(clamped);
+
+  useEffect(() => {
+    if (progress === undefined) return;
+    fill.value = withTiming(Math.max(0, Math.min(1, progress)), {
+      duration: Math.max(0, progressDurationMs),
+      easing: PROGRESS_EASE,
+    });
+  }, [fill, progress, progressDurationMs]);
+
+  const fillStyle = useAnimatedStyle(() => ({
+    width: `${fill.value * 100}%`,
+  }));
 
   return (
-    <View style={{ paddingTop: insets.top }}>
+    <View style={{ paddingTop: insets.top, zIndex: 2, backgroundColor: colors.bg }}>
       <View
         style={{
           height: 56,
@@ -112,13 +136,15 @@ export function SurveyHeader({
             overflow: 'hidden',
           }}
         >
-          <View
-            style={{
-              height: 4,
-              borderRadius: 2,
-              width: `${Math.max(0, Math.min(100, progress * 100))}%`,
-              backgroundColor: colors.accent,
-            }}
+          <Animated.View
+            style={[
+              {
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: colors.accent,
+              },
+              fillStyle,
+            ]}
           />
         </View>
       ) : null}
@@ -174,11 +200,13 @@ export function SurveyField({
   placeholder,
   onChangeText,
   keyboardType = 'number-pad',
+  onFocus,
 }: {
   value: string;
   placeholder: string;
   onChangeText: (value: string) => void;
   keyboardType?: 'number-pad' | 'decimal-pad';
+  onFocus?: () => void;
 }) {
   const colors = useV3Colors();
   const filled = value.length > 0;
@@ -186,11 +214,13 @@ export function SurveyField({
     <View
       style={{
         height: 62,
+        minHeight: 62,
         borderRadius: 20,
         backgroundColor: colors.surface2,
         paddingLeft: 22,
         paddingRight: 8,
         justifyContent: 'center',
+        flexShrink: 0,
       }}
     >
       <TextInput
@@ -200,12 +230,14 @@ export function SurveyField({
         placeholderTextColor={colors.text3}
         keyboardType={keyboardType}
         returnKeyType="done"
+        onFocus={onFocus}
         style={{
           fontFamily: fonts.sans,
           fontSize: filled ? 20 : 16,
-          lineHeight: filled ? 20 : 16,
+          lineHeight: filled ? 24 : 20,
           color: colors.text,
           padding: 0,
+          minHeight: 28,
         }}
       />
     </View>
@@ -310,7 +342,12 @@ export function SurveyScale({
 
 const VAS_TRACK = 330;
 const VAS_THUMB = 40;
+const VAS_TRACK_WIDTH = 6;
 const VAS_RING = 8;
+const VAS_LABEL_GAP = 16;
+const VAS_BOTTOM_GAP = 32;
+const VAS_TRACK_LEFT = (VAS_THUMB - VAS_TRACK_WIDTH) / 2;
+const VAS_THUMB_LEFT = (VAS_THUMB - (VAS_THUMB + VAS_RING * 2)) / 2;
 
 export function SurveyVas({
   value,
@@ -364,13 +401,19 @@ export function SurveyVas({
   const labelStyle = {
     fontFamily: fonts.sans,
     fontSize: 14,
-    lineHeight: 14,
+    lineHeight: 18,
     color: colors.text2,
-    marginLeft: 110,
+  } as const;
+
+  const numberStyle = {
+    fontFamily: fonts.sansSemi,
+    fontSize: 14,
+    lineHeight: 18,
+    color: colors.text2,
   } as const;
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, paddingBottom: VAS_BOTTOM_GAP }}>
       <Text
         style={{
           fontFamily: fonts.display,
@@ -383,64 +426,92 @@ export function SurveyVas({
       >
         {value}
       </Text>
-      <Text style={[labelStyle, { marginTop: 34 }]}>{maxLabel}</Text>
       <View
-        {...pan.panHandlers}
-        onLayout={onTrackLayout}
         style={{
-          width: VAS_THUMB,
           flex: 1,
+          flexDirection: 'row',
+          alignItems: 'stretch',
+          marginTop: 34,
+          marginLeft: 46,
+          marginRight: 24,
           maxHeight: VAS_TRACK,
-          marginTop: 16,
-          marginLeft: 53,
-          alignItems: 'center',
         }}
       >
         <View
+          {...pan.panHandlers}
+          onLayout={onTrackLayout}
           style={{
-            position: 'absolute',
-            width: 6,
-            top: 0,
-            bottom: 0,
-            borderRadius: 3,
-            backgroundColor: colors.surface2,
-          }}
-        />
-        <View
-          style={{
-            position: 'absolute',
-            width: 6,
-            borderRadius: 3,
-            backgroundColor: colors.accent,
-            bottom: 0,
-            height: Math.max(6, fillHeight),
-          }}
-        />
-        <View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            width: VAS_THUMB + VAS_RING * 2,
-            height: VAS_THUMB + VAS_RING * 2,
-            borderRadius: VAS_THUMB / 2 + VAS_RING,
-            backgroundColor: colors.bg,
-            top: thumbTop - VAS_RING,
-            left: -VAS_RING,
-            alignItems: 'center',
-            justifyContent: 'center',
+            width: VAS_THUMB,
+            maxHeight: VAS_TRACK,
+            flexGrow: 0,
+            flexShrink: 0,
           }}
         >
           <View
             style={{
-              width: VAS_THUMB,
-              height: VAS_THUMB,
-              borderRadius: VAS_THUMB / 2,
-              backgroundColor: colors.btn,
+              position: 'absolute',
+              width: VAS_TRACK_WIDTH,
+              left: VAS_TRACK_LEFT,
+              top: 0,
+              bottom: 0,
+              borderRadius: 3,
+              backgroundColor: colors.surface2,
             }}
           />
+          <View
+            style={{
+              position: 'absolute',
+              width: VAS_TRACK_WIDTH,
+              left: VAS_TRACK_LEFT,
+              borderRadius: 3,
+              backgroundColor: colors.accent,
+              bottom: 0,
+              height: Math.max(VAS_TRACK_WIDTH, fillHeight),
+            }}
+          />
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              width: VAS_THUMB + VAS_RING * 2,
+              height: VAS_THUMB + VAS_RING * 2,
+              borderRadius: VAS_THUMB / 2 + VAS_RING,
+              backgroundColor: colors.bg,
+              top: thumbTop - VAS_RING,
+              left: VAS_THUMB_LEFT,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <View
+              style={{
+                width: VAS_THUMB,
+                height: VAS_THUMB,
+                borderRadius: VAS_THUMB / 2,
+                backgroundColor: colors.btn,
+              }}
+            />
+          </View>
+        </View>
+        <View
+          pointerEvents="none"
+          style={{
+            flex: 1,
+            marginLeft: VAS_LABEL_GAP,
+            justifyContent: 'space-between',
+            minWidth: 0,
+          }}
+        >
+          <Text style={labelStyle} numberOfLines={3} ellipsizeMode="clip">
+            <Text style={numberStyle}>100</Text>
+            {` · ${maxLabel}`}
+          </Text>
+          <Text style={labelStyle} numberOfLines={3} ellipsizeMode="clip">
+            <Text style={numberStyle}>0</Text>
+            {` · ${minLabel}`}
+          </Text>
         </View>
       </View>
-      <Text style={[labelStyle, { marginTop: 12 }]}>{minLabel}</Text>
     </View>
   );
 }

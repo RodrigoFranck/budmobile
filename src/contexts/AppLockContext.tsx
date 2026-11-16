@@ -8,6 +8,8 @@ import React, {
   useState,
 } from 'react';
 import { AppState, BackHandler, Platform, StyleSheet, View, type AppStateStatus } from 'react-native';
+import { DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
+import { useFonts } from 'expo-font';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SplashScreen } from '@/components/SplashScreen';
@@ -27,6 +29,7 @@ type AppLockContextType = {
   ready: boolean;
   busy: boolean;
   setEnabled: (next: boolean) => Promise<boolean>;
+  restoreEnabled: (next: boolean) => void;
 };
 
 const AppLockContext = createContext<AppLockContextType | undefined>(undefined);
@@ -46,6 +49,7 @@ function wait(ms: number) {
 export function AppLockProvider({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
   const { loaded: themeLoaded } = useTheme();
+  const [unlockLabelReady] = useFonts({ DMSans_600SemiBold });
   const { data: profile } = useAppProfileQuery();
   const [ready, setReady] = useState(Platform.OS === 'web');
   const [enabled, setEnabledState] = useState(false);
@@ -76,6 +80,15 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
       authenticatingRef.current = false;
       setBusy(false);
     }
+  }, []);
+
+  const restoreEnabled = useCallback((next: boolean) => {
+    hasLocalFlagRef.current = true;
+    enabledRef.current = next;
+    lockedRef.current = false;
+    setEnabledState(next);
+    setLocked(false);
+    void writeAppLockFlag(next);
   }, []);
 
   const setEnabled = useCallback(async (next: boolean) => {
@@ -173,8 +186,8 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
   }, [enabled, locked, ready]);
 
   const value = useMemo(
-    () => ({ enabled, ready, busy, setEnabled }),
-    [enabled, ready, busy, setEnabled],
+    () => ({ enabled, ready, busy, setEnabled, restoreEnabled }),
+    [enabled, ready, busy, restoreEnabled, setEnabled],
   );
 
   const showLockScreen = !ready || (enabled && locked);
@@ -197,6 +210,7 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
           {ready ? (
             <View style={[styles.unlockButton, { bottom: insets.bottom + 16 }]}>
               <BudButton
+                key={unlockLabelReady ? 'desbloquear-ready' : 'desbloquear-pending'}
                 label="Desbloquear"
                 onPress={() => void unlock()}
                 loading={busy}

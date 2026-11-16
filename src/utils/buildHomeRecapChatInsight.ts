@@ -102,12 +102,13 @@ export async function buildConversationRecapChatInsight(params: {
 
   return {
     insightType: HOME_CONVERSATION_RECAP_TYPE,
-    badge: params.dateLabel.toUpperCase(),
+    badge: params.dateLabel.toLocaleUpperCase('pt-BR'),
     title,
     contextSummary: params.cardDescription,
     internalContext,
     cardDescription: params.cardDescription,
     backgroundType: 'inspired',
+    contextVariant: 'start',
     conversationId: params.conversationId,
     initialUserMessage: title
       ? `Quero continuar nossa conversa sobre "${title}".`

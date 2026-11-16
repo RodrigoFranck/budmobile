@@ -53,6 +53,29 @@ export function useConversationDetailStyles() {
       fontSize: 19,
       color: onboardingColors.white,
     },
+    activitiesBlock: {
+      marginBottom: 12,
+    },
+    activitiesTitle: {
+      fontFamily: instrumentSansFont,
+      fontSize: 14,
+      color: onboardingColors.textSecondary,
+      marginBottom: 12,
+    },
+    letterNote: {
+      marginBottom: 24,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderRadius: 14,
+      backgroundColor: onboardingColors.gradientIconSurface,
+      borderWidth: 1,
+      borderColor: onboardingColors.borderDark,
+    },
+    letterNoteText: {
+      fontFamily: instrumentSansFont,
+      fontSize: 14,
+      color: onboardingColors.textSecondary,
+    },
     scroll: {
       flex: 1,
     },
@@ -71,6 +94,44 @@ export function useConversationDetailStyles() {
       textAlign: 'center',
       marginTop: 12,
     },
+    inlineLoading: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingVertical: 12,
+      marginBottom: 8,
+    },
+    inlineLoadingText: {
+      fontFamily: instrumentSansFont,
+      fontSize: 14,
+      color: onboardingColors.textSecondary,
+    },
+    errorState: {
+      paddingVertical: 24,
+      alignItems: 'flex-start',
+      gap: 14,
+    },
+    errorText: {
+      fontFamily: instrumentSansFont,
+      fontSize: 16,
+      lineHeight: 22,
+      color: onboardingColors.textSecondary,
+    },
+    retryButton: {
+      height: 42,
+      borderRadius: 29,
+      paddingHorizontal: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: onboardingColors.gradientIconSurface,
+      borderWidth: 1,
+      borderColor: onboardingColors.borderDark,
+    },
+    retryLabel: {
+      fontFamily: instrumentSansFont,
+      fontSize: 15,
+      color: onboardingColors.white,
+    },
     messages: {
       gap: 28,
     },
@@ -79,6 +140,16 @@ export function useConversationDetailStyles() {
     },
     userWrap: {
       alignItems: 'flex-end',
+    },
+    userPhotoBubble: {
+      maxWidth: '78%',
+      borderRadius: 18,
+      overflow: 'hidden',
+    },
+    userPhoto: {
+      width: 220,
+      height: 220,
+      borderRadius: 18,
     },
     assistantWrap: {
       alignItems: 'flex-start',

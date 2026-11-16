@@ -20,6 +20,7 @@ import { MOBILE_OAUTH_WEB_CALLBACK } from '@/constants/auth';
 import { queryKeys } from '@/lib/queryKeys';
 import { fetchAppProfile, isProfileSchemaError } from '@/services/profileQuery';
 import { ensureTermsAcceptance } from '@/services/termsAcceptance';
+import { bootMark, bootMarkOnce } from '@/utils/bootTiming';
 import { z } from 'zod';
 
 const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '';
@@ -174,6 +175,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       normalizeOnboardingCompleted(profileQuery.data?.onboarding_completed),
     );
     setOnboardingStatusLoaded(true);
+    bootMarkOnce('auth_onboarding_status_ready', {
+      completed: normalizeOnboardingCompleted(profileQuery.data?.onboarding_completed),
+      fromCache: profileQuery.isFetched && !profileQuery.isPending,
+    });
   }, [
     user?.id,
     profileQuery.isPending,
@@ -189,6 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id, onboardingCompleted]);
 
   useEffect(() => {
+    bootMarkOnce('auth_bootstrap_start');
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, nextSession) => {
@@ -198,6 +204,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(nextSession);
         setUser(nextSession?.user ?? null);
         setLoading(false);
+        bootMarkOnce('auth_state_ready', {
+          event,
+          hasUser: Boolean(nextSession?.user),
+        });
 
         // Defer DB writes — async work inside onAuthStateChange can deadlock the client.
         if (
@@ -213,6 +223,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     // THEN check for existing session - COM TRATAMENTO DE ERRO
+    const sessionStarted = Date.now();
     supabase.auth.getSession()
       .then(({ data: { session }, error }) => {
         // Se houver erro, limpa sessão e continua
@@ -228,6 +239,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
         setLoading(false);
+        bootMarkOnce('auth_get_session_done', {
+          ms: Date.now() - sessionStarted,
+          hasUser: Boolean(session?.user),
+          error: Boolean(error),
+        });
       })
       .catch((error) => {
         // Fallback para qualquer erro inesperado
@@ -235,6 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(null);
         setUser(null);
         setLoading(false);
+        bootMark('auth_get_session_failed', { ms: Date.now() - sessionStarted });
       });
 
     const applySessionFromOAuthUrl = async (
