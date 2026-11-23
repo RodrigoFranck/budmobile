@@ -98,9 +98,13 @@ test('legacy free-conversation helper kept for migration coverage', () => {
 });
 
 test('store product ids map to the paywall intervals', () => {
+  assert.equal(isPremiumProductId('premium_anual_2'), true);
+  assert.equal(isPremiumProductId('premium_mensal_2'), true);
   assert.equal(isPremiumProductId('premium_anual'), true);
   assert.equal(isPremiumProductId('premium_mensal'), true);
   assert.equal(isPremiumProductId('com.other.app'), false);
+  assert.equal(intervalForProductId('premium_anual_2'), 'annual');
+  assert.equal(intervalForProductId('premium_mensal_2'), 'monthly');
   assert.equal(intervalForProductId('premium_anual'), 'annual');
   assert.equal(formatYearlyAsMonthly(419.9, 'BRL').includes('34,99'), true);
 });
