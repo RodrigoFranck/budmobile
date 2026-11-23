@@ -117,9 +117,12 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     isSubscribed,
     requiresPremiumForContext,
     refetch: refetchPlan,
+    reportVoiceQuotaUsage,
   } = useUserPlan();
   const requiresPremiumForContextRef = useRef(requiresPremiumForContext);
   requiresPremiumForContextRef.current = requiresPremiumForContext;
+  const reportVoiceQuotaUsageRef = useRef(reportVoiceQuotaUsage);
+  reportVoiceQuotaUsageRef.current = reportVoiceQuotaUsage;
   const navigation = useNavigation<MainTabNavigationProp>();
   const route = useRoute();
   const isChatFocused = useIsFocused();
@@ -297,6 +300,11 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       void logActionEvent(ACTION_EVENTS.VOICE_SESSION_ENDED, {
         duration_seconds: durationSeconds,
       });
+      if (durationSeconds > 0) {
+        void reportVoiceQuotaUsageRef.current(durationSeconds).then(() => {
+          void refetchPlanRef.current();
+        });
+      }
     }
 
     if (!isVoiceModeActive) {

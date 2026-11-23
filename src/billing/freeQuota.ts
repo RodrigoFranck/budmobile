@@ -2,8 +2,9 @@
  * Server-driven Free chat quota (TF-111 / TF-115).
  * The app never computes remaining tokens locally — only mirrors these fields.
  *
- * `limite_tokens_free_mes` lives in server config (env / SQL). Exact number is
- * pending Rodrigo validation after TestFlight measurement (P75 deep conversation + 20%).
+ * Server default (23/11): `LIMITE_TOKENS_FREE_MES` = 250_000
+ *   ≈ P75 deep conversation (~30 text turns) + 20% · or ~20 min voice
+ * Voice conversion on server: 12_500 tokens / connected minute
  */
 
 export type FreeChatQuota = {

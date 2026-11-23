@@ -71,11 +71,13 @@ function asPlanStatus(value: string | null): PlanStatus {
   return 'free';
 }
 
-async function fetchFreeChatQuota(): Promise<FreeChatQuota> {
+async function fetchFreeChatQuota(
+  body: Record<string, unknown> = {},
+): Promise<FreeChatQuota> {
   try {
     const { data, error } = await supabase.functions.invoke('free-chat-quota', {
       method: 'POST',
-      body: {},
+      body,
     });
     if (error || !data) return EMPTY_FREE_CHAT_QUOTA;
     return parseFreeChatQuota(data);
@@ -208,6 +210,16 @@ export function useUserPlan() {
     await openSubscriptionManagement(storeProductId);
   }, [storeProductId]);
 
+  /** TF-114: report connected voice seconds so server meters the shared Free pool. */
+  const reportVoiceQuotaUsage = useCallback(
+    async (durationSeconds: number) => {
+      if (!userId || entitled || durationSeconds <= 0) return;
+      const nextQuota = await fetchFreeChatQuota({ voice_seconds: durationSeconds });
+      setQuota(nextQuota);
+    },
+    [entitled, userId],
+  );
+
   return {
     planId,
     status,
@@ -233,6 +245,7 @@ export function useUserPlan() {
     requiresPremiumForContext: !entitled && !isLoading,
     incrementMessageCount: async () => {},
     refetch,
+    reportVoiceQuotaUsage,
     startCheckout,
     restorePurchases,
     manageSubscription,
