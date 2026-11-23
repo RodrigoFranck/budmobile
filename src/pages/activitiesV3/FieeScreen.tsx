@@ -55,7 +55,8 @@ import {
 } from '@/services/activityGeneration';
 import { fonts, motion, useV3Asset, useV3Colors } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
-import { navigateToChatTab } from '@/utils/navigateToChat';
+import { useUserPlan } from '@/hooks/useUserPlan';
+import { openContextualChatOrPaywall } from '@/utils/openContextualChatOrPaywall';
 
 type FieeAnswer = {
   palavra: string;
@@ -105,6 +106,7 @@ export default function FieeScreen() {
   const { height: windowHeight } = useWindowDimensions();
   const { keyboardHeight, keyboardOpen, dismissKeyboard } = useActivityKeyboard();
   const navigation = useNavigation<MainTabNavigationProp>();
+  const { requiresPremiumForContext } = useUserPlan();
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const { g } = useGenderedCopy();
@@ -458,7 +460,9 @@ export default function FieeScreen() {
     setSaving(true);
     await persistOnce();
     setSaving(false);
-    navigateToChatTab(navigation, {
+    openContextualChatOrPaywall(
+      navigation,
+      {
       chatInsight: {
         insightType: 'activity_fiee',
         title: synthesis?.titulo || result || 'FIEE?',
@@ -470,7 +474,9 @@ export default function FieeScreen() {
         badge: 'FIEE? · Resultado',
         cardDescription: synthesis?.paragrafo || result,
       },
-    });
+    },
+      { requiresPremiumForContext },
+    );
   };
 
   const selectWord = (word: FieeWord) => {

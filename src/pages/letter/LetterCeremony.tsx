@@ -34,6 +34,7 @@ import { ChevronLeft, Menu, MessageSquare, SquareArrowOutUpRight } from 'lucide-
 import { BudIconButton } from '@/components/v3';
 import { useDailyLetter } from '@/hooks/useDailyLetter';
 import { useGenderedCopy } from '@/hooks/useGenderedCopy';
+import { useUserPlan } from '@/hooks/useUserPlan';
 import { fonts, motion, useV3Asset, useV3Colors } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
 import {
@@ -45,7 +46,7 @@ import {
 } from '@/utils/dailyLetter';
 import { getNowInBrasilia, getWeekStartBrasilia } from '@/utils/dateUtils';
 import { buildLetterChatInsight } from '@/utils/buildLetterChatInsight';
-import { navigateToChatTab } from '@/utils/navigateToChat';
+import { openContextualChatOrPaywall } from '@/utils/openContextualChatOrPaywall';
 
 import { playLetterHaptic } from './letterSounds';
 
@@ -142,6 +143,7 @@ export default function LetterCeremony({ origin, onClose, onCloseStart }: Letter
   const assets = useV3Asset();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainTabNavigationProp>();
+  const { requiresPremiumForContext } = useUserPlan();
   const { width: screenW, height: screenH } = useWindowDimensions();
   const { letter, available, loading: letterLoading, markOpened } = useDailyLetter();
   const { g } = useGenderedCopy();
@@ -475,15 +477,19 @@ export default function LetterCeremony({ origin, onClose, onCloseStart }: Letter
   }, [shareText]);
 
   const openChat = useCallback(() => {
-    navigateToChatTab(navigation, {
-      chatInsight: buildLetterChatInsight({
-        letterId: letter?.id,
-        title,
-        shareText,
-        opening,
-      }),
-    });
-  }, [letter?.id, navigation, opening, shareText, title]);
+    openContextualChatOrPaywall(
+      navigation,
+      {
+        chatInsight: buildLetterChatInsight({
+          letterId: letter?.id,
+          title,
+          shareText,
+          opening,
+        }),
+      },
+      { requiresPremiumForContext },
+    );
+  }, [letter?.id, navigation, opening, requiresPremiumForContext, shareText, title]);
 
   const panClose = useMemo(
     () =>

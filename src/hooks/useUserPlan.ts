@@ -2,10 +2,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
 import {
-  canSendInFreeConversation,
+  canSendChat,
   isSubscriptionEntitled,
   type SubscriptionAccess,
 } from '@/billing/entitlement';
+import {
+  EMPTY_FREE_CHAT_QUOTA,
+  parseFreeChatQuota,
+  type FreeChatQuota,
+} from '@/billing/freeQuota';
 import { FALLBACK_PLAN_PRICES, type PlanPrices } from '@/billing/prices';
 import type { BillingInterval } from '@/billing/products';
 import {
@@ -18,6 +23,7 @@ import {
 } from '@/billing/storePurchases';
 import { isDeveloperEmail } from '@/constants/developerAccess';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAppAudience } from '@/hooks/useAppAudience';
 import { supabase } from '@/integrations/supabase/client';
 
 export type PlanId = 'free' | 'reflexivo' | 'profundo';
@@ -65,11 +71,27 @@ function asPlanStatus(value: string | null): PlanStatus {
   return 'free';
 }
 
+async function fetchFreeChatQuota(): Promise<FreeChatQuota> {
+  try {
+    const { data, error } = await supabase.functions.invoke('free-chat-quota', {
+      method: 'POST',
+      body: {},
+    });
+    if (error || !data) return EMPTY_FREE_CHAT_QUOTA;
+    return parseFreeChatQuota(data);
+  } catch {
+    // Offline / function not deployed yet — leave chat open; server still decides on send.
+    return EMPTY_FREE_CHAT_QUOTA;
+  }
+}
+
 export function useUserPlan() {
   const { user } = useAuth();
+  const { isInstitution } = useAppAudience();
   const userId = user?.id ?? null;
   const developer = isDeveloperEmail(user?.email);
   const [access, setAccess] = useState<SubscriptionAccess>(EMPTY_ACCESS);
+  const [quota, setQuota] = useState<FreeChatQuota>(EMPTY_FREE_CHAT_QUOTA);
   const [storeProductId, setStoreProductId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(Boolean(userId));
   const [prices, setPrices] = useState<PlanPrices>(FALLBACK_PLAN_PRICES);
@@ -77,28 +99,32 @@ export function useUserPlan() {
   const refetch = useCallback(async () => {
     if (!userId) {
       setAccess(EMPTY_ACCESS);
+      setQuota(EMPTY_FREE_CHAT_QUOTA);
       setStoreProductId(null);
       setIsLoading(false);
       return;
     }
-    const { data, error } = await supabase
-      .from('subscriptions')
-      .select('plan_id, status, current_period_end, free_conversation_id, store_product_id')
-      .eq('user_id', userId)
-      .maybeSingle();
+    const [{ data, error }, nextQuota] = await Promise.all([
+      supabase
+        .from('subscriptions')
+        .select('plan_id, status, current_period_end, free_conversation_id, store_product_id')
+        .eq('user_id', userId)
+        .maybeSingle(),
+      fetchFreeChatQuota(),
+    ]);
     if (error || !data) {
       setAccess(EMPTY_ACCESS);
       setStoreProductId(null);
-      setIsLoading(false);
-      return;
+    } else {
+      setAccess({
+        planId: data.plan_id,
+        status: data.status,
+        currentPeriodEnd: data.current_period_end,
+        freeConversationId: data.free_conversation_id,
+      });
+      setStoreProductId(data.store_product_id);
     }
-    setAccess({
-      planId: data.plan_id,
-      status: data.status,
-      currentPeriodEnd: data.current_period_end,
-      freeConversationId: data.free_conversation_id,
-    });
-    setStoreProductId(data.store_product_id);
+    setQuota(nextQuota);
     setIsLoading(false);
   }, [userId]);
 
@@ -132,19 +158,21 @@ export function useUserPlan() {
     };
   }, [developer, refetch, userId]);
 
-  const entitled = developer || isSubscriptionEntitled(access);
+  const storeEntitled = developer || isSubscriptionEntitled(access);
+  const entitled = storeEntitled || isInstitution;
   const planId = entitled ? asPlanId(access.planId === 'free' ? 'profundo' : access.planId) : 'free';
-  const status: PlanStatus = developer ? 'active' : entitled ? asPlanStatus(access.status) : 'free';
+  const status: PlanStatus = developer || isInstitution
+    ? 'active'
+    : entitled
+      ? asPlanStatus(access.status)
+      : 'free';
+
+  const chatLiberado = canSendChat({ entitled, loading: isLoading, quota });
+  const showQuotaBar = !entitled && !isLoading && chatLiberado && quota.cotaRestantePct > 0;
 
   const canSendInConversation = useCallback(
-    (conversationId: string | null) =>
-      canSendInFreeConversation({
-        entitled,
-        loading: isLoading,
-        freeConversationId: access.freeConversationId,
-        conversationId,
-      }),
-    [access.freeConversationId, entitled, isLoading],
+    (_conversationId: string | null) => chatLiberado,
+    [chatLiberado],
   );
 
   const canAccess = useCallback(
@@ -180,8 +208,6 @@ export function useUserPlan() {
     await openSubscriptionManagement(storeProductId);
   }, [storeProductId]);
 
-  const isLastFreeConversation = !entitled && !isLoading;
-
   return {
     planId,
     status,
@@ -192,11 +218,19 @@ export function useUserPlan() {
     isLoading,
     canAccess,
     trialDaysRemaining: null,
-    canSendMessage: entitled || isLoading || !access.freeConversationId,
+    canSendMessage: chatLiberado,
     canSendInConversation,
-    canUseVoice: true,
-    remainingMessages: entitled ? Infinity : access.freeConversationId ? 0 : 1,
-    isLastFreeConversation,
+    /** TF-114: voice uses the same Free monthly quota as text. */
+    canUseVoice: chatLiberado,
+    chatLiberado,
+    cotaRestantePct: entitled ? 100 : quota.cotaRestantePct,
+    renovaEm: quota.renovaEm,
+    showQuotaBar,
+    remainingMessages: entitled ? Infinity : chatLiberado ? Infinity : 0,
+    isLastFreeConversation: false,
+    isQuotaExhausted: !entitled && !isLoading && !chatLiberado,
+    /** Contextual chat shortcuts (insight / letter / activity deepen) need Premium. */
+    requiresPremiumForContext: !entitled && !isLoading,
     incrementMessageCount: async () => {},
     refetch,
     startCheckout,

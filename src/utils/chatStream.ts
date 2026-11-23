@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 
+import { ACTION_EVENTS, logActionEvent } from "@/analytics";
 import { PAYWALL_REQUIRED } from "@/billing/entitlement";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -87,7 +88,12 @@ function postChatXhr({
   body: string;
   timeoutMs: number;
   onDelta: (deltaText: string) => void;
-}): Promise<{ status: number; responseText: string; streamedLength: number }> {
+}): Promise<{
+  status: number;
+  responseText: string;
+  streamedLength: number;
+  foraDeEscopoTipo: string | null;
+}> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     let lastProcessedIndex = 0;
@@ -125,10 +131,12 @@ function postChatXhr({
       if (promptVersion) {
         console.log(`[prompt] version=${promptVersion} source=chat-text`);
       }
+      const foraDeEscopoTipo = xhr.getResponseHeader("x-bud-fora-de-escopo");
       resolve({
         status: xhr.status,
         responseText: xhr.responseText,
         streamedLength,
+        foraDeEscopoTipo: foraDeEscopoTipo?.trim() || null,
       });
     };
 
@@ -200,6 +208,7 @@ export async function streamChat({
       status: number;
       responseText: string;
       streamedLength: number;
+      foraDeEscopoTipo: string | null;
     } | null = null;
 
     for (let index = 0; index < urls.length; index += 1) {
@@ -264,6 +273,17 @@ export async function streamChat({
         parseChatErrorPayload(result.responseText, "Erro ao conectar com o assistente"),
       );
       return;
+    }
+
+    if (
+      result.foraDeEscopoTipo === "codigo" ||
+      result.foraDeEscopoTipo === "tarefa" ||
+      result.foraDeEscopoTipo === "outro"
+    ) {
+      void logActionEvent(ACTION_EVENTS.OUT_OF_SCOPE, {
+        tipo: result.foraDeEscopoTipo,
+        canal: "texto",
+      });
     }
 
     if (result.streamedLength > 0) {

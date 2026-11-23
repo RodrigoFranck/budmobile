@@ -2,7 +2,7 @@ import type { NavigationProp, ParamListBase } from '@react-navigation/native';
 
 import type { DeepInsight } from '@/hooks/useDeepInsight';
 import type { ChatInsightParam } from '@/types/chatInsight';
-import { navigateToChatTab } from '@/utils/navigateToChat';
+import { openContextualChatOrPaywall } from '@/utils/openContextualChatOrPaywall';
 
 const DEFAULT_DEEP_INSIGHT_START_MESSAGE = 'Quero conversar sobre o insight da semana.';
 const DEEP_INSIGHT_BADGE = 'INSPIRADO EM VOCÊ';
@@ -78,8 +78,11 @@ export function openDeepInsightChat(
   navigation: NavigationProp<ParamListBase>,
   insight: DeepInsight,
   mode: DeepInsightChatMode = 'text',
+  gate?: { requiresPremiumForContext?: boolean },
 ) {
-  navigateToChatTab(navigation, {
-    chatInsight: buildDeepInsightChatInsight(insight, mode),
-  });
+  openContextualChatOrPaywall(
+    navigation,
+    { chatInsight: buildDeepInsightChatInsight(insight, mode) },
+    { requiresPremiumForContext: Boolean(gate?.requiresPremiumForContext) },
+  );
 }

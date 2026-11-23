@@ -94,7 +94,14 @@ export function SurveyHeader({
   }));
 
   return (
-    <View style={{ paddingTop: insets.top, zIndex: 2, backgroundColor: colors.bg }}>
+    <View
+      style={{
+        paddingTop: insets.top,
+        backgroundColor: colors.bg,
+        zIndex: 2,
+        elevation: 2,
+      }}
+    >
       <View
         style={{
           height: 56,
@@ -132,6 +139,7 @@ export function SurveyHeader({
             borderRadius: 2,
             marginHorizontal: 24,
             marginTop: 8,
+            marginBottom: 0,
             backgroundColor: colors.surface2,
             overflow: 'hidden',
           }}
@@ -309,11 +317,14 @@ export function SurveyScale({
         style={{
           flexDirection: 'row',
           justifyContent: 'space-between',
+          alignItems: 'flex-start',
           marginTop: 18,
+          gap: 12,
         }}
       >
         <Text
           style={{
+            flex: 1,
             maxWidth: 170,
             fontFamily: fonts.sans,
             fontSize: 13,
@@ -325,6 +336,7 @@ export function SurveyScale({
         </Text>
         <Text
           style={{
+            flex: 1,
             maxWidth: 170,
             fontFamily: fonts.sans,
             fontSize: 13,

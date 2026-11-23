@@ -52,7 +52,8 @@ import {
 } from '@/services/activityGeneration';
 import { activityColors, fonts, useV3Asset, useV3Colors } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
-import { navigateToChatTab } from '@/utils/navigateToChat';
+import { useUserPlan } from '@/hooks/useUserPlan';
+import { openContextualChatOrPaywall } from '@/utils/openContextualChatOrPaywall';
 
 const LAYER_GLOW_TOPS = [-60, 52, 164, 276, 388];
 const LAYER_GLOW_COLORS = [
@@ -179,6 +180,7 @@ export default function CincoPorquesScreen() {
   const assets = useV3Asset();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainTabNavigationProp>();
+  const { requiresPremiumForContext } = useUserPlan();
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const [index, setIndex] = useState(-1);
@@ -502,7 +504,9 @@ export default function CincoPorquesScreen() {
     setSaving(true);
     await persistOnce();
     setSaving(false);
-    navigateToChatTab(navigation, {
+    openContextualChatOrPaywall(
+      navigation,
+      {
       chatInsight: {
         insightType: 'activity_cinco_porques',
         title: synthesis?.titulo || last || 'Cinco Porquês',
@@ -514,7 +518,9 @@ export default function CincoPorquesScreen() {
         badge: 'Cinco Porquês · Resultado',
         cardDescription: body,
       },
-    });
+    },
+      { requiresPremiumForContext },
+    );
   };
 
   if (index < 0) {

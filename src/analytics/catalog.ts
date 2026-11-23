@@ -72,6 +72,11 @@ export const EVENT_CATALOG: Record<string, AnalyticsEventMeta> = {
     feature: 'chat',
     featureLabel: 'Chat',
   },
+  fora_de_escopo: {
+    label: 'Pedido fora de escopo',
+    feature: 'chat',
+    featureLabel: 'Chat',
+  },
   anexo_enviado: {
     label: 'Anexo enviado',
     feature: 'chat',

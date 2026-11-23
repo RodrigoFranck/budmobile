@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -16,7 +15,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Menu } from 'lucide-react-native';
 
-import { BudIconButton } from '@/components/v3';
+import { BudContentReveal, BudIconButton } from '@/components/v3';
 import { firstGivenName } from '@/copy/nameGender';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBootSplash } from '@/contexts/BootSplashContext';
@@ -25,10 +24,15 @@ import { useDailyLetter } from '@/hooks/useDailyLetter';
 import { useGenderedCopy } from '@/hooks/useGenderedCopy';
 import { useHomeRecaps, type HomeRecapItem } from '@/hooks/useHomeRecaps';
 import { readHomeShellCache, writeHomeShellCache } from '@/services/homeShellCache';
-import { fonts, useV3Asset, useV3Colors, type V3Colors } from '@/theme';
+import { fonts, motion, useV3Asset, useV3Colors, type V3Colors } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
 import LetterCeremony, { LETTER_HOME, type LetterOrigin } from '@/pages/letter/LetterCeremony';
 import { HomeArrowIcon, HomeChatFillIcon } from '@/pages/home/homeIcons';
+import {
+  HomeLetterSkeleton,
+  HomeRecapGeneratingSkeleton,
+  HomeRecapsSkeleton,
+} from '@/pages/home/HomeSkeletons';
 import { openHomeRecapChat } from '@/utils/buildHomeRecapChatInsight';
 import { bootMarkOnce } from '@/utils/bootTiming';
 import {
@@ -38,6 +42,7 @@ import {
   parseDateString,
 } from '@/utils/dateUtils';
 import { RECAP_LIMIT } from '@/utils/homeRecaps';
+import { useUserPlan } from '@/hooks/useUserPlan';
 import { navigateToChatTab } from '@/utils/navigateToChat';
 
 type RecapItem = HomeRecapItem;
@@ -219,6 +224,7 @@ export default function HomeScreen() {
   const greeting = greetingForHour();
   const [greetingLead, greetingAccent] = greeting.split(' ');
 
+  const { requiresPremiumForContext } = useUserPlan();
   const [openingRecapId, setOpeningRecapId] = useState<string | null>(null);
   const [letterOrigin, setLetterOrigin] = useState<LetterOrigin | null>(null);
   const [hideLetterEnvelope, setHideLetterEnvelope] = useState(false);
@@ -226,6 +232,8 @@ export default function HomeScreen() {
   const [cachedFirstName, setCachedFirstName] = useState<string | null>(null);
   const [cachedHasLetter, setCachedHasLetter] = useState<boolean | null>(null);
   const [cachedRecaps, setCachedRecaps] = useState<HomeRecapItem[] | null>(null);
+  const [letterSkeletonTimedOut, setLetterSkeletonTimedOut] = useState(false);
+  const [recapsSkeletonTimedOut, setRecapsSkeletonTimedOut] = useState(false);
   const { setMainTabsReady } = useBootSplash();
   const envelopeRef = useRef<View>(null);
   const homeRootRef = useRef<View>(null);
@@ -290,9 +298,15 @@ export default function HomeScreen() {
       ? liveRecapCountLabel
       : `${cachedRecaps.length} de ${RECAP_LIMIT}`;
   const showLetterPending =
-    (letterLoading || letterGenerating) && cachedHasLetter == null && !hasLetterLive;
+    (letterLoading || letterGenerating) &&
+    cachedHasLetter == null &&
+    !hasLetterLive &&
+    !letterSkeletonTimedOut;
   const showRecapsPending =
-    (recapsLoading || recapsGenerating) && recaps.length === 0 && !tabLoading;
+    (recapsLoading || recapsGenerating) &&
+    recaps.length === 0 &&
+    !tabLoading &&
+    !recapsSkeletonTimedOut;
 
   useEffect(() => {
     // Dismiss splash as soon as the Home shell can paint — secondary sections load after.
@@ -350,38 +364,72 @@ export default function HomeScreen() {
     });
   }, [liveRecaps.length, recapsGenerating, recapsLoading]);
 
+  useEffect(() => {
+    const awaitingLetterSkeleton =
+      (letterLoading || letterGenerating) && cachedHasLetter == null && !hasLetterLive;
+    if (!awaitingLetterSkeleton) {
+      setLetterSkeletonTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setLetterSkeletonTimedOut(true);
+    }, motion.skeletonTimeoutMs);
+    return () => clearTimeout(timer);
+  }, [cachedHasLetter, hasLetterLive, letterGenerating, letterLoading]);
+
+  useEffect(() => {
+    const awaitingRecapsSkeleton =
+      (recapsLoading || recapsGenerating) && recaps.length === 0 && !tabLoading;
+    if (!awaitingRecapsSkeleton) {
+      setRecapsSkeletonTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setRecapsSkeletonTimedOut(true);
+    }, motion.skeletonTimeoutMs);
+    return () => clearTimeout(timer);
+  }, [recaps.length, recapsGenerating, recapsLoading, tabLoading]);
+
   const openRecap = useCallback(
     async (item: RecapItem) => {
       if (openingRecapId) return;
       setOpeningRecapId(item.id);
       try {
         if (item.kind === 'yesterday') {
-          await openHomeRecapChat(navigation, {
-            kind: 'yesterday',
-            insight:
-              yesterdayInsight && !yesterdayInsight.locked
-                ? yesterdayInsight
-                : {
-                    title: item.quote,
-                    description: item.body,
-                    locked: false,
-                  },
-          });
+          await openHomeRecapChat(
+            navigation,
+            {
+              kind: 'yesterday',
+              insight:
+                yesterdayInsight && !yesterdayInsight.locked
+                  ? yesterdayInsight
+                  : {
+                      title: item.quote,
+                      description: item.body,
+                      locked: false,
+                    },
+            },
+            { requiresPremiumForContext },
+          );
           return;
         }
 
-        await openHomeRecapChat(navigation, {
-          kind: 'conversation',
-          conversationId: item.id,
-          title: item.quote,
-          dateLabel: item.label,
-          cardDescription: item.body,
-        });
+        await openHomeRecapChat(
+          navigation,
+          {
+            kind: 'conversation',
+            conversationId: item.id,
+            title: item.quote,
+            dateLabel: item.label,
+            cardDescription: item.body,
+          },
+          { requiresPremiumForContext },
+        );
       } finally {
         setOpeningRecapId(null);
       }
     },
-    [navigation, openingRecapId, yesterdayInsight],
+    [navigation, openingRecapId, requiresPremiumForContext, yesterdayInsight],
   );
 
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -507,24 +555,9 @@ export default function HomeScreen() {
           </Text>
 
           {showLetterPending ? (
-          <View
-            accessibilityRole="progressbar"
-            accessibilityLabel="Carregando carta"
-            style={{ alignItems: 'center', marginTop: 28, gap: 10 }}
-          >
-            <ActivityIndicator color={colors.accent} />
-            <Text
-              style={{
-                fontFamily: fonts.sansMedium,
-                fontSize: 13,
-                lineHeight: 16,
-                color: colors.text3,
-              }}
-            >
-              Preparando sua carta…
-            </Text>
-          </View>
+            <HomeLetterSkeleton />
           ) : hasLetter ? (
+          <BudContentReveal>
           <Pressable
             onPress={openLetter}
             accessibilityRole="button"
@@ -564,7 +597,9 @@ export default function HomeScreen() {
               Toque para abrir a carta de hoje
             </Text>
           </Pressable>
-          ) : (
+          </BudContentReveal>
+          ) : letterSkeletonTimedOut && (letterLoading || letterGenerating) ? null : (
+          <BudContentReveal>
           <View style={{ alignItems: 'center', marginTop: 23, paddingHorizontal: 20 }}>
             <Image source={assets.gizMoon} style={{ width: 100, height: 100 }} resizeMode="contain" />
             <Text
@@ -613,6 +648,7 @@ export default function HomeScreen() {
               </Text>
             </Pressable>
           </View>
+          </BudContentReveal>
           )}
 
           {recaps.length > 0 ? (
@@ -622,6 +658,7 @@ export default function HomeScreen() {
             }}
             style={{ marginTop: hasLetter || showLetterPending ? 36 : 32 }}
           >
+          <BudContentReveal>
             <View
               style={{
                 paddingHorizontal: 24,
@@ -677,55 +714,20 @@ export default function HomeScreen() {
                   }}
                 />
               ))}
-              {recapsGenerating ? (
-                <View
-                  accessibilityRole="progressbar"
-                  accessibilityLabel="Atualizando sugestões"
-                  style={{ alignItems: 'center', paddingVertical: 8 }}
-                >
-                  <ActivityIndicator color={colors.text3} />
-                </View>
-              ) : null}
+              {recapsGenerating ? <HomeRecapGeneratingSkeleton /> : null}
             </View>
+          </BudContentReveal>
           </View>
           ) : showRecapsPending ? (
           <View
             onLayout={(event) => {
               recapOffsetRef.current = event.nativeEvent.layout.y;
             }}
-            accessibilityRole="progressbar"
-            accessibilityLabel="Carregando para começar"
             style={{
               marginTop: hasLetter || showLetterPending ? 36 : 32,
-              paddingHorizontal: 24,
-              gap: 12,
             }}
           >
-            <Text
-              style={{
-                fontFamily: fonts.sansSemi,
-                fontSize: 11.5,
-                lineHeight: 12,
-                letterSpacing: 1.6,
-                textTransform: 'uppercase',
-                color: colors.text3,
-              }}
-            >
-              Para começar
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <ActivityIndicator color={colors.text3} />
-              <Text
-                style={{
-                  fontFamily: fonts.sansMedium,
-                  fontSize: 13,
-                  lineHeight: 16,
-                  color: colors.text3,
-                }}
-              >
-                Preparando sugestões…
-              </Text>
-            </View>
+            <HomeRecapsSkeleton />
           </View>
           ) : null}
         </ScrollView>

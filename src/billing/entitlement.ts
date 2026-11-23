@@ -1,9 +1,13 @@
+import type { FreeChatQuota } from '@/billing/freeQuota';
+import { EMPTY_FREE_CHAT_QUOTA } from '@/billing/freeQuota';
+
 export const PAYWALL_REQUIRED = 'paywall_required';
 
 export type SubscriptionAccess = {
   planId: string | null;
   status: string | null;
   currentPeriodEnd: string | null;
+  /** @deprecated TF-111 replaces one free conversation with monthly token quota. */
   freeConversationId: string | null;
 };
 
@@ -26,6 +30,22 @@ export function isSubscriptionEntitled(
   return false;
 }
 
+/**
+ * Free chat send/voice gate. Premium / institutional / loading → always allowed.
+ * Free → trusts server `chat_liberado` only (never client token math).
+ */
+export function canSendChat(input: {
+  entitled: boolean;
+  loading?: boolean;
+  quota: FreeChatQuota | null | undefined;
+}): boolean {
+  if (input.loading || input.entitled) return true;
+  return (input.quota ?? EMPTY_FREE_CHAT_QUOTA).chatLiberado;
+}
+
+/**
+ * @deprecated Prefer `canSendChat` (monthly quota). Kept for tests during migration.
+ */
 export function canSendInFreeConversation(input: {
   entitled: boolean;
   loading?: boolean;

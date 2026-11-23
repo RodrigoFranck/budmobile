@@ -18,6 +18,7 @@ export const CLICK_EVENTS = {
 export const ACTION_EVENTS = {
   MESSAGE_SENT: 'chat_message_send',
   ATTACHMENT_SENT: 'anexo_enviado',
+  OUT_OF_SCOPE: 'fora_de_escopo',
   VOICE_SESSION_STARTED: 'voice_session_start',
   VOICE_SESSION_ENDED: 'voice_session_end',
   HELP_OPENED: 'ajuda_aberta',

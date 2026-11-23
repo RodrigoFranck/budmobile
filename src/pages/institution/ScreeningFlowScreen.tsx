@@ -172,7 +172,7 @@ export default function ScreeningFlowScreen() {
         }}
         progress={(index + 1) / catalog.steps.length}
       />
-      <View style={{ flex: 1, paddingHorizontal: 24, paddingTop: 32, paddingBottom: 24 }}>
+      <View style={{ flex: 1, overflow: 'hidden', paddingHorizontal: 24, paddingTop: 24, paddingBottom: 24 }}>
         <Text style={{ fontFamily: fonts.sans, fontSize: 15, lineHeight: 22, color: colors.text2 }}>
           {index + 1} de {catalog.steps.length}
         </Text>

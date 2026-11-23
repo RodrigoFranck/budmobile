@@ -10,6 +10,7 @@ import { ArrowUp, X } from 'lucide-react-native';
 import { insightCardActionLayout } from '@/components/explore/InsightCard.styles';
 import { CHECKIN_LOADING_MESSAGES } from '@/features/checkin/checkInResult.constants';
 import { useCheckIns, type CheckinReport } from '@/hooks/useCheckIns';
+import { useUserPlan } from '@/hooks/useUserPlan';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { supabase } from '@/integrations/supabase/client';
 import { resolveCheckInGradient, useActivitiesTheme } from '@/lib/activitiesTheme';
@@ -49,6 +50,7 @@ export default function CheckInResultScreen() {
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
   const { profile } = useUserProfile();
+  const { requiresPremiumForContext } = useUserPlan();
   const { updateReport } = useCheckIns();
   const theme = useActivitiesTheme();
   const colors = useAppColors();
@@ -170,13 +172,17 @@ export default function CheckInResultScreen() {
 
   const handleTalkAbout = (question?: string, mode: 'text' | 'voice' = 'text') => {
     if (!report) return;
-    openCheckInChat(navigation, {
-      type,
-      report,
-      responses: checkinResponses ?? responses ?? null,
-      clickedQuestion: question,
-      mode,
-    });
+    openCheckInChat(
+      navigation,
+      {
+        type,
+        report,
+        responses: checkinResponses ?? responses ?? null,
+        clickedQuestion: question,
+        mode,
+      },
+      { requiresPremiumForContext },
+    );
   };
 
   const questions = useMemo(() => report?.reflection_questions?.slice(0, 3) ?? [], [report]);

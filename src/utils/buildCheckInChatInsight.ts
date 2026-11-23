@@ -2,7 +2,7 @@ import type { NavigationProp, ParamListBase } from '@react-navigation/native';
 
 import type { CheckinReport, CheckinType } from '@/hooks/useCheckIns';
 import type { ChatInsightParam } from '@/types/chatInsight';
-import { navigateToChatTab } from '@/utils/navigateToChat';
+import { openContextualChatOrPaywall } from '@/utils/openContextualChatOrPaywall';
 
 interface BuildCheckInChatInsightParams {
   type: CheckinType;
@@ -80,7 +80,12 @@ export function buildCheckInChatInsight({
 export function openCheckInChat(
   navigation: NavigationProp<ParamListBase>,
   options: BuildCheckInChatInsightParams,
+  gate?: { requiresPremiumForContext?: boolean },
 ) {
   const chatInsight = buildCheckInChatInsight(options);
-  navigateToChatTab(navigation, { chatInsight });
+  openContextualChatOrPaywall(
+    navigation,
+    { chatInsight },
+    { requiresPremiumForContext: Boolean(gate?.requiresPremiumForContext) },
+  );
 }

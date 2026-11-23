@@ -15,6 +15,7 @@ import { ChevronLeft } from 'lucide-react-native';
 import { BudIconButton } from '@/components/v3';
 import type { DeepInsight } from '@/hooks/useDeepInsight';
 import { formatWeekRangeLong, type HistoryWeekDot } from '@/hooks/useHistoryDays';
+import { useUserPlan } from '@/hooks/useUserPlan';
 import { HistoryMessageIcon, HistoryShareIcon } from '@/pages/history/historyIcons';
 import { AccentTitle } from '@/pages/menu/menuUi';
 import { fonts, useV3Asset, useV3Colors } from '@/theme';
@@ -61,6 +62,7 @@ export default function WeekRecapView({
   const assets = useV3Asset();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainTabNavigationProp>();
+  const { requiresPremiumForContext } = useUserPlan();
 
   const weekStartDate = parseDateString(weekStart);
   const weekEndDate = getWeekEndBrasilia(weekStartDate);
@@ -89,9 +91,9 @@ export default function WeekRecapView({
     if (!insight) return;
     onBack();
     requestAnimationFrame(() => {
-      openDeepInsightChat(navigation, insight, 'text');
+      openDeepInsightChat(navigation, insight, 'text', { requiresPremiumForContext });
     });
-  }, [insight, navigation, onBack]);
+  }, [insight, navigation, onBack, requiresPremiumForContext]);
 
   return (
     <ImageBackground

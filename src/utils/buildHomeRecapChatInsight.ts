@@ -4,7 +4,7 @@ import type { Insight } from '@/hooks/useExploreInsights';
 import { supabase } from '@/integrations/supabase/client';
 import type { ChatInsightParam } from '@/types/chatInsight';
 import { buildExploreChatInsight } from '@/utils/buildExploreChatInsight';
-import { navigateToChatTab } from '@/utils/navigateToChat';
+import { openContextualChatOrPaywall } from '@/utils/openContextualChatOrPaywall';
 
 export const HOME_CONVERSATION_RECAP_TYPE = 'conversation_recap';
 
@@ -129,11 +129,16 @@ export type HomeRecapChatTarget =
 export async function openHomeRecapChat(
   navigation: NavigationProp<ParamListBase>,
   recap: HomeRecapChatTarget,
+  options?: { requiresPremiumForContext?: boolean },
 ) {
   const chatInsight =
     recap.kind === 'yesterday'
       ? buildYesterdayHomeRecapChatInsight(recap.insight)
       : await buildConversationRecapChatInsight(recap);
 
-  navigateToChatTab(navigation, { chatInsight });
+  openContextualChatOrPaywall(
+    navigation,
+    { chatInsight },
+    { requiresPremiumForContext: Boolean(options?.requiresPremiumForContext) },
+  );
 }

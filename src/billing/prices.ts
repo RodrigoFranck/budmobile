@@ -5,9 +5,9 @@ export type PlanPrices = {
 };
 
 export const FALLBACK_PLAN_PRICES: PlanPrices = {
-  monthly: 'R$ 59,90',
-  annualPerMonth: 'R$ 38,33',
-  annualTotal: 'R$ 459,90',
+  monthly: 'R$ 49,90',
+  annualPerMonth: 'R$ 34,99',
+  annualTotal: 'R$ 419,90',
 };
 
 export function formatYearlyAsMonthly(yearlyAmount: number, currency: string): string {

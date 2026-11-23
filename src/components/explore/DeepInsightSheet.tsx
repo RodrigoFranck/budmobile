@@ -16,6 +16,7 @@ import { deepInsightSheetStyles as styles } from '@/components/explore/DeepInsig
 import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useTabScreenContext } from '@/contexts/TabScreenContext';
 import { useDeepInsight } from '@/hooks/useDeepInsight';
+import { useUserPlan } from '@/hooks/useUserPlan';
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 import type { MainTabNavigationProp } from '@/types/navigation';
@@ -45,6 +46,7 @@ export function DeepInsightSheet({ visible, onClose, weekStart }: DeepInsightShe
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainTabNavigationProp>();
   const { showAlert } = useAppAlert();
+  const { requiresPremiumForContext } = useUserPlan();
   const { deepInsightContent, refreshExploreInsights } = useTabScreenContext();
   const {
     loading,
@@ -151,10 +153,12 @@ export function DeepInsightSheet({ visible, onClose, weekStart }: DeepInsightShe
       const insightToOpen = insight;
       onClose();
       requestAnimationFrame(() => {
-        openDeepInsightChat(navigation, insightToOpen, mode);
+        openDeepInsightChat(navigation, insightToOpen, mode, {
+          requiresPremiumForContext,
+        });
       });
     },
-    [insight, navigation, onClose],
+    [insight, navigation, onClose, requiresPremiumForContext],
   );
 
   const handleFeedback = async (type: 'negative' | 'positive' | 'love') => {

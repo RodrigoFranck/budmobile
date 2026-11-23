@@ -39,7 +39,8 @@ import {
 } from '@/services/activityGeneration';
 import { activityColors, fonts, useV3Asset, useV3Colors, type V3Colors } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
-import { navigateToChatTab } from '@/utils/navigateToChat';
+import { useUserPlan } from '@/hooks/useUserPlan';
+import { openContextualChatOrPaywall } from '@/utils/openContextualChatOrPaywall';
 
 function shuffleDeck(cards: ValueCard[]) {
   const next = [...cards];
@@ -69,6 +70,7 @@ export default function ValuesSortScreen() {
   const colors = useV3Colors();
   const assets = useV3Asset();
   const navigation = useNavigation<MainTabNavigationProp>();
+  const { requiresPremiumForContext } = useUserPlan();
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const { values: preferences } = useV3Preferences();
@@ -265,7 +267,9 @@ export default function ValuesSortScreen() {
     setSaving(true);
     await persistOnce();
     setSaving(false);
-    navigateToChatTab(navigation, {
+    openContextualChatOrPaywall(
+      navigation,
+      {
       chatInsight: {
         insightType: 'activity_ordenacao_valores',
         title: synthesis?.titulo || piles.muito.slice(0, 3).join(', ') || 'Valores',
@@ -277,7 +281,9 @@ export default function ValuesSortScreen() {
         badge: 'Valores · Resultado',
         cardDescription: synthesis?.paragrafo || result,
       },
-    });
+    },
+      { requiresPremiumForContext },
+    );
   };
 
   const dragOrFlyStyle = useAnimatedStyle(() => {

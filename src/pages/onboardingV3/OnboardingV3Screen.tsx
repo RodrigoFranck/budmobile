@@ -469,7 +469,7 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
   const [fromHub, setFromHub] = useState(false);
   const [sheetMode, setSheetMode] = useState<null | 'skip' | 'index'>(null);
   const [skipDeep, setSkipDeep] = useState(false);
-  const [planInterval, setPlanInterval] = useState<'annual' | 'monthly'>('annual');
+  const [planInterval, setPlanInterval] = useState<'annual' | 'monthly'>('monthly');
   const [moodIndex, setMoodIndex] = useState(0);
   const [voiceIndex, setVoiceIndex] = useState(0);
   const [loadingTick, setLoadingTick] = useState(0);
@@ -1257,11 +1257,9 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
         <View style={styles.footer}>
           {step.layout === 'paywall' ? (
             <Text style={[styles.renew, { color: colors.text2 }]}>
-              Renova em{' '}
-              <Text style={{ fontFamily: fonts.sansSemi, color: colors.text }}>
-                {planInterval === 'annual' ? `${prices.annualTotal} por ano` : `${prices.monthly} por mês`}
-              </Text>
-              {' · cancele quando quiser'}
+              {planInterval === 'annual'
+                ? `Renova em ${prices.annualTotal} por ano · cancele quando quiser`
+                : `Renova em ${prices.monthly} por mês · cancele quando quiser`}
             </Text>
           ) : null}
 

@@ -502,7 +502,7 @@ export const ONBOARDING_V3_STEPS: OnboardingV3Step[] = [
     layout: "paywall",
     title: { before: "Siga com o Bud ", accent: "Premium" },
     subtitle:
-      "Conversas sem limite, uma memória que acompanha você, o modo de voz e acesso ilimitado às atividades do app.",
+      "Conversas sem limite, uma memória que acompanha você e o modo de voz.",
     cta: "Assinar o Bud Premium",
   },
 ];

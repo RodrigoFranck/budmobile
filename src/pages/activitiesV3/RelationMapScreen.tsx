@@ -66,7 +66,8 @@ import {
 } from '@/services/activityGeneration';
 import { activityColors, fonts, useV3Asset, useV3Colors } from '@/theme';
 import type { MainTabNavigationProp } from '@/types/navigation';
-import { navigateToChatTab } from '@/utils/navigateToChat';
+import { useUserPlan } from '@/hooks/useUserPlan';
+import { openContextualChatOrPaywall } from '@/utils/openContextualChatOrPaywall';
 
 type Step =
   | 'intro'
@@ -114,6 +115,7 @@ export default function RelationMapScreen() {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const navigation = useNavigation<MainTabNavigationProp>();
+  const { requiresPremiumForContext } = useUserPlan();
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const { g, voice } = useGenderedCopy();
@@ -404,7 +406,9 @@ export default function RelationMapScreen() {
     setSaving(true);
     try {
       await persistOnce();
-      navigateToChatTab(navigation, {
+      openContextualChatOrPaywall(
+      navigation,
+      {
         chatInsight: {
           insightType: 'activity_mapa_relacoes',
           title: synthesis?.titulo || person,
@@ -416,7 +420,9 @@ export default function RelationMapScreen() {
           badge: 'Mapa de Relações · Resultado',
           cardDescription: synthesis?.paragrafo || resultText,
         },
-      });
+      },
+      { requiresPremiumForContext },
+    );
     } finally {
       talkingRef.current = false;
       setSaving(false);

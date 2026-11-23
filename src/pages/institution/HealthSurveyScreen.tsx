@@ -64,16 +64,16 @@ const FORWARD_MS = 350;
 const BACK_MS = 300;
 const DISSOLVE_MS = 300;
 const KEYBOARD_FOOTER_GAP = 16;
+/** Gap below progress/header → copy (Figma ps_25=24, ps_09=44). */
+function questionTop(type: 'choice' | 'number' | 'vas' | 'scale') {
+  if (type === 'scale') return 24;
+  if (type === 'choice') return 44;
+  if (type === 'vas') return 24;
+  return 32;
+}
 
 function digitsOnly(value: string) {
   return value.replace(/[^\d]/g, '');
-}
-
-function questionTop(type: 'choice' | 'number' | 'vas' | 'scale') {
-  if (type === 'scale') return 108;
-  if (type === 'number') return 78;
-  if (type === 'vas') return 38;
-  return 48;
 }
 
 export default function HealthSurveyScreen() {
@@ -152,6 +152,11 @@ export default function HealthSurveyScreen() {
     if (!user?.id || !draftReady || phase === 'thanks') return;
     void writeHealthSurveyDraft(user.id, { answers, index, phase });
   }, [answers, draftReady, index, phase, user?.id]);
+
+  useEffect(() => {
+    if (phase !== 'questions') return;
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [index, phase, step?.key]);
 
   const playTransition = useCallback(
     (direction: NavDirection, apply: () => void) => {
@@ -457,11 +462,7 @@ export default function HealthSurveyScreen() {
   const continueLabel = isLast ? 'Enviar' : 'Continuar';
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.bg }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={0}
-    >
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <SurveyHeader
         title="Pesquisa de saúde"
         onBack={goBack}
@@ -469,174 +470,179 @@ export default function HealthSurveyScreen() {
         progressDurationMs={reduceMotion ? DISSOLVE_MS : progressDurationMs}
       />
 
-      <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
-        {step.input.type === 'vas' ? (
-          <View style={{ flex: 1 }}>
-            <View style={{ paddingHorizontal: 28, paddingTop: questionTop('vas') }}>
-              {step.kicker ? (
-                <Text style={{ fontFamily: fonts.sans, fontSize: 15, lineHeight: 22, color: colors.text2 }}>
-                  {g(step.kicker)}
-                </Text>
-              ) : null}
-              <Text
-                style={{
-                  fontFamily: fonts.display,
-                  fontSize: 26,
-                  lineHeight: 32,
-                  letterSpacing: -0.4,
-                  color: colors.text,
-                  marginTop: 14,
-                }}
-              >
-                {g(step.title)}
-              </Text>
-            </View>
-            <View style={{ flex: 1, marginTop: 40 }}>
-              <SurveyVas
-                value={Number(value ?? VAS_DEFAULT)}
-                minLabel={step.input.minLabel}
-                maxLabel={step.input.maxLabel}
-                onChange={(next) => setAnswers((current) => ({ ...current, [step.key]: String(next) }))}
-              />
-            </View>
-          </View>
-        ) : (
-          <ScrollView
-            ref={scrollRef}
-            style={{ flex: 1 }}
-            contentContainerStyle={{
-              flexGrow: 1,
-              paddingTop: questionTop(step.input.type),
-              paddingBottom: needsContinue ? KEYBOARD_FOOTER_GAP : bottomPad,
-            }}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="interactive"
-            automaticallyAdjustKeyboardInsets
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={{ paddingHorizontal: 28 }}>
-              {step.kicker ? (
-                <Text style={{ fontFamily: fonts.sans, fontSize: 15, lineHeight: 22, color: colors.text2 }}>
-                  {g(step.kicker)}
-                </Text>
-              ) : null}
-              <Text
-                style={{
-                  fontFamily: fonts.display,
-                  fontSize: 26,
-                  lineHeight: 32,
-                  letterSpacing: -0.4,
-                  color: colors.text,
-                  marginTop: step.input.type === 'scale' ? 0 : 14,
-                }}
-              >
-                {g(step.title)}
-              </Text>
-              {step.support ? (
+      <KeyboardAvoidingView
+        style={{ flex: 1, overflow: 'hidden' }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
+      >
+        <Animated.View style={[{ flex: 1, overflow: 'hidden' }, contentAnimStyle]}>
+          {step.input.type === 'vas' ? (
+            <View style={{ flex: 1 }}>
+              <View style={{ paddingHorizontal: 28, paddingTop: questionTop('vas') }}>
+                {step.kicker ? (
+                  <Text style={{ fontFamily: fonts.sans, fontSize: 15, lineHeight: 22, color: colors.text2 }}>
+                    {g(step.kicker)}
+                  </Text>
+                ) : null}
                 <Text
                   style={{
-                    fontFamily: fonts.sans,
-                    fontSize: 15,
-                    lineHeight: 22,
-                    color: colors.text2,
+                    fontFamily: fonts.display,
+                    fontSize: 26,
+                    lineHeight: 32,
+                    letterSpacing: -0.4,
+                    color: colors.text,
                     marginTop: 14,
                   }}
                 >
-                  {g(step.support)}
+                  {g(step.title)}
                 </Text>
-              ) : null}
-            </View>
-
-            {step.input.type === 'number' ? (
-              <View
-                style={{ marginTop: 28, paddingHorizontal: 28, flexShrink: 0 }}
-                onLayout={(event) => {
-                  fieldYRef.current = event.nativeEvent.layout.y;
-                }}
-              >
-                <SurveyField
-                  value={numberValue}
-                  placeholder={step.input.placeholder}
-                  onFocus={scrollFieldIntoView}
-                  onChangeText={(next) =>
-                    setAnswers((current) => ({ ...current, [step.key]: digitsOnly(next) }))
-                  }
-                />
               </View>
-            ) : null}
-
-            {step.input.type === 'scale' ? (
-              <View style={{ marginTop: step.support ? 28 : 62, paddingHorizontal: 24 }}>
-                <SurveyScale
-                  value={value === undefined ? undefined : Number(value)}
-                  min={step.input.min}
-                  max={step.input.max}
+              <View style={{ flex: 1, marginTop: 40 }}>
+                <SurveyVas
+                  value={Number(value ?? VAS_DEFAULT)}
                   minLabel={step.input.minLabel}
                   maxLabel={step.input.maxLabel}
                   onChange={(next) => setAnswers((current) => ({ ...current, [step.key]: String(next) }))}
                 />
               </View>
-            ) : null}
-
-            {step.input.type === 'choice' ? <View style={{ flex: 1 }} /> : null}
-
-            {step.input.type === 'choice' ? (
-              <View style={{ gap: 8, paddingHorizontal: 24 }}>
-                {step.input.options.map((option) => (
-                  <SurveyChoice
-                    key={option}
-                    label={option}
-                    selected={value === option}
-                    onPress={() => choose(option)}
-                  />
-                ))}
-              </View>
-            ) : null}
-          </ScrollView>
-        )}
-      </Animated.View>
-
-      {needsContinue ? (
-        <View
-          style={{
-            paddingHorizontal: 24,
-            paddingTop: KEYBOARD_FOOTER_GAP,
-            paddingBottom: bottomPad,
-            gap: 14,
-            backgroundColor: colors.bg,
-          }}
-        >
-          {saveError ? (
-            <Text
-              style={{
-                fontFamily: fonts.sans,
-                fontSize: 14,
-                lineHeight: 20,
-                color: colors.text2,
-                textAlign: 'center',
+            </View>
+          ) : (
+            <ScrollView
+              ref={scrollRef}
+              style={{ flex: 1 }}
+              contentContainerStyle={{
+                flexGrow: 1,
+                paddingTop: questionTop(step.input.type),
+                paddingBottom: needsContinue ? KEYBOARD_FOOTER_GAP : bottomPad,
               }}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+              showsVerticalScrollIndicator={false}
             >
-              {saveError}
-            </Text>
-          ) : null}
-          {step.input.type === 'number' && step.input.allowUnknown ? (
+              <View style={{ paddingHorizontal: 28 }}>
+                {step.kicker ? (
+                  <Text style={{ fontFamily: fonts.sans, fontSize: 15, lineHeight: 22, color: colors.text2 }}>
+                    {g(step.kicker)}
+                  </Text>
+                ) : null}
+                <Text
+                  style={{
+                    fontFamily: fonts.display,
+                    fontSize: 26,
+                    lineHeight: 32,
+                    letterSpacing: -0.4,
+                    color: colors.text,
+                    marginTop: step.input.type === 'scale' ? 0 : 14,
+                  }}
+                >
+                  {g(step.title)}
+                </Text>
+                {step.support ? (
+                  <Text
+                    style={{
+                      fontFamily: fonts.sans,
+                      fontSize: 15,
+                      lineHeight: 22,
+                      color: colors.text2,
+                      marginTop: 14,
+                    }}
+                  >
+                    {g(step.support)}
+                  </Text>
+                ) : null}
+              </View>
+
+              {step.input.type === 'number' ? (
+                <View
+                  style={{ marginTop: 28, paddingHorizontal: 28, flexShrink: 0 }}
+                  onLayout={(event) => {
+                    fieldYRef.current = event.nativeEvent.layout.y;
+                  }}
+                >
+                  <SurveyField
+                    value={numberValue}
+                    placeholder={step.input.placeholder}
+                    onFocus={scrollFieldIntoView}
+                    onChangeText={(next) =>
+                      setAnswers((current) => ({ ...current, [step.key]: digitsOnly(next) }))
+                    }
+                  />
+                </View>
+              ) : null}
+
+              {step.input.type === 'scale' ? (
+                <View style={{ marginTop: step.support ? 28 : 62, paddingHorizontal: 24 }}>
+                  <SurveyScale
+                    value={value === undefined ? undefined : Number(value)}
+                    min={step.input.min}
+                    max={step.input.max}
+                    minLabel={step.input.minLabel}
+                    maxLabel={step.input.maxLabel}
+                    onChange={(next) => setAnswers((current) => ({ ...current, [step.key]: String(next) }))}
+                  />
+                </View>
+              ) : null}
+
+              {step.input.type === 'choice' ? <View style={{ flex: 1 }} /> : null}
+
+              {step.input.type === 'choice' ? (
+                <View style={{ gap: 8, paddingHorizontal: 24 }}>
+                  {step.input.options.map((option) => (
+                    <SurveyChoice
+                      key={option}
+                      label={option}
+                      selected={value === option}
+                      onPress={() => choose(option)}
+                    />
+                  ))}
+                </View>
+              ) : null}
+            </ScrollView>
+          )}
+        </Animated.View>
+
+        {needsContinue ? (
+          <View
+            style={{
+              paddingHorizontal: 24,
+              paddingTop: KEYBOARD_FOOTER_GAP,
+              paddingBottom: bottomPad,
+              gap: 14,
+              backgroundColor: colors.bg,
+            }}
+          >
+            {saveError ? (
+              <Text
+                style={{
+                  fontFamily: fonts.sans,
+                  fontSize: 14,
+                  lineHeight: 20,
+                  color: colors.text2,
+                  textAlign: 'center',
+                }}
+              >
+                {saveError}
+              </Text>
+            ) : null}
+            {step.input.type === 'number' && step.input.allowUnknown ? (
+              <BudButton
+                label="Não sei"
+                variant="outline"
+                disabled={saving}
+                onPress={() =>
+                  setAnswers((current) => ({ ...current, [step.key]: UNKNOWN_ANSWER }))
+                }
+              />
+            ) : null}
             <BudButton
-              label="Não sei"
-              variant="outline"
-              disabled={saving}
-              onPress={() =>
-                setAnswers((current) => ({ ...current, [step.key]: UNKNOWN_ANSWER }))
-              }
+              label={saveError ? 'Tentar de novo' : continueLabel}
+              disabled={!answered}
+              loading={saving}
+              onPress={goNext}
             />
-          ) : null}
-          <BudButton
-            label={saveError ? 'Tentar de novo' : continueLabel}
-            disabled={!answered}
-            loading={saving}
-            onPress={goNext}
-          />
-        </View>
-      ) : null}
-    </KeyboardAvoidingView>
+          </View>
+        ) : null}
+      </KeyboardAvoidingView>
+    </View>
   );
 }

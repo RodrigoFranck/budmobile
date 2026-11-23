@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-na
 import type { PlanPrices } from '@/billing/prices';
 import { fonts, useV3Colors } from '@/theme';
 import {
-  PaywallLeafIcon,
   PaywallMessageIcon,
   PaywallMicIcon,
   PaywallSparkleIcon,
@@ -15,11 +14,13 @@ const FEATURES = [
   { text: 'Conversas sem limite', Icon: PaywallMessageIcon },
   { text: 'Memória que liga os pontos entre as conversas', Icon: PaywallSparkleIcon },
   { text: 'Converse por voz quando quiser', Icon: PaywallMicIcon },
-  { text: 'Acesso ilimitado às atividades do app', Icon: PaywallLeafIcon },
 ] as const;
 
-const FIGMA_PRICE = 46;
-const FIGMA_PRICE_WIDTH = 177;
+const ANNUAL_SAVE_LABEL = 'economize 30%';
+const FIGMA_PRICE_ANNUAL = 42;
+const FIGMA_PRICE_MONTHLY = 46;
+const FIGMA_PRICE_WIDTH_ANNUAL = 210;
+const FIGMA_PRICE_WIDTH_MONTHLY = 160;
 const SUFFIX_AND_BADGE = 8 + 50 + 12 + 108;
 
 export function PaywallOfferCard({
@@ -34,12 +35,14 @@ export function PaywallOfferCard({
   const colors = useV3Colors();
   const { width: screenWidth } = useWindowDimensions();
   const annual = interval === 'annual';
-  const cardMargin = 16;
-  const cardPad = 16;
+  const cardMargin = 20;
+  const cardPad = 22;
   const inner = screenWidth - cardMargin * 2 - cardPad * 2;
+  const figmaPrice = annual ? FIGMA_PRICE_ANNUAL : FIGMA_PRICE_MONTHLY;
+  const figmaWidth = annual ? FIGMA_PRICE_WIDTH_ANNUAL : FIGMA_PRICE_WIDTH_MONTHLY;
   const priceSize = Math.min(
-    FIGMA_PRICE,
-    Math.max(36, Math.round(FIGMA_PRICE * ((inner - SUFFIX_AND_BADGE) / FIGMA_PRICE_WIDTH))),
+    figmaPrice,
+    Math.max(34, Math.round(figmaPrice * ((inner - SUFFIX_AND_BADGE) / figmaWidth))),
   );
 
   return (
@@ -58,7 +61,7 @@ export function PaywallOfferCard({
               onPress={() => onChangeInterval(option)}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
-              accessibilityLabel={option === 'annual' ? 'Anual, economize 36%' : 'Mensal'}
+              accessibilityLabel={option === 'annual' ? `Anual, ${ANNUAL_SAVE_LABEL}` : 'Mensal'}
               style={[styles.planTab, active ? { backgroundColor: colors.btn } : null]}
             >
               <Text
@@ -67,19 +70,31 @@ export function PaywallOfferCard({
                 minimumScaleFactor={0.9}
                 style={[styles.planTabText, { color: active ? colors.onBtn : colors.text2 }]}
               >
-                {option === 'annual' ? 'Anual · economize 36%' : 'Mensal'}
+                {option === 'annual' ? `Anual · ${ANNUAL_SAVE_LABEL}` : 'Mensal'}
               </Text>
             </Pressable>
           );
         })}
       </View>
 
-      <View style={styles.priceRow}>
+      <View style={[styles.priceRow, annual ? null : styles.priceRowMonthly]}>
         <View style={styles.priceGroup}>
-          <Text style={[styles.price, { color: colors.text, fontSize: priceSize, lineHeight: priceSize }]}>
-            {annual ? prices.annualPerMonth : prices.monthly}
+          <Text
+            accessibilityLabel={
+              annual
+                ? `Cobrado ${prices.annualTotal} por ano`
+                : `Cobrado ${prices.monthly} por mês`
+            }
+            style={[
+              styles.price,
+              { color: colors.text, fontSize: priceSize, lineHeight: annual ? 46 : priceSize },
+            ]}
+          >
+            {annual ? prices.annualTotal : prices.monthly}
           </Text>
-          <Text style={[styles.priceSuffix, { color: colors.text2 }]}>/ mês</Text>
+          <Text style={[styles.priceSuffix, { color: colors.text2 }]}>
+            {annual ? '/ ano' : '/ mês'}
+          </Text>
         </View>
         {annual ? (
           <View style={styles.badgeCol}>
@@ -91,7 +106,9 @@ export function PaywallOfferCard({
       </View>
 
       <Text style={[styles.billedHint, { color: colors.text3 }]}>
-        {annual ? `Cobrado ${prices.annualTotal} por ano` : 'Cobrado todo mês'}
+        {annual
+          ? `Equivale a ${prices.annualPerMonth}/mês · ${ANNUAL_SAVE_LABEL}`
+          : 'Cobrado todo mês'}
       </Text>
 
       <View style={[styles.rule, { backgroundColor: colors.line }]} />
@@ -141,6 +158,9 @@ const styles = StyleSheet.create({
     height: 70,
     paddingTop: 24,
     gap: 8,
+  },
+  priceRowMonthly: {
+    alignItems: 'flex-end',
   },
   priceGroup: {
     flexDirection: 'row',

@@ -38,6 +38,7 @@ import {
   clearPendingChatInsight,
   consumePendingChatInsight,
   registerChatInsightConsumer,
+  stashPendingChatInsight,
   takePendingChatInsight,
 } from '@/utils/navigateToChat';
 import {
@@ -111,7 +112,14 @@ const ChatSessionContext = createContext<ChatSessionContextValue | undefined>(un
 
 export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const { canSendInConversation, isSubscribed, refetch: refetchPlan } = useUserPlan();
+  const {
+    canSendInConversation,
+    isSubscribed,
+    requiresPremiumForContext,
+    refetch: refetchPlan,
+  } = useUserPlan();
+  const requiresPremiumForContextRef = useRef(requiresPremiumForContext);
+  requiresPremiumForContextRef.current = requiresPremiumForContext;
   const navigation = useNavigation<MainTabNavigationProp>();
   const route = useRoute();
   const isChatFocused = useIsFocused();
@@ -514,7 +522,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
             );
             streamingIdRef.current = null;
             if (error === PAYWALL_REQUIRED) {
-              navigation.navigate('Paywall');
+              navigation.navigate('Paywall', { interval: 'monthly' });
               return;
             }
             alert(`Erro: ${error}`);
@@ -541,8 +549,9 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const handleOpenInsightConversation = useCallback(
     async (insight: ChatInsightParam, contextOverride?: InsightContext | null) => {
       if (!currentConversationId || !user || sendInFlightRef.current) return;
-      if (!canSendMessageRef.current) {
-        navigation.navigate('Paywall');
+      // TF-112: contextual chat is Premium even with Free quota remaining.
+      if (requiresPremiumForContextRef.current || !canSendMessageRef.current) {
+        navigation.navigate('Paywall', { interval: 'monthly' });
         return;
       }
 
@@ -613,7 +622,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       if (!canSendMessageRef.current) {
         sendInFlightRef.current = false;
         setIsStreaming(false);
-        navigation.navigate('Paywall');
+        navigation.navigate('Paywall', { interval: 'monthly' });
         return;
       }
 
@@ -676,7 +685,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     async (image: ChatGalleryImage) => {
       if (!currentConversationId || !user || sendInFlightRef.current) return;
       if (!canSendMessageRef.current) {
-        navigation.navigate('Paywall');
+        navigation.navigate('Paywall', { interval: 'monthly' });
         return;
       }
 
@@ -812,6 +821,15 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
 
   const processIncomingChatInsight = useCallback(
     (insight: ChatInsightParam) => {
+      if (requiresPremiumForContextRef.current) {
+        stashPendingChatInsight(insight);
+        navigation.navigate('Paywall', {
+          interval: 'monthly',
+          resumePendingChatInsight: true,
+        });
+        return;
+      }
+
       const insightKey = `${insight.insightType}:${insight.title}:${insight.initialUserMessage ?? ''}:${insight.autoStartVoice ? 'voice' : 'text'}`;
       const isSamePending =
         handledInsightKeyRef.current === insightKey && pendingChatInsightRef.current;
@@ -829,7 +847,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
         bootstrapInsightSessionRef.current();
       });
     },
-    [applyChatInsight],
+    [applyChatInsight, navigation],
   );
 
   useEffect(() => {

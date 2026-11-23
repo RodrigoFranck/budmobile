@@ -1,12 +1,13 @@
-import { ActivityIndicator, Image, ImageBackground, ScrollView, Text, View } from 'react-native';
+import { Image, ImageBackground, ScrollView, Text, View } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
 
-import { BudButton, BudIconButton } from '@/components/v3';
+import { BudButton, BudIconButton, BudSkeletonBone, BudSkeletonPulse } from '@/components/v3';
 import { useDailyLetter } from '@/hooks/useDailyLetter';
 import { useGenderedCopy } from '@/hooks/useGenderedCopy';
 import { useStoredDailyLetter } from '@/hooks/useStoredDailyLetter';
+import { useUserPlan } from '@/hooks/useUserPlan';
 import { fonts, useV3Asset, useV3Colors } from '@/theme';
 import type { MainTabNavigationProp, MainTabParamList } from '@/types/navigation';
 import { buildLetterChatInsight } from '@/utils/buildLetterChatInsight';
@@ -18,13 +19,14 @@ import {
   parseDailyLetterBody,
 } from '@/utils/dailyLetter';
 import { getTodayInBrasilia } from '@/utils/dateUtils';
-import { navigateToChatTab } from '@/utils/navigateToChat';
+import { openContextualChatOrPaywall } from '@/utils/openContextualChatOrPaywall';
 
 export default function LetterOpenScreen() {
   const colors = useV3Colors();
   const assets = useV3Asset();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MainTabNavigationProp>();
+  const { requiresPremiumForContext } = useUserPlan();
   const route = useRoute<RouteProp<MainTabParamList, 'LetterOpen'>>();
   const letterDateParam = route.params?.letterDate;
   const today = getTodayInBrasilia();
@@ -67,15 +69,25 @@ export default function LetterOpenScreen() {
           <BudIconButton icon={X} accessibilityLabel="Fechar" onPress={handleClose} />
         </View>
         {loading && !letter ? (
-          <View
-            style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 }}
-            accessibilityLabel="Carregando carta"
+          <BudSkeletonPulse
+            accessibilityLabel="Preparando carta"
+            style={{ flex: 1, paddingHorizontal: 28, paddingTop: 24, gap: 16 }}
           >
-            <ActivityIndicator color={colors.accent} />
-            <Text style={{ fontFamily: fonts.sans, fontSize: 15, color: colors.text3 }}>
-              Carregando…
-            </Text>
-          </View>
+            <BudSkeletonBone width={120} height={12} borderRadius={6} colors={colors} />
+            <BudSkeletonBone width="88%" height={36} borderRadius={12} colors={colors} />
+            <BudSkeletonBone width="72%" height={36} borderRadius={12} colors={colors} />
+            <View style={{ marginTop: 12, gap: 10 }}>
+              <BudSkeletonBone width="100%" height={14} borderRadius={7} tone="line" colors={colors} />
+              <BudSkeletonBone width="100%" height={14} borderRadius={7} tone="line" colors={colors} />
+              <BudSkeletonBone width="92%" height={14} borderRadius={7} tone="line" colors={colors} />
+              <BudSkeletonBone width="78%" height={14} borderRadius={7} tone="line" colors={colors} />
+            </View>
+            <View style={{ marginTop: 20, gap: 10 }}>
+              <BudSkeletonBone width="100%" height={14} borderRadius={7} tone="line" colors={colors} />
+              <BudSkeletonBone width="86%" height={14} borderRadius={7} tone="line" colors={colors} />
+              <BudSkeletonBone width="64%" height={14} borderRadius={7} tone="line" colors={colors} />
+            </View>
+          </BudSkeletonPulse>
         ) : !letter ? (
           <View
             style={{ flex: 1, paddingHorizontal: 28, justifyContent: 'center', gap: 16 }}
@@ -212,14 +224,18 @@ export default function LetterOpenScreen() {
             <BudButton
               label="Conversar sobre isso"
               onPress={() =>
-                navigateToChatTab(navigation, {
-                  chatInsight: buildLetterChatInsight({
-                    letterId: letter?.id,
-                    title,
-                    shareText,
-                    opening,
-                  }),
-                })
+                openContextualChatOrPaywall(
+                  navigation,
+                  {
+                    chatInsight: buildLetterChatInsight({
+                      letterId: letter?.id,
+                      title,
+                      shareText,
+                      opening,
+                    }),
+                  },
+                  { requiresPremiumForContext },
+                )
               }
               style={{ marginTop: 32 }}
             />

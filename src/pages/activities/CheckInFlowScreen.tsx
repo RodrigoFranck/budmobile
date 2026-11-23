@@ -138,10 +138,7 @@ export default function CheckInFlowScreen() {
   );
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.bg }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <SurveyHeader
         title="Check-in"
         onBack={handleBack}
@@ -149,12 +146,16 @@ export default function CheckInFlowScreen() {
         progress={progress}
       />
 
+      <KeyboardAvoidingView
+        style={{ flex: 1, overflow: 'hidden' }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
           flexGrow: 1,
           paddingHorizontal: 24,
-          paddingTop: 32,
+          paddingTop: 24,
           paddingBottom: needsContinue ? 24 : Math.max(insets.bottom, 16) + 16,
         }}
         keyboardShouldPersistTaps="handled"
@@ -255,6 +256,7 @@ export default function CheckInFlowScreen() {
           />
         </View>
       ) : null}
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }

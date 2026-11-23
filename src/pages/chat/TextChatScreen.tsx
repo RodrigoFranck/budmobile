@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { KeyboardAvoidingView, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, View } from 'react-native';
 import {
   useFocusEffect,
   useNavigation,
@@ -14,11 +14,13 @@ import { MessageInputBar } from '@/components/chat/MessageInputBar';
 import { ScreenLoadingGate } from '@/components/ui/ScreenLoadingGate';
 import { Spacing } from '@/constants/styles';
 import { PlatformConstants } from '@/constants/layout';
+import { CRISIS_RESOURCES } from '@/constants/healthSafety';
 import { useTabScreenLoading } from '@/contexts/TabScreenContext';
 import { BudIconButton } from '@/components/v3';
 import { useChatSession } from '@/features/chat/ChatSessionProvider';
 import { useUserPlan } from '@/hooks/useUserPlan';
-import { LastFreeConversationBanner } from '@/pages/paywall/LastFreeConversationBanner';
+import { ChatQuotaBlockedBar } from '@/pages/paywall/ChatQuotaBlockedBar';
+import { FreeQuotaBar } from '@/pages/paywall/FreeQuotaBar';
 import { useV3Colors } from '@/theme';
 import type {
   ChatStackNavigationProp,
@@ -33,7 +35,14 @@ export default function TextChatScreen() {
   const tabLoading = useTabScreenLoading('Chat');
   const navigation = useNavigation<ChatStackNavigationProp>();
   const tabNavigation = useNavigation<MainTabNavigationProp>();
-  const { canSendInConversation, isLastFreeConversation } = useUserPlan();
+  const {
+    canSendInConversation,
+    showQuotaBar,
+    cotaRestantePct,
+    renovaEm,
+    isQuotaExhausted,
+    refetch: refetchPlan,
+  } = useUserPlan();
   const route = useRoute<RouteProp<ChatStackParamList, 'TextChat'>>();
   const {
     allMessages,
@@ -73,21 +82,32 @@ export default function TextChatScreen() {
     currentConversationId,
   } = useChatSession();
   const canSendMessage = canSendInConversation(currentConversationId ?? null);
-  const showLastFreeBanner = isLastFreeConversation || !canSendMessage;
+
+  const openPaywall = useCallback(() => {
+    tabNavigation.navigate('Paywall', { interval: 'monthly' });
+  }, [tabNavigation]);
 
   useFocusEffect(
     useCallback(() => {
       if (tabLoading) return;
 
       if (route.params?.autoStartVoice) {
-        requestAutoStartVoice();
+        if (canSendMessage) {
+          requestAutoStartVoice();
+        } else {
+          openPaywall();
+        }
         navigation.setParams({ autoStartVoice: undefined });
       }
 
       bootstrapInsightSession();
+      void refetchPlan();
     }, [
       bootstrapInsightSession,
+      canSendMessage,
       navigation,
+      openPaywall,
+      refetchPlan,
       requestAutoStartVoice,
       route.params?.autoStartVoice,
       tabLoading,
@@ -101,6 +121,15 @@ export default function TextChatScreen() {
         setIsVoiceModeActive(false);
       };
     }, [setIsVoiceModeActive, voiceInterfaceRef]),
+  );
+
+  const onAssistantRevealComplete = useCallback(
+    (messageId: string | number) => {
+      handleAssistantRevealComplete(messageId);
+      // TF-115: refresh remaining bar after Bud finishes (animate in FreeQuotaBar).
+      void refetchPlan();
+    },
+    [handleAssistantRevealComplete, refetchPlan],
   );
 
   const styles = useMemo(
@@ -140,32 +169,46 @@ export default function TextChatScreen() {
             loading={isStreaming || messagesLoading}
             topPadding={Spacing.base}
             scrollResetToken={chatHomeResetToken}
-            onAssistantRevealComplete={handleAssistantRevealComplete}
+            onAssistantRevealComplete={onAssistantRevealComplete}
           />
-          {showLastFreeBanner ? (
-            <LastFreeConversationBanner onPressPlans={() => tabNavigation.navigate('Paywall')} />
+          {showQuotaBar ? (
+            <FreeQuotaBar
+              cotaRestantePct={cotaRestantePct}
+              renovaEm={renovaEm}
+              onPressAssinar={openPaywall}
+            />
           ) : null}
-          <MessageInputBar
-            onSendMessage={handleSendMessage}
-            onSendImage={handleSendImage}
-            disabled={isStreaming || !canSendMessage}
-            paddingTop={showLastFreeBanner ? 14 : 12}
-            voiceAppearance="prominent"
-            voiceInterfaceRef={voiceInterfaceRef}
-            onVoiceModeChange={setIsVoiceModeActive}
-            onVoiceConnectingChange={setIsVoiceConnecting}
-            onVoiceSessionBusyChange={setIsVoiceSessionBusy}
-            onVoicePausedChange={setIsVoicePaused}
-            onVoiceMicMutedChange={setIsVoiceMicMuted}
-            onVoiceUserMessage={handleVoiceUserMessage}
-            onVoiceAssistantMessage={handleVoiceAssistantMessage}
-            onVoiceTranscript={setVoiceTranscript}
-            onSpeakingChange={setIsBudSpeaking}
-            userContext={userContext}
-            messageHistory={messageHistory}
-            recentInsights={recentInsights}
-            internalProfile={memoryLoading ? undefined : internalProfileText}
-          />
+          {isQuotaExhausted ? (
+            <ChatQuotaBlockedBar
+              onPressAssinar={openPaywall}
+              onPressHelp={() => {
+                const cvv = CRISIS_RESOURCES.find((r) => r.id === 'cvv');
+                if (cvv?.url) void Linking.openURL(cvv.url);
+              }}
+            />
+          ) : (
+            <MessageInputBar
+              onSendMessage={handleSendMessage}
+              onSendImage={handleSendImage}
+              disabled={isStreaming || !canSendMessage}
+              paddingTop={showQuotaBar ? 8 : 12}
+              voiceAppearance="prominent"
+              voiceInterfaceRef={voiceInterfaceRef}
+              onVoiceModeChange={setIsVoiceModeActive}
+              onVoiceConnectingChange={setIsVoiceConnecting}
+              onVoiceSessionBusyChange={setIsVoiceSessionBusy}
+              onVoicePausedChange={setIsVoicePaused}
+              onVoiceMicMutedChange={setIsVoiceMicMuted}
+              onVoiceUserMessage={handleVoiceUserMessage}
+              onVoiceAssistantMessage={handleVoiceAssistantMessage}
+              onVoiceTranscript={setVoiceTranscript}
+              onSpeakingChange={setIsBudSpeaking}
+              userContext={userContext}
+              messageHistory={messageHistory}
+              recentInsights={recentInsights}
+              internalProfile={memoryLoading ? undefined : internalProfileText}
+            />
+          )}
         </KeyboardAvoidingView>
         <VoiceMode
           visible={isVoiceModeActive}

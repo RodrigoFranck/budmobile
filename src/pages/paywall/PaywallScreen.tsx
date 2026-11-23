@@ -11,6 +11,8 @@ import { useUserPlan } from '@/hooks/useUserPlan';
 import { PaywallOfferCard, type PaywallInterval } from '@/pages/paywall/PaywallOfferCard';
 import { fonts, useV3Colors } from '@/theme';
 import type { MainTabParamList } from '@/types/navigation';
+import { navigateToChatTab, takePendingChatInsight } from '@/utils/navigateToChat';
+import { discardPendingContextualChat } from '@/utils/openContextualChatOrPaywall';
 
 type PaywallRoute = RouteProp<MainTabParamList, 'Paywall'>;
 
@@ -21,17 +23,30 @@ export default function PaywallScreen() {
   const route = useRoute<PaywallRoute>();
   const { showAlert } = useAppAlert();
   const { startCheckout, restorePurchases, prices } = useUserPlan();
-  const [interval, setInterval] = useState<PaywallInterval>(route.params?.interval ?? 'annual');
+  const [interval, setInterval] = useState<PaywallInterval>(route.params?.interval ?? 'monthly');
   const [submitting, setSubmitting] = useState(false);
   const annual = interval === 'annual';
+  const resumePending = Boolean(route.params?.resumePendingChatInsight);
 
-  const dismiss = () => navigation.goBack();
+  const dismiss = () => {
+    if (resumePending) discardPendingContextualChat();
+    navigation.goBack();
+  };
+
+  const afterUnlock = () => {
+    if (resumePending) {
+      const insight = takePendingChatInsight();
+      navigateToChatTab(navigation, insight ? { chatInsight: insight } : {});
+      return;
+    }
+    navigation.goBack();
+  };
 
   const handleSubscribe = async () => {
     setSubmitting(true);
     try {
       const purchased = await startCheckout(interval);
-      if (purchased) dismiss();
+      if (purchased) afterUnlock();
     } catch (error) {
       showAlert({
         title: 'Não foi possível assinar',
@@ -46,7 +61,7 @@ export default function PaywallScreen() {
     try {
       const restored = await restorePurchases();
       if (restored) {
-        dismiss();
+        afterUnlock();
         return;
       }
       showAlert({
@@ -92,7 +107,7 @@ export default function PaywallScreen() {
               </Text>
             </Text>
             <Text style={[styles.subtitle, { color: colors.text2 }]}>
-              Conversas sem limite, uma memória que acompanha você, o modo de voz e acesso ilimitado às atividades do app.
+              Conversas sem limite, uma memória que acompanha você e o modo de voz.
             </Text>
           </View>
 
@@ -104,11 +119,9 @@ export default function PaywallScreen() {
 
           <View style={styles.footer}>
             <Text style={[styles.renew, { color: colors.text2 }]}>
-              {'Renova em '}
-              <Text style={{ fontFamily: fonts.sansSemi, color: colors.text }}>
-                {annual ? `${prices.annualTotal} por ano` : `${prices.monthly} por mês`}
-              </Text>
-              {' · cancele quando quiser'}
+              {annual
+                ? `Renova em ${prices.annualTotal} por ano · cancele quando quiser`
+                : `Renova em ${prices.monthly} por mês · cancele quando quiser`}
             </Text>
 
             <BudButton

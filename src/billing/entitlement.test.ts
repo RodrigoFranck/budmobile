@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { canSendInFreeConversation, isSubscriptionEntitled } from './entitlement';
+import { canSendChat, canSendInFreeConversation, isSubscriptionEntitled } from './entitlement';
 import { formatYearlyAsMonthly } from './prices';
 import { intervalForProductId, isPremiumProductId } from './products';
 
@@ -54,19 +54,35 @@ test('active and canceled-in-period rows stay entitled', () => {
   );
 });
 
-test('the first conversation stays free until another one starts', () => {
+test('Free chat send follows server chat_liberado (monthly quota)', () => {
   assert.equal(
-    canSendInFreeConversation({
+    canSendChat({
       entitled: false,
-      freeConversationId: null,
-      conversationId: 'conv-1',
+      quota: { chatLiberado: true, cotaRestantePct: 60, renovaEm: null },
     }),
     true,
   );
   assert.equal(
+    canSendChat({
+      entitled: false,
+      quota: { chatLiberado: false, cotaRestantePct: 0, renovaEm: null },
+    }),
+    false,
+  );
+  assert.equal(
+    canSendChat({
+      entitled: true,
+      quota: { chatLiberado: false, cotaRestantePct: 0, renovaEm: null },
+    }),
+    true,
+  );
+});
+
+test('legacy free-conversation helper kept for migration coverage', () => {
+  assert.equal(
     canSendInFreeConversation({
       entitled: false,
-      freeConversationId: 'conv-1',
+      freeConversationId: null,
       conversationId: 'conv-1',
     }),
     true,
@@ -86,5 +102,5 @@ test('store product ids map to the paywall intervals', () => {
   assert.equal(isPremiumProductId('premium_mensal'), true);
   assert.equal(isPremiumProductId('com.other.app'), false);
   assert.equal(intervalForProductId('premium_anual'), 'annual');
-  assert.equal(formatYearlyAsMonthly(459.9, 'BRL').includes('38,33'), true);
+  assert.equal(formatYearlyAsMonthly(419.9, 'BRL').includes('34,99'), true);
 });

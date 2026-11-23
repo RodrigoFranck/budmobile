@@ -73,6 +73,10 @@ export const motion = {
   sheetMs: 300,
   fadeExitMs: 450,
   reorderMs: 200,
+  // TF-109 · Home skeleton pulse 100% ↔ 55% over 1.2s; content dissolve 200ms
+  skeletonPulseMs: 1200,
+  contentRevealMs: 200,
+  skeletonTimeoutMs: 3000,
 } as const;
 
 export type V3Colors = {

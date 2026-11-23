@@ -122,7 +122,7 @@ export default function SleepCheckInScreen() {
         }}
         progress={(index + 1) / STEPS.length}
       />
-      <View style={{ flex: 1, paddingHorizontal: 24, paddingTop: 32, paddingBottom: 24 }}>
+      <View style={{ flex: 1, overflow: 'hidden', paddingHorizontal: 24, paddingTop: 24, paddingBottom: 24 }}>
         {step.subtitle ? (
           <Text style={{ fontFamily: fonts.sans, fontSize: 15, lineHeight: 22, color: colors.text2 }}>
             {step.subtitle}

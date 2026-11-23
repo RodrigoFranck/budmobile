@@ -64,7 +64,13 @@ export type MainTabParamList = {
   SupportSent: undefined;
   Letter: undefined;
   LetterOpen: { letterDate?: string } | undefined;
-  Paywall: { interval?: 'monthly' | 'annual' } | undefined;
+  Paywall:
+    | {
+        interval?: 'monthly' | 'annual';
+        /** After subscribe from a contextual Free shortcut, open stashed chat insight. */
+        resumePendingChatInsight?: boolean;
+      }
+    | undefined;
   ActivityFlow: { activityId: ActivityId };
   Institution: { forced?: boolean } | undefined;
   InstitutionOptional: undefined;
