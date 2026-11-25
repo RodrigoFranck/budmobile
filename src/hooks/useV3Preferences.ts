@@ -39,6 +39,9 @@ export type V3Preferences = {
   appLock?: boolean;
   shareConversations?: boolean;
   shareResearch?: boolean;
+  /** Explicit consent to send chat/voice data to OpenAI + ElevenLabs (App Store 5.1.1 / 5.1.2). */
+  aiThirdPartyConsent?: boolean;
+  aiThirdPartyConsentVersion?: string;
   voice?: VoiceId;
   origin?: string;
   onboardingProfundo?: 'pulado' | 'completo';
@@ -102,6 +105,8 @@ export function parseV3Preferences(raw: unknown): V3Preferences {
     appLock: asBoolean(data.appLock, false),
     shareConversations: asBoolean(data.shareConversations, true),
     shareResearch: asBoolean(data.shareResearch, false),
+    aiThirdPartyConsent: asBoolean(data.aiThirdPartyConsent, false),
+    aiThirdPartyConsentVersion: asString(data.aiThirdPartyConsentVersion),
     voice: isVoiceId(data.voice) ? data.voice : undefined,
     origin: asString(data.origin),
     onboardingProfundo:
@@ -203,6 +208,8 @@ export function useV3Preferences() {
       appLock: Boolean(prefs.appLock),
       shareConversations: prefs.shareConversations !== false,
       shareResearch: Boolean(prefs.shareResearch),
+      aiThirdPartyConsent: Boolean(prefs.aiThirdPartyConsent),
+      aiThirdPartyConsentVersion: prefs.aiThirdPartyConsentVersion ?? '',
       origin: prefs.origin ?? '',
     };
   }, [prefs, profile]);

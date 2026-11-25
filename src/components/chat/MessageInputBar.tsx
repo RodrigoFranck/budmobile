@@ -35,6 +35,7 @@ interface MessageInputBarProps {
     description: string;
   }>;
   internalProfile?: string | null;
+  beforeStartVoice?: () => Promise<boolean>;
   voiceAppearance?: 'default' | 'companion' | 'prominent';
   paddingTop?: number;
 }
@@ -58,6 +59,7 @@ export function MessageInputBar({
   messageHistory,
   recentInsights,
   internalProfile,
+  beforeStartVoice,
   voiceAppearance,
   paddingTop = 12,
 }: MessageInputBarProps) {
@@ -115,6 +117,7 @@ export function MessageInputBar({
         onAssistantTranscript={onVoiceTranscript}
         onSpeakingChange={onSpeakingChange}
         onSafetyTriggered={onSafetyTriggered}
+        beforeStartConversation={beforeStartVoice}
         userContext={userContext}
         messageHistory={messageHistory}
         recentInsights={recentInsights}

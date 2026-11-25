@@ -111,6 +111,8 @@ export interface VoiceInterfaceProps {
   onAssistantTranscript?: (text: string) => void;
   onSpeakingChange?: (isSpeaking: boolean) => void;
   onSafetyTriggered?: () => void;
+  /** Return false to abort starting a voice session (e.g. AI third-party consent declined). */
+  beforeStartConversation?: () => Promise<boolean>;
   userContext?: UserContext;
   messageHistory?: Array<{ role: string; content: string }>;
   recentInsights?: Array<{
@@ -214,6 +216,7 @@ function VoiceInterfaceNativeInner(
     onAssistantTranscript,
     onSpeakingChange,
     onSafetyTriggered,
+    beforeStartConversation,
     userContext,
     messageHistory,
     recentInsights,
@@ -222,6 +225,8 @@ function VoiceInterfaceNativeInner(
   ref: React.Ref<VoiceInterfaceRef>,
 ) {
   const [sessionPhase, setSessionPhase] = useState<VoiceSessionPhase>('idle');
+  const beforeStartConversationRef = useRef(beforeStartConversation);
+  beforeStartConversationRef.current = beforeStartConversation;
   const startSessionPromiseRef = useRef<Promise<unknown> | null>(null);
   const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const processedRef = useRef<Set<string>>(new Set());
@@ -730,6 +735,12 @@ function VoiceInterfaceNativeInner(
       return;
     }
 
+    const gate = beforeStartConversationRef.current;
+    if (gate) {
+      const allowed = await gate();
+      if (!allowed) return;
+    }
+
     const generation = ++startGenerationRef.current;
     voiceSessionActiveRef.current = true;
     clearPausedState();
@@ -927,6 +938,7 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
       onAssistantTranscript,
       onSpeakingChange,
       onSafetyTriggered,
+      beforeStartConversation,
       userContext,
       messageHistory,
       recentInsights,
@@ -935,6 +947,8 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
     ref,
   ) {
     const [sessionPhase, setSessionPhase] = useState<VoiceSessionPhase>('idle');
+    const beforeStartConversationRef = useRef(beforeStartConversation);
+    beforeStartConversationRef.current = beforeStartConversation;
     const [isLoading, setIsLoading] = useState(false);
     const conversationRef = useRef<ElevenLabsConversation | null>(null);
     const lastSessionConfigRef = useRef<VoiceSessionStartOptions | null>(null);
@@ -1123,6 +1137,12 @@ const VoiceInterfaceWeb = forwardRef<VoiceInterfaceRef, VoiceInterfaceProps>(
     const startConversation = useCallback(async (options?: StartVoiceConversationOptions) => {
       if (sessionPhase !== 'idle') {
         return;
+      }
+
+      const gate = beforeStartConversationRef.current;
+      if (gate) {
+        const allowed = await gate();
+        if (!allowed) return;
       }
 
       const generation = ++startGenerationRef.current;

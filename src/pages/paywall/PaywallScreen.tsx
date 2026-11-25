@@ -22,11 +22,20 @@ export default function PaywallScreen() {
   const navigation = useNavigation();
   const route = useRoute<PaywallRoute>();
   const { showAlert } = useAppAlert();
-  const { startCheckout, restorePurchases, prices } = useUserPlan();
+  const {
+    startCheckout,
+    restorePurchases,
+    prices,
+    productsReady,
+    productsLoading,
+    productsError,
+    refreshStoreCatalog,
+  } = useUserPlan();
   const [interval, setInterval] = useState<PaywallInterval>(route.params?.interval ?? 'monthly');
   const [submitting, setSubmitting] = useState(false);
   const annual = interval === 'annual';
   const resumePending = Boolean(route.params?.resumePendingChatInsight);
+  const canSubscribe = productsReady && !productsLoading;
 
   const dismiss = () => {
     if (resumePending) discardPendingContextualChat();
@@ -43,6 +52,15 @@ export default function PaywallScreen() {
   };
 
   const handleSubscribe = async () => {
+    if (!canSubscribe) {
+      showAlert({
+        title: 'Planos indisponíveis',
+        message:
+          productsError ??
+          'Aguarde os planos carregarem da loja antes de assinar.',
+      });
+      return;
+    }
     setSubmitting(true);
     try {
       const purchased = await startCheckout(interval);
@@ -75,6 +93,12 @@ export default function PaywallScreen() {
       });
     }
   };
+
+  const subscribeLabel = productsLoading
+    ? 'Carregando planos…'
+    : productsReady
+      ? 'Assinar o Bud Premium'
+      : 'Planos indisponíveis';
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
@@ -124,11 +148,27 @@ export default function PaywallScreen() {
                 : `Renova em ${prices.monthly} por mês · cancele quando quiser`}
             </Text>
 
+            {!productsReady && !productsLoading && productsError ? (
+              <Text style={[styles.storeHint, { color: colors.text3 }]}>{productsError}</Text>
+            ) : null}
+
             <BudButton
-              label="Assinar o Bud Premium"
-              loading={submitting}
+              label={subscribeLabel}
+              loading={submitting || productsLoading}
+              disabled={!canSubscribe}
               onPress={() => void handleSubscribe()}
             />
+
+            {!productsReady && !productsLoading ? (
+              <Pressable
+                onPress={() => void refreshStoreCatalog()}
+                accessibilityRole="button"
+                accessibilityLabel="Tentar carregar planos de novo"
+                style={styles.retryHit}
+              >
+                <Text style={[styles.retryText, { color: colors.accent }]}>Tentar de novo</Text>
+              </Pressable>
+            ) : null}
 
             <Pressable
               onPress={dismiss}
@@ -197,6 +237,22 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     textAlign: 'center',
     marginBottom: 18,
+  },
+  storeHint: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  retryHit: {
+    alignItems: 'center',
+    paddingTop: 14,
+  },
+  retryText: {
+    fontFamily: fonts.sansSemi,
+    fontSize: 15,
+    lineHeight: 18,
   },
   skipHit: {
     alignItems: 'center',

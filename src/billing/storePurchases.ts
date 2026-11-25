@@ -74,6 +74,18 @@ export function pricesFromProducts(products: ProductSubscription[]): PlanPrices 
 let pricesOnce: Promise<PlanPrices> | null = null;
 let restoreOnce: Promise<boolean> | null = null;
 
+export type PremiumCatalog = {
+  prices: PlanPrices;
+  productsReady: boolean;
+};
+
+export function arePremiumProductsReady(): boolean {
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') return true;
+  const ids = PREMIUM_PRODUCT_IDS[platformKey()];
+  return cachedProducts.some((product) => product.id === ids.monthly)
+    && cachedProducts.some((product) => product.id === ids.annual);
+}
+
 export function loadPremiumPricesOnce(): Promise<PlanPrices> {
   if (!pricesOnce) {
     pricesOnce = loadPremiumPrices().catch((error: unknown) => {
@@ -92,6 +104,17 @@ export function restorePremiumPurchasesOnce(): Promise<boolean> {
     });
   }
   return restoreOnce;
+}
+
+export async function loadPremiumCatalog(): Promise<PremiumCatalog> {
+  const prices = await loadPremiumPrices();
+  return { prices, productsReady: arePremiumProductsReady() };
+}
+
+export async function reloadPremiumCatalog(): Promise<PremiumCatalog> {
+  pricesOnce = null;
+  cachedProducts = [];
+  return loadPremiumCatalog();
 }
 
 export async function loadPremiumPrices(): Promise<PlanPrices> {
@@ -214,7 +237,9 @@ export async function purchasePremium(interval: BillingInterval, userId: string)
   }
   const product = cachedProducts.find((item) => item.id === sku);
   if (!product) {
-    throw new Error('Esse plano ainda não está disponível na loja.');
+    throw new Error(
+      'A loja ainda não liberou este plano (premium_mensal_2 / premium_anual_2). Confira a conexão e tente de novo em instantes.',
+    );
   }
 
   const iap = await ensureConnection();

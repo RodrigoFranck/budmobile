@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 import {
   canSendChat,
@@ -15,9 +15,11 @@ import { FALLBACK_PLAN_PRICES, type PlanPrices } from '@/billing/prices';
 import type { BillingInterval } from '@/billing/products';
 import {
   PurchaseCancelled,
-  loadPremiumPricesOnce,
+  arePremiumProductsReady,
+  loadPremiumCatalog,
   openSubscriptionManagement,
   purchasePremium,
+  reloadPremiumCatalog,
   restorePremiumPurchases,
   restorePremiumPurchasesOnce,
 } from '@/billing/storePurchases';
@@ -97,6 +99,9 @@ export function useUserPlan() {
   const [storeProductId, setStoreProductId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(Boolean(userId));
   const [prices, setPrices] = useState<PlanPrices>(FALLBACK_PLAN_PRICES);
+  const [productsReady, setProductsReady] = useState(Platform.OS !== 'ios' && Platform.OS !== 'android');
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState<string | null>(null);
 
   const refetch = useCallback(async () => {
     if (!userId) {
@@ -141,14 +146,63 @@ export function useUserPlan() {
     return () => subscription.remove();
   }, [refetch]);
 
+  const refreshStoreCatalog = useCallback(async () => {
+    if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+      setProductsReady(true);
+      setProductsError(null);
+      return;
+    }
+    setProductsLoading(true);
+    setProductsError(null);
+    try {
+      const catalog = await reloadPremiumCatalog();
+      setPrices(catalog.prices);
+      setProductsReady(catalog.productsReady);
+      if (!catalog.productsReady) {
+        setProductsError(
+          'Os planos Premium ainda não apareceram na loja. Verifique a conexão e tente de novo.',
+        );
+      }
+    } catch {
+      setProductsReady(false);
+      setProductsError(
+        'Não foi possível carregar os planos da loja. Tente de novo em instantes.',
+      );
+    } finally {
+      setProductsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (!userId || developer) return;
+    if (!userId) return;
     let cancelled = false;
-    void loadPremiumPricesOnce()
-      .then((next) => {
-        if (!cancelled) setPrices(next);
+    setProductsLoading(true);
+    void loadPremiumCatalog()
+      .then((catalog) => {
+        if (cancelled) return;
+        setPrices(catalog.prices);
+        setProductsReady(catalog.productsReady);
+        setProductsError(
+          catalog.productsReady
+            ? null
+            : 'Os planos Premium ainda não apareceram na loja. Verifique a conexão e tente de novo.',
+        );
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (cancelled) return;
+        setProductsReady(false);
+        setProductsError(
+          'Não foi possível carregar os planos da loja. Tente de novo em instantes.',
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setProductsLoading(false);
+      });
+    if (developer) {
+      return () => {
+        cancelled = true;
+      };
+    }
     void restorePremiumPurchasesOnce()
       .then((restored) => {
         if (restored) return refetch();
@@ -188,6 +242,14 @@ export function useUserPlan() {
   const startCheckout = useCallback(
     async (interval: BillingInterval) => {
       if (!userId) throw new Error('Entre na sua conta para assinar.');
+      if (!arePremiumProductsReady()) {
+        await refreshStoreCatalog();
+        if (!arePremiumProductsReady()) {
+          throw new Error(
+            'A loja ainda não liberou este plano. Confira a conexão e toque em Tentar de novo.',
+          );
+        }
+      }
       try {
         await purchasePremium(interval, userId);
       } catch (error) {
@@ -197,7 +259,7 @@ export function useUserPlan() {
       await refetch();
       return true;
     },
-    [refetch, userId],
+    [refetch, refreshStoreCatalog, userId],
   );
 
   const restorePurchases = useCallback(async () => {
@@ -250,6 +312,10 @@ export function useUserPlan() {
     restorePurchases,
     manageSubscription,
     prices,
+    productsReady,
+    productsLoading,
+    productsError,
+    refreshStoreCatalog,
     isSubscribed: entitled,
   };
 }

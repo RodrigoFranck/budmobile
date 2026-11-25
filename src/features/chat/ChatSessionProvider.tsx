@@ -15,6 +15,7 @@ import { useFocusEffect, useIsFocused, useNavigation, useRoute } from '@react-na
 import { useAuth } from '@/contexts/AuthContext';
 import { ACTION_EVENTS, logActionEvent } from '@/analytics';
 import { PAYWALL_REQUIRED } from '@/billing/entitlement';
+import { useAiThirdPartyConsent } from '@/hooks/useAiThirdPartyConsent';
 import { useUserPlan } from '@/hooks/useUserPlan';
 import { useTabScreenContext } from '@/contexts/TabScreenContext';
 import { countUserTurns, matchApproach } from '@/utils/approachMatcher';
@@ -106,12 +107,16 @@ interface ChatSessionContextValue {
     description: string;
   }) => void;
   handleAssistantRevealComplete: (messageId: string | number) => void;
+  ensureAiThirdPartyConsent: () => Promise<boolean>;
 }
 
 const ChatSessionContext = createContext<ChatSessionContextValue | undefined>(undefined);
 
 export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const { ensureConsent, consentModal } = useAiThirdPartyConsent();
+  const ensureConsentRef = useRef(ensureConsent);
+  ensureConsentRef.current = ensureConsent;
   const {
     canSendInConversation,
     isSubscribed,
@@ -563,6 +568,9 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      const allowed = await ensureConsentRef.current();
+      if (!allowed) return;
+
       sendInFlightRef.current = true;
 
       const baseContext = contextOverride ?? mapChatInsightToContext(insight);
@@ -613,6 +621,10 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     ],
   );
 
+  const ensureAiThirdPartyConsent = useCallback(async () => {
+    return ensureConsentRef.current();
+  }, []);
+
   const handleSendMessage = useCallback(
     async (
       message: string,
@@ -631,6 +643,13 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
         sendInFlightRef.current = false;
         setIsStreaming(false);
         navigation.navigate('Paywall', { interval: 'monthly' });
+        return;
+      }
+
+      const allowed = await ensureConsentRef.current();
+      if (!allowed) {
+        sendInFlightRef.current = false;
+        setIsStreaming(false);
         return;
       }
 
@@ -696,6 +715,9 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
         navigation.navigate('Paywall', { interval: 'monthly' });
         return;
       }
+
+      const allowed = await ensureConsentRef.current();
+      if (!allowed) return;
 
       const validationError = validateChatGalleryImage(image);
       if (validationError) {
@@ -928,6 +950,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       trySendPendingInsight,
       handleVoiceInsight,
       handleAssistantRevealComplete,
+      ensureAiThirdPartyConsent,
     }),
     [
       currentConversationId,
@@ -960,11 +983,15 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       trySendPendingInsight,
       handleVoiceInsight,
       handleAssistantRevealComplete,
+      ensureAiThirdPartyConsent,
     ],
   );
 
   return (
-    <ChatSessionContext.Provider value={value}>{children}</ChatSessionContext.Provider>
+    <ChatSessionContext.Provider value={value}>
+      {children}
+      {consentModal}
+    </ChatSessionContext.Provider>
   );
 }
 

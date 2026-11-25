@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Text } from 'react-native';
+import { Linking, Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Activity, CreditCard, KeyRound, Mail, MessageSquare, Trash2 } from 'lucide-react-native';
+import { Activity, CreditCard, KeyRound, Mail, MessageSquare, Shield, Trash2 } from 'lucide-react-native';
 
 import { TOGGLE_SAVE_FAILED_MESSAGE } from '@/components/v3/BudToggle';
+import { PRIVACY_POLICY_URL } from '@/constants/healthSafety';
 import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppAudience } from '@/hooks/useAppAudience';
@@ -128,6 +129,12 @@ export default function AccountScreen() {
 
       <SectionLabel label="Privacidade e pesquisa" style={{ marginTop: 22 }} />
       <PrefGroup style={{ marginTop: 10 }}>
+        <PrefRow
+          icon={Shield}
+          label="Processamento com IA"
+          hint="OpenAI (texto) e ElevenLabs (voz)"
+          onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
+        />
         <PrefRow
           icon={MessageSquare}
           label="Compartilhar conversas"
