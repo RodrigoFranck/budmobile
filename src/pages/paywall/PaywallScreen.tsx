@@ -164,9 +164,9 @@ export default function PaywallScreen() {
                 onPress={() => void refreshStoreCatalog()}
                 accessibilityRole="button"
                 accessibilityLabel="Tentar carregar planos de novo"
-                style={styles.retryHit}
+                style={styles.skipHit}
               >
-                <Text style={[styles.retryText, { color: colors.accent }]}>Tentar de novo</Text>
+                <Text style={[styles.skipText, { color: colors.text }]}>Tentar de novo</Text>
               </Pressable>
             ) : null}
 
@@ -244,15 +244,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: 'center',
     marginBottom: 12,
-  },
-  retryHit: {
-    alignItems: 'center',
-    paddingTop: 14,
-  },
-  retryText: {
-    fontFamily: fonts.sansSemi,
-    fontSize: 15,
-    lineHeight: 18,
   },
   skipHit: {
     alignItems: 'center',

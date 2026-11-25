@@ -8,8 +8,8 @@ export const APP_STORE_REVIEW_NOTES = `Bud Premium IAP (sandbox)
 • Paid Applications Agreement must be Active; both subscriptions Cleared for Sale and attached to this version
 
 AI third-party consent (Guideline 5.1.1 / 5.1.2)
-• Before the first chat message or voice session, the app shows a consent modal naming OpenAI (text) and ElevenLabs (voice), what data is sent, and a link to the Privacy Policy
-• Decline blocks chat/voice; Accept is stored on the account and is not shown again for the current consent version
+• During onboarding (first commitment step), the app requires explicit consent naming OpenAI (text) and ElevenLabs (voice), what data is sent, and a link to the Privacy Policy — before the user reaches the main app
+• Existing accounts without consent see a full-screen consent gate after login
 • Privacy Policy: https://falecombud.com.br/legal/privacidade-bud-2026
 `;
 

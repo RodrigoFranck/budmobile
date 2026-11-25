@@ -33,9 +33,11 @@ import Animated, {
 
 import { BudButton, BudIconButton, BudRangePicker, BudToggle, VoicePicker } from '@/components/v3';
 import { TOGGLE_SAVE_FAILED_MESSAGE } from '@/components/v3/BudToggle';
+import { AiThirdPartyConsentCopy } from '@/components/privacy/AiThirdPartyConsentCopy';
 import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/constants/healthSafety';
 import { useAppAlert } from '@/contexts/AppAlertContext';
 import { useOnboardingFlow } from '@/contexts/OnboardingFlowContext';
+import { useAiThirdPartyConsent } from '@/hooks/useAiThirdPartyConsent';
 import { useAppAudience } from '@/hooks/useAppAudience';
 import { useAppProfileQuery } from '@/hooks/useAppProfileQuery';
 import { useOnboardingComplete } from '@/hooks/useOnboardingComplete';
@@ -463,7 +465,12 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
   const { startCheckout, restorePurchases, prices } = useUserPlan();
   const { showAlert } = useAppAlert();
   const { persist } = useV3Preferences();
+  const { hasConsent, acceptConsent } = useAiThirdPartyConsent();
   const { setNotificationsEnabled } = useNotificationPreferences();
+  const [aiConsentAccepted, setAiConsentAccepted] = useState(hasConsent);
+  useEffect(() => {
+    if (hasConsent) setAiConsentAccepted(true);
+  }, [hasConsent]);
   const [index, setIndex] = useState(0);
   const [hubOpen, setHubOpen] = useState(replay);
   const [fromHub, setFromHub] = useState(false);
@@ -585,6 +592,19 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
       }
     },
     [flow, persist, showAlert],
+  );
+
+  const commitAiConsent = useCallback(
+    async (next: boolean) => {
+      setAiConsentAccepted(next);
+      if (!next) return;
+      const saved = await acceptConsent();
+      if (!saved) {
+        setAiConsentAccepted(false);
+        showAlert({ title: TOGGLE_SAVE_FAILED_MESSAGE });
+      }
+    },
+    [acceptConsent, showAlert],
   );
 
   const clearExitLayer = useCallback(() => {
@@ -806,6 +826,14 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
   };
 
   const handleCta = async () => {
+    if (step.layout === 'commitment') {
+      if (!aiConsentAccepted) return;
+      const saved = await acceptConsent();
+      if (!saved) {
+        showAlert({ title: TOGGLE_SAVE_FAILED_MESSAGE });
+        return;
+      }
+    }
     if (step.layout === 'notify') {
       try {
         await setNotificationsEnabled(true);
@@ -895,6 +923,7 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
   const showBack = (replay || visiblePos > 0) && step.layout !== 'loading' && step.layout !== 'ready';
   const showSkip = Boolean(step.skippable) && step.layout !== 'ready' && step.layout !== 'paywall';
   const ctaDisabled =
+    (step.layout === 'commitment' && !aiConsentAccepted) ||
     (step.layout === 'multiSelect' && selectedMany.length === 0) ||
     (step.layout === 'text' && !currentValue.trim()) ||
     (step.layout === 'anythingElse' && !currentValue.trim());
@@ -905,10 +934,20 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
   const renderBody = () => {
     if (step.layout === 'commitment') {
       return (
-        <>
+        <ScrollView
+          style={styles.flex}
+          contentContainerStyle={{ paddingBottom: 12 }}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
           <View style={styles.flexCenter}>
             <Image source={artSource(step.art, assets)} style={styles.lock} resizeMode="contain" />
           </View>
+          <AiThirdPartyConsentCopy
+            accepted={aiConsentAccepted}
+            onAcceptedChange={(next) => void commitAiConsent(next)}
+            cardStyle={{ marginBottom: 12 }}
+          />
           <View style={[styles.toggleCard, { backgroundColor: colors.surface }]}>
             <BudToggle
               value={flow.shareConversations}
@@ -926,7 +965,7 @@ export default function OnboardingV3Screen({ replay = false }: { replay?: boolea
               </Text>
             </Pressable>
           </View>
-        </>
+        </ScrollView>
       );
     }
 

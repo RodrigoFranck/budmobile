@@ -31,6 +31,9 @@ import CrisisResourcesScreen from '@/pages/CrisisResources';
 import CheckInNavigator from '@/navigation/CheckInNavigator';
 import PsychologicalAssessmentNavigator from '@/navigation/PsychologicalAssessmentNavigator';
 import MainTabs from '@/navigation/MainTabs';
+import AiThirdPartyConsentScreen from '@/pages/privacy/AiThirdPartyConsentScreen';
+import { useAiThirdPartyConsent } from '@/hooks/useAiThirdPartyConsent';
+import { useAppProfileQuery } from '@/hooks/useAppProfileQuery';
 import type { RootStackParamList } from '@/types/navigation';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -46,6 +49,9 @@ export default function AppNavigator() {
     onboardingStatusLoaded,
     passwordRecoveryPending,
   } = useAuth();
+  const { hasConsent: aiThirdPartyConsented } = useAiThirdPartyConsent();
+  const { isLoading: profileLoading, isFetched: profileFetched } = useAppProfileQuery();
+  const aiConsentStatusLoaded = !user || (!profileLoading && profileFetched);
   const { mode } = useTheme();
   const navigationRef = useNavigationContainerRef<RootStackParamList>();
   const navTheme = useMemo(() => {
@@ -128,10 +134,12 @@ export default function AppNavigator() {
               <Stack.Screen name="Auth" component={AuthScreen} />
               <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             </>
-          ) : !onboardingStatusLoaded ? (
+          ) : !onboardingStatusLoaded || (onboardingCompleted && !aiConsentStatusLoaded) ? (
             <Stack.Screen name="Bootstrap" component={BootstrapScreen} />
           ) : !onboardingCompleted ? (
             <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
+          ) : !aiThirdPartyConsented ? (
+            <Stack.Screen name="AiThirdPartyConsent" component={AiThirdPartyConsentScreen} />
           ) : (
             <>
               <Stack.Screen name="MainTabs" component={MainTabs} />

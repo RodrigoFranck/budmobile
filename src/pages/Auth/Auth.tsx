@@ -442,7 +442,8 @@ export default function AuthScreen({ navigation }: Props) {
           >
             Política de Privacidade
           </Text>
-          .
+          , incluindo o processamento das conversas com OpenAI (texto) e ElevenLabs (voz). No
+          onboarding pedimos seu consentimento explícito antes de entrar no app.
         </Text>
       </View>
     </View>

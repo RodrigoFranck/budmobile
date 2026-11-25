@@ -80,7 +80,6 @@ export default function TextChatScreen() {
     requestAutoStartVoice,
     bootstrapInsightSession,
     currentConversationId,
-    ensureAiThirdPartyConsent,
   } = useChatSession();
   const canSendMessage = canSendInConversation(currentConversationId ?? null);
 
@@ -208,7 +207,6 @@ export default function TextChatScreen() {
               messageHistory={messageHistory}
               recentInsights={recentInsights}
               internalProfile={memoryLoading ? undefined : internalProfileText}
-              beforeStartVoice={ensureAiThirdPartyConsent}
             />
           )}
         </KeyboardAvoidingView>

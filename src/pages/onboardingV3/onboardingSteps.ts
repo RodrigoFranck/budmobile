@@ -94,7 +94,7 @@ export const ONBOARDING_V3_STEPS: OnboardingV3Step[] = [
     art: "lock",
     title: { before: "Nosso compromisso com ", accent: "você" },
     subtitle:
-      "Sua saúde mental é pessoal e privada. Suas conversas ficam protegidas, e você pode apagar sua conta quando quiser.",
+      "Sua saúde mental é pessoal e privada. Antes de continuar, precisamos do seu ok para processar as conversas com OpenAI (texto) e ElevenLabs (voz).",
     cta: "Continuar",
   },
   {

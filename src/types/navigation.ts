@@ -25,6 +25,7 @@ export type RootStackParamList = {
   PsychologicalAssessment: undefined;
   CheckIn: NavigatorScreenParams<CheckInStackParamList> | undefined;
   Onboarding: undefined;
+  AiThirdPartyConsent: undefined;
 };
 
 export type ChatTabParams = {
