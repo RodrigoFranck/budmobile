@@ -3,7 +3,7 @@
     "name": "Bud.",
     "slug": "budmobile",
     "scheme": "com.bud.app",
-    "version": "2.0.30",
+    "version": "2.0.31",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -18,7 +18,7 @@
       "bundleIdentifier": "com.bud.budios",
       "googleServicesFile": "./ios/budmobile/GoogleService-Info.plist",
       "usesAppleSignIn": true,
-      "buildNumber": "41",
+      "buildNumber": "42",
       "associatedDomains": [
         "applinks:falecombud.com.br"
       ],
@@ -29,7 +29,7 @@
         ]
       },
       "infoPlist": {
-        "NSCameraUsageDescription": "Bud precisa acessar a câmera para você tirar uma foto e anexar no chat ou no suporte.",
+        "NSCameraUsageDescription": "Bud precisa acessar a c\u00e2mera para voc\u00ea tirar uma foto e anexar no chat ou no suporte.",
         "NSMicrophoneUsageDescription": "Bud precisa acessar o microfone para conversas de voz.",
         "NSPhotoLibraryUsageDescription": "Bud precisa acessar suas fotos para anexar um print no suporte.",
         "NSFaceIDUsageDescription": "Bud usa o Face ID para desbloquear o app.",
@@ -82,7 +82,7 @@
         "expo-image-picker",
         {
           "photosPermission": "Bud precisa acessar suas fotos para anexar um print no suporte.",
-          "cameraPermission": "Bud precisa acessar a câmera para você tirar uma foto e anexar no chat ou no suporte."
+          "cameraPermission": "Bud precisa acessar a c\u00e2mera para voc\u00ea tirar uma foto e anexar no chat ou no suporte."
         }
       ],
       [
